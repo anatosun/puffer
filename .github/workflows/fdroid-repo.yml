@@ -34,8 +34,7 @@ env:
 
 jobs:
   update-repo:
-    # Prereleases (tags with a hyphen, such as v0.1.0-alpha.1) stay out of the F-Droid repo.
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && !contains(github.event.workflow_run.head_branch, '-'))
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,11 +71,15 @@ jobs:
           mkdir -p "work/metadata/$APP_ID"
           cp -a src/fastlane/metadata/android/. "work/metadata/$APP_ID/"
 
+          mkdir -p work/repo/icons
+          cp src/fastlane/metadata/android/en-US/images/icon.png work/repo/icons/icon.png
+
           echo "$KEYSTORE_BASE64" | base64 -d > work/keystore.p12
           owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY#*/}"
           cat > work/config.yml <<EOF
           repo_url: https://${owner}.github.io/${repo}/fdroid/repo
           repo_name: Puffer
+          repo_icon: icon.png
           repo_description: >-
             Official builds of Puffer, published from GitHub releases.
           archive_url: https://${owner}.github.io/${repo}/fdroid/archive

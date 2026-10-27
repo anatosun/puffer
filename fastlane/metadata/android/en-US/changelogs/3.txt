@@ -1,0 +1,9 @@
+- Instant mix and artist radio from your server's similar songs (AudioMuse-AI)
+- Create, rename, reorder and delete playlists
+- The queue survives a restart
+- Volume normalisation with ReplayGain
+- Browse by genre and decade, and rate songs and albums
+- Recent playlists on Home; tap a shelf title for the full list
+- Blurred artwork behind the player, swipe the cover to skip
+- Collapsing album, playlist and artist headers, with artist photos and biographies
+- Light mode, accent colours, Material You, and the Inter typeface
