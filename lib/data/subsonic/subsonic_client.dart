@@ -223,6 +223,42 @@ class SubsonicClient {
     );
   }
 
+  /// Songs similar to the song, album or artist [id]. Navidrome fills it from its agents, such as the AudioMuse-AI plugin.
+  Future<List<Track>> getSimilarSongs(String id, {int count = 50}) async {
+    final body = await _get('getSimilarSongs', {'id': id, 'count': count});
+    return jsonList((body['similarSongs'] as Json?)?['song'])
+        .map(Track.new)
+        .toList();
+  }
+
+  /// Songs similar to an artist (ID3), used for artist radio.
+  Future<List<Track>> getSimilarSongs2(
+    String artistId, {
+    int count = 50,
+  }) async {
+    final body = await _get('getSimilarSongs2', {
+      'id': artistId,
+      'count': count,
+    });
+    return jsonList((body['similarSongs2'] as Json?)?['song'])
+        .map(Track.new)
+        .toList();
+  }
+
+  /// Songs that sound like [id], most similar first. Requires the OpenSubsonic `sonicSimilarity` extension.
+  Future<List<Track>> getSonicSimilarTracks(String id, {int count = 50}) async {
+    final body = await _get('getSonicSimilarTracks', {
+      'id': id,
+      'count': count,
+    });
+    return [
+      for (final match in jsonList(body['sonicMatch']))
+        Track(match['entry'] as Json),
+    ];
+  }
+
+  bool get hasSonicSimilarity => extensions.contains('sonicSimilarity');
+
   Future<void> star({String? trackId, String? albumId, String? artistId}) =>
       _get('star', {'id': trackId, 'albumId': albumId, 'artistId': artistId});
 

@@ -193,6 +193,29 @@ class LibraryRepository {
     return json == null ? null : Album(json as Json);
   }
 
+  /// A mix starting from [seed] and continuing with songs that sound like it: from the sonic analysis of the server when it offers one, otherwise from its similar songs.
+  Future<List<Track>> instantMix(Track seed, {int count = 50}) async {
+    final similar = client.hasSonicSimilarity
+        ? await client.getSonicSimilarTracks(seed.id, count: count)
+        : await client.getSimilarSongs(seed.id, count: count);
+    final mix = [seed, ...similar.where((t) => t.id != seed.id)];
+    await cacheTracks(mix);
+    return mix;
+  }
+
+  /// Songs similar to an album or artist [id], for radio.
+  Future<List<Track>> radio({
+    String? artistId,
+    String? albumId,
+    int count = 50,
+  }) async {
+    final tracks = artistId != null
+        ? await client.getSimilarSongs2(artistId, count: count)
+        : await client.getSimilarSongs(albumId!, count: count);
+    await cacheTracks(tracks);
+    return tracks;
+  }
+
   Future<void> setStarred({
     required bool starred,
     String? trackId,

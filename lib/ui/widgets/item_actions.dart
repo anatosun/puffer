@@ -21,6 +21,7 @@ Future<void> showItemActions(
   String? coverArt,
   bool? starred,
   Future<List<Track>> Function()? tracks,
+  Future<List<Track>> Function()? mix,
   String? albumId,
   String? artistId,
 }) {
@@ -63,6 +64,24 @@ Future<void> showItemActions(
                       ),
               ),
               const Divider(height: 1),
+              if (mix != null && !offline)
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome),
+                  title: Text(
+                    kind == PinKind.track ? 'Instant mix' : 'Start radio',
+                  ),
+                  onTap: () async {
+                    close();
+                    await runPlayback(() async {
+                      final tracks = await mix();
+                      if (tracks.isEmpty) {
+                        showMessage('The server found no similar songs');
+                        return;
+                      }
+                      await handler.playTracks(tracks);
+                    });
+                  },
+                ),
               if (tracks != null) ...[
                 ListTile(
                   leading: const Icon(Icons.playlist_play),
@@ -181,6 +200,7 @@ Future<void> showTrackActions(
   coverArt: track.coverArt,
   starred: track.starred,
   tracks: () async => [track],
+  mix: () => ref.read(repositoryProvider)!.instantMix(track),
   albumId: track.albumId,
   artistId: track.artistId,
 );

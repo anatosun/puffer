@@ -188,6 +188,7 @@ Future<void> showAlbumActions(
   starred: album.starred,
   tracks: () async =>
       (await ref.read(repositoryProvider)!.album(album.id)).songs,
+  mix: () => ref.read(repositoryProvider)!.radio(albumId: album.id),
   artistId: album.artistId,
 );
 
@@ -282,6 +283,7 @@ class ArtistTile extends ConsumerWidget {
         title: artist.name,
         coverArt: artist.coverArt,
         starred: artist.starred,
+        mix: () => ref.read(repositoryProvider)!.radio(artistId: artist.id),
       ),
     );
   }
