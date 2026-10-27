@@ -45,6 +45,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (_, _) => const NoTransitionPage(child: LibraryPage()),
           ),
           GoRoute(
+            path: '/library/:section',
+            builder: (_, s) => LibrarySectionPage(
+              LibrarySection.values.byName(s.pathParameters['section']!),
+            ),
+          ),
+          GoRoute(
             path: '/search',
             pageBuilder: (_, _) => const NoTransitionPage(child: SearchPage()),
           ),
@@ -103,7 +109,10 @@ class _Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final index = _tabs.indexWhere(location.startsWith);
+    // Settings open from the library, so the library tab stays selected.
+    final index = location.startsWith('/settings')
+        ? 1
+        : _tabs.indexWhere(location.startsWith);
     return Scaffold(
       body: child,
       bottomNavigationBar: Column(
