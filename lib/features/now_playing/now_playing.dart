@@ -49,6 +49,7 @@ class _NowPlayingArtwork extends ConsumerWidget {
         height: size,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        errorBuilder: (_, _, _) => Artwork(null, size: size, radius: 0),
       ),
     );
   }
