@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../../features/collection/playlist_edit.dart';
 import '../messages.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
@@ -24,6 +25,7 @@ Future<void> showItemActions(
   Future<List<Track>> Function()? mix,
   String? albumId,
   String? artistId,
+  Playlist? playlist,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -101,6 +103,35 @@ Future<void> showItemActions(
                     await runPlayback(
                       () async => handler.addTracks(await tracks()),
                     );
+                  },
+                ),
+              ],
+              if (tracks != null && !offline)
+                ListTile(
+                  leading: const Icon(Icons.playlist_add_check),
+                  title: const Text('Add to playlist'),
+                  onTap: () {
+                    close();
+                    showAddToPlaylist(context, ref, tracks);
+                  },
+                ),
+              if (playlist != null &&
+                  !offline &&
+                  ownsPlaylist(ref, playlist)) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Rename'),
+                  onTap: () {
+                    close();
+                    renamePlaylist(context, ref, playlist);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('Delete playlist'),
+                  onTap: () {
+                    close();
+                    deletePlaylist(context, ref, playlist);
                   },
                 ),
               ],

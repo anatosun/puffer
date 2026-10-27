@@ -39,9 +39,6 @@ final showDownloadedProvider = Provider<bool>(
 final _artistsProvider = FutureProvider.autoDispose<List<Artist>>(
   (ref) async => await ref.watch(repositoryProvider)?.artists() ?? const [],
 );
-final _playlistsProvider = FutureProvider.autoDispose<List<Playlist>>(
-  (ref) async => await ref.watch(repositoryProvider)?.playlists() ?? const [],
-);
 
 enum LibrarySection {
   playlists('Playlists', Icons.queue_music),
@@ -206,12 +203,12 @@ class LibrarySectionPage extends ConsumerWidget {
         empty: 'No downloaded playlists',
       ),
       (LibrarySection.playlists, false) => AsyncList(
-        ref.watch(_playlistsProvider),
+        ref.watch(recentPlaylistsProvider),
         (playlists) => ListView.builder(
           itemCount: playlists.length,
           itemBuilder: (_, i) => PlaylistTile(playlists[i]),
         ),
-        onRetry: () => ref.invalidate(_playlistsProvider),
+        onRetry: () => ref.invalidate(recentPlaylistsProvider),
       ),
       (LibrarySection.songs, _) => AsyncList(
         ref.watch(downloadedTracksProvider),

@@ -22,12 +22,16 @@ class TrackTile extends ConsumerWidget {
     required this.index,
     this.showArtwork = true,
     this.showNumber = false,
+    this.handle,
   });
 
   final List<Track> tracks;
   final int index;
   final bool showArtwork;
   final bool showNumber;
+
+  /// A drag handle, shown last in rows of editable playlists.
+  final Widget? handle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -75,6 +79,7 @@ class TrackTile extends ConsumerWidget {
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
+          ?handle,
         ],
       ),
       onTap: playable ? () => playFrom(ref, tracks, index) : null,
@@ -393,6 +398,7 @@ Future<void> showPlaylistActions(
   title: playlist.name,
   subtitle: '${playlist.songCount} songs',
   coverArt: playlist.coverArt,
+  playlist: playlist,
   tracks: () async =>
       (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
 );

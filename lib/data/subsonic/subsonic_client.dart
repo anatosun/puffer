@@ -198,6 +198,31 @@ class SubsonicClient {
   Future<Playlist> getPlaylist(String id) async =>
       Playlist((await _get('getPlaylist', {'id': id}))['playlist'] as Json);
 
+  /// Creates a playlist, or replaces the songs of [playlistId] with [songIds] in that order.
+  Future<void> createPlaylist({
+    String? name,
+    String? playlistId,
+    List<String> songIds = const [],
+  }) => _get('createPlaylist', {
+    'name': name,
+    'playlistId': playlistId,
+    'songId': songIds,
+  });
+
+  Future<void> updatePlaylist(
+    String id, {
+    String? name,
+    List<String> songIdsToAdd = const [],
+    List<int> songIndexesToRemove = const [],
+  }) => _get('updatePlaylist', {
+    'playlistId': id,
+    'name': name,
+    'songIdToAdd': songIdsToAdd,
+    'songIndexToRemove': songIndexesToRemove,
+  });
+
+  Future<void> deletePlaylist(String id) => _get('deletePlaylist', {'id': id});
+
   Future<SearchResult> search(String query, {int count = 20}) async {
     final body = await _get('search3', {
       'query': query,
