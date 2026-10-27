@@ -98,9 +98,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # The tag given by hand, else the tag of the release that triggered this run, else the newest release (prereleases included).
           tag="${{ inputs.tag }}"
+          [ -z "$tag" ] && tag="${{ github.event.workflow_run.head_branch }}"
           if [ -z "$tag" ]; then
-            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            tag=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName')
           fi
           echo "Adding $tag"
           # Each per-ABI APK has its own versionCode (ABI number * 1000 + build number); the universal APK has the build number and would clash with them.
