@@ -48,6 +48,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (_, _) => const NoTransitionPage(child: LibraryPage()),
           ),
           GoRoute(
+            path: '/home/:shelf',
+            builder: (_, s) =>
+                ShelfPage(HomeShelf.values.byName(s.pathParameters['shelf']!)),
+          ),
+          GoRoute(
             path: '/library/:section',
             builder: (_, s) => LibrarySectionPage(
               LibrarySection.values.byName(s.pathParameters['section']!),

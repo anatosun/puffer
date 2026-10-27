@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
+import '../../ui/theme.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
+import '../library/album_lists.dart';
 import '../library/downloaded.dart';
 
 final albumListProvider = FutureProvider.autoDispose
@@ -25,7 +28,7 @@ final recentPlaylistsProvider = FutureProvider.autoDispose<List<Playlist>>((
   if (repository == null) return const [];
   final playlists = [...await repository.playlists()];
   playlists.sort((a, b) => (b.changed ?? '').compareTo(a.changed ?? ''));
-  return playlists.take(20).toList();
+  return playlists;
 });
 
 class HomePage extends ConsumerWidget {
@@ -65,19 +68,21 @@ class HomePage extends ConsumerWidget {
                   (!offline || setting.shelf == HomeShelf.downloaded))
                 switch (setting.shelf) {
                   HomeShelf.downloaded => _Shelf(
-                    title: setting.shelf.label,
+                    shelf: setting.shelf,
                     items: ref.watch(downloadedAlbumsProvider),
                     builder: (albums, loading) =>
                         AlbumShelf(albums, loading: loading),
                   ),
                   HomeShelf.playlists => _Shelf(
-                    title: setting.shelf.label,
+                    shelf: setting.shelf,
                     items: ref.watch(recentPlaylistsProvider),
-                    builder: (playlists, loading) =>
-                        PlaylistShelf(playlists, loading: loading),
+                    builder: (playlists, loading) => PlaylistShelf(
+                      playlists.take(20).toList(),
+                      loading: loading,
+                    ),
                   ),
                   _ => _Shelf(
-                    title: setting.shelf.label,
+                    shelf: setting.shelf,
                     items: ref.watch(
                       albumListProvider(setting.shelf.albumList!),
                     ),
@@ -92,14 +97,15 @@ class HomePage extends ConsumerWidget {
   }
 }
 
+/// A shelf of Home. Its title opens the full list.
 class _Shelf<T> extends StatelessWidget {
   const _Shelf({
-    required this.title,
+    required this.shelf,
     required this.items,
     required this.builder,
   });
 
-  final String title;
+  final HomeShelf shelf;
   final AsyncValue<List<T>> items;
   final Widget Function(List<T> items, bool loading) builder;
 
@@ -110,12 +116,53 @@ class _Shelf<T> extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+        InkWell(
+          onTap: () => context.push('/home/${shelf.name}'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 8, 10),
+            child: Row(
+              children: [
+                Text(
+                  shelf.label,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Icon(Icons.chevron_right, color: context.faint),
+              ],
+            ),
+          ),
         ),
         builder(list, items.isLoading && list.isEmpty),
       ],
+    );
+  }
+}
+
+/// Every item of a Home shelf.
+class ShelfPage extends ConsumerWidget {
+  const ShelfPage(this.shelf, {super.key});
+
+  final HomeShelf shelf;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: Text(shelf.label), actions: const [OutputButton()]),
+      body: switch (shelf) {
+        HomeShelf.downloaded => AsyncList(
+          ref.watch(downloadedAlbumsProvider),
+          (albums) => AlbumGrid(albums),
+          empty: 'No downloaded albums',
+        ),
+        HomeShelf.playlists => AsyncList(
+          ref.watch(recentPlaylistsProvider),
+          (playlists) => ListView.builder(
+            itemCount: playlists.length,
+            itemBuilder: (_, i) => PlaylistTile(playlists[i]),
+          ),
+          onRetry: () => ref.invalidate(recentPlaylistsProvider),
+        ),
+        _ => PagedAlbumGrid(shelf.albumList!),
+      },
     );
   }
 }

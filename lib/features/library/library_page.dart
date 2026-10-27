@@ -9,6 +9,7 @@ import '../../ui/widgets/tiles.dart';
 import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
 import '../home/home_page.dart';
+import 'album_lists.dart';
 import 'downloaded.dart';
 import '../../ui/theme.dart';
 
@@ -41,52 +42,6 @@ final _artistsProvider = FutureProvider.autoDispose<List<Artist>>(
 final _playlistsProvider = FutureProvider.autoDispose<List<Playlist>>(
   (ref) async => await ref.watch(repositoryProvider)?.playlists() ?? const [],
 );
-
-/// All albums, loaded page by page as the list scrolls.
-class PagedAlbumsNotifier extends AsyncNotifier<List<Album>> {
-  static const _pageSize = 100;
-  bool _done = false;
-  bool _loading = false;
-
-  @override
-  Future<List<Album>> build() async {
-    _done = false;
-    final repository = ref.watch(repositoryProvider);
-    if (repository == null) return const [];
-    final page = await repository.albumList(
-      'alphabeticalByName',
-      size: _pageSize,
-    );
-    _done = page.length < _pageSize;
-    return page;
-  }
-
-  Future<void> loadMore() async {
-    final current = state.value;
-    if (_done || _loading || current == null) return;
-    _loading = true;
-    try {
-      final page = await ref
-          .read(repositoryProvider)!
-          .albumList(
-            'alphabeticalByName',
-            size: _pageSize,
-            offset: current.length,
-          );
-      _done = page.length < _pageSize;
-      state = AsyncData([...current, ...page]);
-    } on Exception {
-      _done = true;
-    } finally {
-      _loading = false;
-    }
-  }
-}
-
-final pagedAlbumsProvider =
-    AsyncNotifierProvider<PagedAlbumsNotifier, List<Album>>(
-      PagedAlbumsNotifier.new,
-    );
 
 enum LibrarySection {
   playlists('Playlists', Icons.queue_music),
@@ -218,13 +173,15 @@ class LibrarySectionPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final downloaded = ref.watch(showDownloadedProvider);
     final body = switch ((section, downloaded)) {
-      (LibrarySection.albums, true) => _AsyncList(
+      (LibrarySection.albums, true) => AsyncList(
         ref.watch(downloadedAlbumsProvider),
         (albums) => AlbumGrid(albums),
         empty: 'No downloaded albums',
       ),
-      (LibrarySection.albums, false) => const _AllAlbums(),
-      (LibrarySection.artists, true) => _AsyncList(
+      (LibrarySection.albums, false) => const PagedAlbumGrid(
+        'alphabeticalByName',
+      ),
+      (LibrarySection.artists, true) => AsyncList(
         ref.watch(downloadedArtistsProvider),
         (artists) => ListView.builder(
           itemCount: artists.length,
@@ -232,7 +189,7 @@ class LibrarySectionPage extends ConsumerWidget {
         ),
         empty: 'No downloaded artists',
       ),
-      (LibrarySection.artists, false) => _AsyncList(
+      (LibrarySection.artists, false) => AsyncList(
         ref.watch(_artistsProvider),
         (artists) => ListView.builder(
           itemCount: artists.length,
@@ -240,7 +197,7 @@ class LibrarySectionPage extends ConsumerWidget {
         ),
         onRetry: () => ref.invalidate(_artistsProvider),
       ),
-      (LibrarySection.playlists, true) => _AsyncList(
+      (LibrarySection.playlists, true) => AsyncList(
         ref.watch(downloadedPlaylistsProvider),
         (playlists) => ListView.builder(
           itemCount: playlists.length,
@@ -248,7 +205,7 @@ class LibrarySectionPage extends ConsumerWidget {
         ),
         empty: 'No downloaded playlists',
       ),
-      (LibrarySection.playlists, false) => _AsyncList(
+      (LibrarySection.playlists, false) => AsyncList(
         ref.watch(_playlistsProvider),
         (playlists) => ListView.builder(
           itemCount: playlists.length,
@@ -256,7 +213,7 @@ class LibrarySectionPage extends ConsumerWidget {
         ),
         onRetry: () => ref.invalidate(_playlistsProvider),
       ),
-      (LibrarySection.songs, _) => _AsyncList(
+      (LibrarySection.songs, _) => AsyncList(
         ref.watch(downloadedTracksProvider),
         (tracks) => ListView.builder(
           itemCount: tracks.length,
@@ -273,61 +230,4 @@ class LibrarySectionPage extends ConsumerWidget {
       body: body,
     );
   }
-}
-
-class _AllAlbums extends ConsumerStatefulWidget {
-  const _AllAlbums();
-
-  @override
-  ConsumerState<_AllAlbums> createState() => _AllAlbumsState();
-}
-
-class _AllAlbumsState extends ConsumerState<_AllAlbums> {
-  final _controller = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(() {
-      if (_controller.position.extentAfter < 800) {
-        ref.read(pagedAlbumsProvider.notifier).loadMore();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => _AsyncList(
-    ref.watch(pagedAlbumsProvider),
-    (albums) => AlbumGrid(albums, controller: _controller),
-    onRetry: () => ref.invalidate(pagedAlbumsProvider),
-  );
-}
-
-class _AsyncList<T> extends StatelessWidget {
-  const _AsyncList(
-    this.value,
-    this.builder, {
-    this.empty = 'Nothing here yet',
-    this.onRetry,
-  });
-
-  final AsyncValue<List<T>> value;
-  final Widget Function(List<T>) builder;
-  final String empty;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) => value.when(
-    data: (items) => items.isEmpty
-        ? MessageView(empty, icon: Icons.library_music_outlined)
-        : builder(items),
-    loading: () => const Center(child: CircularProgressIndicator()),
-    error: (e, _) => MessageView('$e', onRetry: onRetry),
-  );
 }
