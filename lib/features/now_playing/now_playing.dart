@@ -521,14 +521,34 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
   );
 }
 
-class _QueueSheet extends ConsumerWidget {
+/// The queue. Pressing and dragging a track moves it; swiping it away removes it.
+class _QueueSheet extends ConsumerStatefulWidget {
   const _QueueSheet();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QueueSheet> createState() => _QueueSheetState();
+}
+
+bool _sameOrder(List<QueueEntry> a, List<QueueEntry> b) =>
+    a.length == b.length &&
+    Iterable.generate(a.length).every((i) => a[i].id == b[i].id);
+
+class _QueueSheetState extends ConsumerState<_QueueSheet> {
+  /// The order after a move, shown until the output reports the new queue.
+  List<QueueEntry>? _moved;
+  List<QueueEntry>? _movedFrom;
+
+  @override
+  Widget build(BuildContext context) {
     final np = ref.watch(nowPlayingProvider).value;
-    final queue = np?.queue ?? const [];
+    final reported = np?.queue ?? const <QueueEntry>[];
+    if (_movedFrom != null && !_sameOrder(reported, _movedFrom!)) {
+      _moved = null;
+      _movedFrom = null;
+    }
+    final queue = _moved ?? reported;
     final controller = ref.read(playbackControllerProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -538,33 +558,46 @@ class _QueueSheet extends ConsumerWidget {
         ),
         Expanded(
           child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
             itemCount: queue.length,
-            onReorderItem: controller.move,
+            onReorderItem: (from, to) {
+              final moved = [...queue];
+              moved.insert(to, moved.removeAt(from));
+              setState(() {
+                _movedFrom = reported;
+                _moved = moved;
+              });
+              controller.move(from, to);
+            },
             itemBuilder: (context, i) {
               final item = queue[i];
-              return Dismissible(
+              return ReorderableDelayedDragStartListener(
                 key: ValueKey('${item.id}-$i'),
-                direction: DismissDirection.endToStart,
-                onDismissed: (_) => controller.removeAt(i),
-                background: Container(
-                  color: Colors.red.shade900,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 16),
-                  child: const Icon(Icons.delete),
-                ),
-                child: ListTile(
-                  selected: i == np?.index,
-                  title: Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                index: i,
+                child: Dismissible(
+                  key: ValueKey('dismiss-${item.id}-$i'),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) => controller.removeAt(i),
+                  background: Container(
+                    color: Colors.red.shade900,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 16),
+                    child: const Icon(Icons.delete),
                   ),
-                  subtitle: Text(
-                    item.artist ?? '',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: ListTile(
+                    selected: i == np?.index,
+                    title: Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      item.artist ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => controller.skipTo(i),
                   ),
-                  onTap: () => controller.skipTo(i),
                 ),
               );
             },
