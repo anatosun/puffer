@@ -175,6 +175,10 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> stop() async {
     await player.stop();
+    await player.clearAudioSources();
+    _tracks = const [];
+    queue.add(const []);
+    mediaItem.add(null);
     await super.stop();
   }
 

@@ -69,6 +69,20 @@ class NowPlaying {
   }
 }
 
+class QueueSnapshot {
+  const QueueSnapshot(
+    this.tracks,
+    this.index,
+    this.position, {
+    required this.playing,
+  });
+
+  final List<Track> tracks;
+  final int index;
+  final Duration position;
+  final bool playing;
+}
+
 abstract class PlaybackController {
   Stream<NowPlaying?> get state;
   NowPlaying? get current;
@@ -91,6 +105,12 @@ abstract class PlaybackController {
   Future<void> removeAt(int index);
   Future<void> move(int from, int to);
   Future<void> setVolume(int volume);
+
+  /// Stops playback and clears what is playing.
+  Future<void> stop();
+
+  /// The queue as Subsonic tracks with the current index and position, so it can move to another output. Null when the queue cannot be mapped to tracks.
+  Future<QueueSnapshot?> snapshot();
   void dispose();
 }
 
@@ -194,6 +214,20 @@ class LocalPlaybackController implements PlaybackController {
   Future<void> move(int from, int to) => handler.moveQueueItem(from, to);
   @override
   Future<void> setVolume(int volume) async {}
+
+  @override
+  Future<void> stop() => handler.stop();
+
+  @override
+  Future<QueueSnapshot?> snapshot() async {
+    if (handler.tracks.isEmpty) return null;
+    return QueueSnapshot(
+      List.of(handler.tracks),
+      handler.player.currentIndex ?? 0,
+      handler.player.position,
+      playing: handler.player.playing,
+    );
+  }
 
   @override
   void dispose() {

@@ -100,7 +100,7 @@ final maStatusProvider = StreamProvider<MaConnectionStatus>((ref) async* {
   yield* client.statusStream;
 });
 
-/// Players a person can pick as output, by name.
+/// Players that are shown and able to play, by name, including members following another player.
 final maPlayersProvider = StreamProvider<List<MaPlayer>>((ref) async* {
   final client = ref.watch(maClientProvider);
   if (client == null) {
@@ -108,7 +108,7 @@ final maPlayersProvider = StreamProvider<List<MaPlayer>>((ref) async* {
     return;
   }
   List<MaPlayer> selectable(Map<String, MaPlayer> players) =>
-      players.values.where((p) => p.selectable).toList()
+      players.values.where((p) => p.usable).toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   yield selectable(client.players);
   yield* client.playersStream.map(selectable);
@@ -175,23 +175,26 @@ final outputProvider = NotifierProvider<OutputNotifier, String?>(
   OutputNotifier.new,
 );
 
-/// Switches the output. The queue playing on this device moves to the player.
+/// Switches the output and moves the queue with it: between two Music Assistant players through Music Assistant, and between this device and a player through the Subsonic tracks of the queue.
 Future<void> switchOutput(WidgetRef ref, String? playerId) async {
   if (playerId == ref.read(outputProvider)) return;
-  final handler = ref.read(playerHandlerProvider);
-  final tracks = handler.tracks;
-  final index = handler.player.currentIndex ?? 0;
-  final position = handler.player.position;
-  final wasPlaying = handler.player.playing;
+  final source = ref.read(playbackControllerProvider);
 
+  if (source is MusicAssistantPlaybackController && playerId != null) {
+    await source.transferTo(playerId);
+    await ref.read(outputProvider.notifier).select(playerId);
+    return;
+  }
+
+  final snapshot = await source.snapshot();
+  final moving = snapshot != null && snapshot.playing;
+  if (moving) await source.stop();
   await ref.read(outputProvider.notifier).select(playerId);
-  if (playerId == null || !wasPlaying || tracks.isEmpty) return;
-
-  await handler.pause();
-  final controller = ref.read(playbackControllerProvider);
-  await controller.playTracks(tracks, index: index);
-  if (position > const Duration(seconds: 5)) {
-    await controller.seek(position);
+  if (!moving) return;
+  final target = ref.read(playbackControllerProvider);
+  await target.playTracks(snapshot.tracks, index: snapshot.index);
+  if (snapshot.position > const Duration(seconds: 5)) {
+    await target.seek(snapshot.position);
   }
 }
 
@@ -207,6 +210,13 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
       providerInstance: ref.watch(maSubsonicInstanceProvider),
       streamUri: (track) => ref.read(clientProvider)!.streamUri(track.id),
       onError: (e) => showMessage('$e'),
+      lookupTrack: (id) async {
+        try {
+          return await ref.read(repositoryProvider)?.track(id);
+        } on Exception {
+          return null;
+        }
+      },
     );
   } else {
     controller = LocalPlaybackController(handler);

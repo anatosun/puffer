@@ -279,4 +279,72 @@ void main() {
     controller.dispose();
     await client.close();
   });
+
+  test(
+    'the controller groups players, transfers the queue and stops',
+    () async {
+      final client = await connected();
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      );
+      await controller.setMembers(add: ['living']);
+      await controller.transferTo('living');
+      await controller.stop();
+      final sent = server.commands
+          .skip(3)
+          .where((c) => c['command'] != 'player_queues/items')
+          .map((c) => [c['command'], c['args']])
+          .toList();
+      expect(sent, [
+        [
+          'players/cmd/set_members',
+          {
+            'target_player': 'kitchen',
+            'player_ids_to_add': ['living'],
+          },
+        ],
+        [
+          'player_queues/transfer',
+          {'source_queue_id': 'kitchen', 'target_queue_id': 'living'},
+        ],
+        [
+          'player_queues/stop',
+          {'queue_id': 'kitchen'},
+        ],
+      ]);
+      controller.dispose();
+      await client.close();
+    },
+  );
+
+  test('a snapshot maps the queue items to Subsonic tracks', () async {
+    final client = await connected();
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      providerInstance: 'opensubsonic--abc',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      lookupTrack: (id) async => Track({'id': id, 'title': 'Looked up $id'}),
+    );
+    await pumpEventQueue();
+    server.send({
+      'event': 'queue_updated',
+      'object_id': 'kitchen',
+      'data': {
+        'queue_id': 'kitchen',
+        'active': true,
+        'state': 'playing',
+        'items': 2,
+        'current_index': 1,
+        'elapsed_time': 30,
+      },
+    });
+    // The fake answers player_queues/items with items a and b, which have no provider mappings.
+    await pumpEventQueue();
+    expect(await controller.snapshot(), isNull);
+    controller.dispose();
+    await client.close();
+  });
 }

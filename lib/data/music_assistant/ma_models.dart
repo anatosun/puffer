@@ -30,8 +30,16 @@ class MaPlayer {
   ];
   bool get isGroup => type == 'group' || groupMembers.length > 1;
 
+  /// Players this player can be grouped with.
+  Set<String> get canGroupWith => {
+    ...?(json['can_group_with'] as List?)?.cast<String>(),
+  };
+
+  /// Shown and able to play, whether or not it follows another player.
+  bool get usable => available && enabled && !hidden;
+
   /// Players a person can pick as output: available, enabled, shown, and not a member following another player.
-  bool get selectable => available && enabled && !hidden && syncedTo == null;
+  bool get selectable => usable && syncedTo == null;
 }
 
 class MaImage {

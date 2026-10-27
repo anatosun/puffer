@@ -15,6 +15,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     this.providerInstance,
     required this.streamUri,
     this.onError,
+    this.lookupTrack,
   }) {
     _subscriptions = [
       client.queuesStream.listen((_) => _emit()),
@@ -35,6 +36,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
 
   /// Receives failures of transport commands (play, pause, seek, …), which buttons call without awaiting.
   final void Function(Object error)? onError;
+
+  /// Loads a Subsonic track by ID, for queue items added by other Music Assistant clients.
+  final Future<Track?> Function(String id)? lookupTrack;
 
   late final List<StreamSubscription<Object?>> _subscriptions;
   final _controller = StreamController<NowPlaying?>.broadcast();
@@ -86,7 +90,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   NowPlaying? _build() {
     final queue = _queue;
     final item = queue?.currentItem;
-    if (queue == null || item == null) return null;
+    if (queue == null || item == null || queue.state == MaPlaybackState.idle) {
+      return null;
+    }
     final track = _trackFor(item, queue.currentIndex);
     final now = DateTime.now();
     return NowPlaying(
@@ -228,6 +234,49 @@ class MusicAssistantPlaybackController implements PlaybackController {
       ),
     );
   }
+
+  @override
+  Future<void> stop() => _control(_queueCommand('stop'));
+
+  @override
+  Future<QueueSnapshot?> snapshot() async {
+    final queue = _queue;
+    if (queue == null || _items.isEmpty) return null;
+    final tracks = <Track>[];
+    for (final (i, item) in _items.indexed) {
+      var track = _trackFor(item, i);
+      final id = providerInstance == null
+          ? null
+          : item.itemIdAt(providerInstance!);
+      if (track == null && id != null) track = await lookupTrack?.call(id);
+      if (track == null) return null;
+      tracks.add(track);
+    }
+    return QueueSnapshot(
+      tracks,
+      queue.currentIndex ?? 0,
+      queue.position(DateTime.now()),
+      playing: queue.state == MaPlaybackState.playing,
+    );
+  }
+
+  /// Adds players to the group led by this player, or removes them.
+  Future<void> setMembers({
+    List<String> add = const [],
+    List<String> remove = const [],
+  }) => _control(
+    client.command('players/cmd/set_members', {
+      'target_player': playerId,
+      if (add.isNotEmpty) 'player_ids_to_add': add,
+      if (remove.isNotEmpty) 'player_ids_to_remove': remove,
+    }),
+  );
+
+  /// Moves the queue of this player to another Music Assistant player.
+  Future<void> transferTo(String targetId) => client.command(
+    'player_queues/transfer',
+    {'source_queue_id': playerId, 'target_queue_id': targetId},
+  );
 
   @override
   void dispose() {
