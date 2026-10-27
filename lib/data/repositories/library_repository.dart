@@ -133,14 +133,35 @@ class LibraryRepository {
     decode: (j) => jsonList(j).map(Playlist.new).toList(),
   );
 
-  Future<List<Album>> albumList(String type, {int size = 50, int offset = 0}) =>
-      _fetch(
-        kind: 'list',
-        id: 'albums:$type:$size:$offset',
-        remote: () => client.getAlbumList(type, size: size, offset: offset),
-        encode: (l) => [for (final a in l) a.json],
-        decode: (j) => jsonList(j).map(Album.new).toList(),
-      );
+  Future<List<Album>> albumList(
+    String type, {
+    int size = 50,
+    int offset = 0,
+    String? genre,
+    int? fromYear,
+    int? toYear,
+  }) => _fetch(
+    kind: 'list',
+    id: 'albums:$type:$size:$offset:${genre ?? ''}:${fromYear ?? ''}:${toYear ?? ''}',
+    remote: () => client.getAlbumList(
+      type,
+      size: size,
+      offset: offset,
+      genre: genre,
+      fromYear: fromYear,
+      toYear: toYear,
+    ),
+    encode: (l) => [for (final a in l) a.json],
+    decode: (j) => jsonList(j).map(Album.new).toList(),
+  );
+
+  Future<List<Genre>> genres() => _fetch(
+    kind: 'list',
+    id: 'genres',
+    remote: client.getGenres,
+    encode: (l) => [for (final g in l) g.json],
+    decode: (j) => jsonList(j).map(Genre.new).toList(),
+  );
 
   Future<SearchResult> search(String query) async {
     if (isOffline()) return searchOffline(query);

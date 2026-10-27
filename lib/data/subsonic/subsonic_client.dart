@@ -173,18 +173,32 @@ class SubsonicClient {
       Track((await _get('getSong', {'id': id}))['song'] as Json);
 
   /// [type] is one of `newest`, `recent`, `frequent`, `random`, `alphabeticalByName`, `alphabeticalByArtist`, `starred`.
+  /// [genre] goes with the type `byGenre`, [fromYear] and [toYear] with `byYear`.
   Future<List<Album>> getAlbumList(
     String type, {
     int size = 50,
     int offset = 0,
+    String? genre,
+    int? fromYear,
+    int? toYear,
   }) async {
     final body = await _get('getAlbumList2', {
       'type': type,
       'size': size,
       'offset': offset,
+      'genre': genre,
+      'fromYear': fromYear,
+      'toYear': toYear,
     });
     return jsonList((body['albumList2'] as Json?)?['album'])
         .map(Album.new)
+        .toList();
+  }
+
+  Future<List<Genre>> getGenres() async {
+    final body = await _get('getGenres');
+    return jsonList((body['genres'] as Json?)?['genre'])
+        .map(Genre.new)
         .toList();
   }
 

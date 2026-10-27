@@ -59,4 +59,13 @@ void main() {
     expect(url.queryParameters['name'], 'Road trip');
     expect(url.queryParametersAll.containsKey('songIdToAdd'), isFalse);
   });
+
+  test('album lists by genre and by years send their filters', () async {
+    await client.getAlbumList('byGenre', genre: 'Jazz');
+    await client.getAlbumList('byYear', fromYear: 1990, toYear: 1999);
+    expect(requests[0].queryParameters['genre'], 'Jazz');
+    expect(requests[0].queryParameters.containsKey('fromYear'), isFalse);
+    expect(requests[1].queryParameters['fromYear'], '1990');
+    expect(requests[1].queryParameters['toYear'], '1999');
+  });
 }

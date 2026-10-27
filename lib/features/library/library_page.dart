@@ -40,10 +40,19 @@ final _artistsProvider = FutureProvider.autoDispose<List<Artist>>(
   (ref) async => await ref.watch(repositoryProvider)?.artists() ?? const [],
 );
 
+/// Genres by name.
+final genresProvider = FutureProvider.autoDispose<List<Genre>>((ref) async {
+  final genres = [...?await ref.watch(repositoryProvider)?.genres()];
+  return genres
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+});
+
 enum LibrarySection {
   playlists('Playlists', Icons.queue_music),
   artists('Artists', Icons.mic_none),
   albums('Albums', Icons.album_outlined),
+  genres('Genres', Icons.category_outlined),
+  years('Years', Icons.calendar_month_outlined),
   songs('Songs', Icons.music_note_outlined);
 
   const LibrarySection(this.title, this.icon);
@@ -83,7 +92,12 @@ class LibraryPage extends ConsumerWidget {
     final albums = (recent.value ?? const <Album>[]).take(24).toList();
     // Songs are listed from the downloads; the Subsonic API has no listing of all songs.
     final sections = LibrarySection.values.where(
-      (s) => s != LibrarySection.songs || downloaded,
+      (s) => switch (s) {
+        LibrarySection.songs => downloaded,
+        // Genres and years are listings of the server.
+        LibrarySection.genres || LibrarySection.years => !downloaded,
+        _ => true,
+      },
     );
 
     return Scaffold(
@@ -175,8 +189,8 @@ class LibrarySectionPage extends ConsumerWidget {
         (albums) => AlbumGrid(albums),
         empty: 'No downloaded albums',
       ),
-      (LibrarySection.albums, false) => const PagedAlbumGrid(
-        'alphabeticalByName',
+      (LibrarySection.albums, false) => PagedAlbumGrid(
+        albumQuery('alphabeticalByName'),
       ),
       (LibrarySection.artists, true) => AsyncList(
         ref.watch(downloadedArtistsProvider),
@@ -209,6 +223,39 @@ class LibrarySectionPage extends ConsumerWidget {
           itemBuilder: (_, i) => PlaylistTile(playlists[i]),
         ),
         onRetry: () => ref.invalidate(recentPlaylistsProvider),
+      ),
+      (LibrarySection.genres, _) => AsyncList(
+        ref.watch(genresProvider),
+        (genres) => ListView.builder(
+          itemCount: genres.length,
+          itemBuilder: (_, i) => ListTile(
+            title: Text(genres[i].name),
+            subtitle: Text(
+              '${genres[i].albumCount} albums',
+              style: TextStyle(color: context.muted),
+            ),
+            onTap: () =>
+                context.push('/genre/${Uri.encodeComponent(genres[i].name)}'),
+          ),
+        ),
+        onRetry: () => ref.invalidate(genresProvider),
+      ),
+      (LibrarySection.years, _) => ListView(
+        children: [
+          for (
+            var decade = DateTime.now().year ~/ 10 * 10;
+            decade >= 1950;
+            decade -= 10
+          )
+            ListTile(
+              title: Text('${decade}s'),
+              onTap: () => context.push('/years/$decade/${decade + 9}'),
+            ),
+          ListTile(
+            title: const Text('Before 1950'),
+            onTap: () => context.push('/years/1000/1949'),
+          ),
+        ],
       ),
       (LibrarySection.songs, _) => AsyncList(
         ref.watch(downloadedTracksProvider),

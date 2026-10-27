@@ -7,6 +7,7 @@ import '../features/collection/album_page.dart';
 import '../features/collection/artist_page.dart';
 import '../features/collection/playlist_page.dart';
 import '../features/home/home_page.dart';
+import '../features/library/album_lists.dart';
 import '../features/library/library_page.dart';
 import '../features/login/login_page.dart';
 import '../features/now_playing/now_playing.dart';
@@ -51,6 +52,27 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/home/:shelf',
             builder: (_, s) =>
                 ShelfPage(HomeShelf.values.byName(s.pathParameters['shelf']!)),
+          ),
+          GoRoute(
+            path: '/genre/:name',
+            builder: (_, s) {
+              final name = s.pathParameters['name']!;
+              return AlbumQueryPage(
+                title: name,
+                query: albumQuery('byGenre', genre: name),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/years/:from/:to',
+            builder: (_, s) {
+              final from = int.parse(s.pathParameters['from']!),
+                  to = int.parse(s.pathParameters['to']!);
+              return AlbumQueryPage(
+                title: from < 1950 ? 'Before 1950' : '${from}s',
+                query: albumQuery('byYear', fromYear: from, toYear: to),
+              );
+            },
           ),
           GoRoute(
             path: '/library/:section',

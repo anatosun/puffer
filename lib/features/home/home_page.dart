@@ -161,7 +161,7 @@ class ShelfPage extends ConsumerWidget {
           ),
           onRetry: () => ref.invalidate(recentPlaylistsProvider),
         ),
-        _ => PagedAlbumGrid(shelf.albumList!),
+        _ => PagedAlbumGrid(albumQuery(shelf.albumList!)),
       },
     );
   }

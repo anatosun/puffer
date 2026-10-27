@@ -90,6 +90,16 @@ class Playlist {
   List<Track> get entries => _list(json['entry']).map(Track.new).toList();
 }
 
+class Genre {
+  const Genre(this.json);
+
+  final Json json;
+
+  String get name => json['value'] as String? ?? '';
+  int get albumCount => json['albumCount'] as int? ?? 0;
+  int get songCount => json['songCount'] as int? ?? 0;
+}
+
 class SearchResult {
   const SearchResult({
     required this.artists,
