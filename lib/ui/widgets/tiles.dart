@@ -61,16 +61,32 @@ class TrackTile extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(color: color),
       ),
-      subtitle: Text(
-        track.artist ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: context.muted),
+      subtitle: Row(
+        children: [
+          if (downloaded.contains(track.id))
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(
+                Icons.arrow_circle_down,
+                size: 14,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          Expanded(
+            child: Text(
+              track.artist ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.muted),
+            ),
+          ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TrackDownloadIcon(track.id),
+          // Downloaded tracks carry the mark next to the artist; this shows transfers in progress.
+          TrackDownloadIcon(track.id, hideComplete: true),
           const SizedBox(width: 8),
           Text(
             formatDuration(track.duration),

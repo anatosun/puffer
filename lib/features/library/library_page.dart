@@ -13,29 +13,6 @@ import 'album_lists.dart';
 import 'downloaded.dart';
 import '../../ui/theme.dart';
 
-class DownloadedOnlyNotifier extends Notifier<bool> {
-  @override
-  bool build() =>
-      ref.read(sharedPreferencesProvider).getBool('library.downloadedOnly') ??
-      false;
-
-  Future<void> toggle() async {
-    state = !state;
-    await ref
-        .read(sharedPreferencesProvider)
-        .setBool('library.downloadedOnly', state);
-  }
-}
-
-final downloadedOnlyProvider = NotifierProvider<DownloadedOnlyNotifier, bool>(
-  DownloadedOnlyNotifier.new,
-);
-
-/// Offline, the library always shows downloaded items.
-final showDownloadedProvider = Provider<bool>(
-  (ref) => ref.watch(downloadedOnlyProvider) || ref.watch(isOfflineProvider),
-);
-
 final _artistsProvider = FutureProvider.autoDispose<List<Artist>>(
   (ref) async => await ref.watch(repositoryProvider)?.artists() ?? const [],
 );
@@ -61,52 +38,46 @@ enum LibrarySection {
   final IconData icon;
 }
 
-/// The "Downloaded" filter, the same on the library and on each of its sections.
-class DownloadedChip extends ConsumerWidget {
-  const DownloadedChip({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Padding(
-    padding: const EdgeInsets.only(right: 4),
-    child: FilterChip(
-      label: const Text('Downloaded'),
-      avatar: const Icon(Icons.arrow_circle_down, size: 18),
-      selected: ref.watch(showDownloadedProvider),
-      onSelected: ref.watch(isOfflineProvider)
-          ? null
-          : (_) => ref.read(downloadedOnlyProvider.notifier).toggle(),
-    ),
-  );
-}
-
-/// The library as Apple Music lays it out: a list of sections and settings, followed by the recently added albums.
+/// The library as Apple Music lays it out: a list of sections, Downloaded and Settings, followed by the recently added albums. With [downloaded], the same list for the downloaded music. Offline, the library shows the downloaded music.
 class LibraryPage extends ConsumerWidget {
-  const LibraryPage({super.key});
+  const LibraryPage({super.key, this.downloaded = false});
+
+  final bool downloaded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final downloaded = ref.watch(showDownloadedProvider);
-    final recent = downloaded
+    final offline = ref.watch(isOfflineProvider);
+    final showDownloaded = downloaded || offline;
+    final recent = showDownloaded
         ? ref.watch(downloadedAlbumsProvider)
         : ref.watch(albumListProvider('newest'));
     final albums = (recent.value ?? const <Album>[]).take(24).toList();
-    // Songs are listed from the downloads; the Subsonic API has no listing of all songs.
     final sections = LibrarySection.values.where(
       (s) => switch (s) {
-        LibrarySection.songs => downloaded,
+        // Songs are listed from the downloads; the Subsonic API has no listing of all songs.
+        LibrarySection.songs => showDownloaded,
         // Genres and years are listings of the server.
-        LibrarySection.genres || LibrarySection.years => !downloaded,
+        LibrarySection.genres || LibrarySection.years => !showDownloaded,
         _ => true,
       },
+    );
+    final prefix = downloaded ? '/library/downloaded' : '/library';
+    final primary = Theme.of(context).colorScheme.primary;
+
+    Widget row(IconData icon, String title, String path) => ListTile(
+      leading: Icon(icon, color: primary),
+      title: Text(title, style: const TextStyle(fontSize: 18)),
+      trailing: Icon(Icons.chevron_right, color: context.faint),
+      onTap: () => context.push(path),
     );
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Library',
+          downloaded ? 'Downloaded' : 'Library',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
-        actions: const [DownloadedChip(), OutputButton()],
+        actions: const [OutputButton()],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -119,35 +90,22 @@ class LibraryPage extends ConsumerWidget {
               SliverList.list(
                 children: [
                   for (final section in sections)
-                    ListTile(
-                      leading: Icon(
-                        section.icon,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      title: Text(
-                        section.title,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      trailing: Icon(Icons.chevron_right, color: context.faint),
-                      onTap: () => context.push('/library/${section.name}'),
+                    row(section.icon, section.title, '$prefix/${section.name}'),
+                  if (!downloaded && !offline)
+                    row(
+                      Icons.arrow_circle_down,
+                      'Downloaded',
+                      '/library/downloaded',
                     ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.settings_outlined,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'Settings',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: context.faint),
-                    onTap: () => context.push('/settings'),
-                  ),
+                  if (!downloaded)
+                    row(Icons.settings_outlined, 'Settings', '/settings'),
                   if (albums.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
                       child: Text(
-                        downloaded ? 'Recently downloaded' : 'Recently added',
+                        showDownloaded
+                            ? 'Recently downloaded'
+                            : 'Recently added',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
@@ -176,13 +134,14 @@ class LibraryPage extends ConsumerWidget {
 }
 
 class LibrarySectionPage extends ConsumerWidget {
-  const LibrarySectionPage(this.section, {super.key});
+  const LibrarySectionPage(this.section, {super.key, this.downloaded = false});
 
   final LibrarySection section;
+  final bool downloaded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final downloaded = ref.watch(showDownloadedProvider);
+    final downloaded = this.downloaded || ref.watch(isOfflineProvider);
     final body = switch ((section, downloaded)) {
       (LibrarySection.albums, true) => AsyncList(
         ref.watch(downloadedAlbumsProvider),
@@ -269,7 +228,7 @@ class LibrarySectionPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(section.title),
-        actions: const [DownloadedChip(), OutputButton()],
+        actions: const [OutputButton()],
       ),
       body: body,
     );

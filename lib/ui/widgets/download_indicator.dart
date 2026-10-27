@@ -67,18 +67,19 @@ DownloadDisplay displayForPin(PinState state) {
 }
 
 class TrackDownloadIcon extends ConsumerWidget {
-  const TrackDownloadIcon(this.trackId, {super.key});
+  const TrackDownloadIcon(this.trackId, {super.key, this.hideComplete = false});
 
   final String trackId;
+  final bool hideComplete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final file = ref.watch(trackFileProvider(trackId)).value;
-    return DownloadIcon(
-      displayForFile(file),
-      progress: file?.progress,
-      size: 16,
-    );
+    final display = displayForFile(file);
+    if (hideComplete && display == DownloadDisplay.complete) {
+      return const SizedBox.shrink();
+    }
+    return DownloadIcon(display, progress: file?.progress, size: 16);
   }
 }
 

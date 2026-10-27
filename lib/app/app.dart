@@ -75,6 +75,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
           GoRoute(
+            path: '/library/downloaded',
+            builder: (_, _) => const LibraryPage(downloaded: true),
+          ),
+          GoRoute(
+            path: '/library/downloaded/:section',
+            builder: (_, s) => LibrarySectionPage(
+              LibrarySection.values.byName(s.pathParameters['section']!),
+              downloaded: true,
+            ),
+          ),
+          GoRoute(
             path: '/library/:section',
             builder: (_, s) => LibrarySectionPage(
               LibrarySection.values.byName(s.pathParameters['section']!),

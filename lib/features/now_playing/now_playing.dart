@@ -549,6 +549,7 @@ class _QueueSheetState extends ConsumerState<_QueueSheet> {
     }
     final queue = _moved ?? reported;
     final controller = ref.read(playbackControllerProvider);
+    final downloaded = ref.watch(downloadedTrackIdSetProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,10 +593,25 @@ class _QueueSheetState extends ConsumerState<_QueueSheet> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Text(
-                      item.artist ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    subtitle: Row(
+                      children: [
+                        if (downloaded.contains(item.id))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Icon(
+                              Icons.arrow_circle_down,
+                              size: 14,
+                              color: context.colors.primary,
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            item.artist ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     onTap: () => controller.skipTo(i),
                   ),
