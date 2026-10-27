@@ -2,29 +2,30 @@ import 'package:flutter/material.dart';
 
 const accent = Color(0xFFE5A00D);
 
-ThemeData buildTheme({ColorScheme? fromArtwork}) {
-  final scheme =
-      (fromArtwork ??
-              ColorScheme.fromSeed(
-                seedColor: accent,
-                brightness: Brightness.dark,
-              ))
-          .copyWith(surface: Colors.black, onSurface: Colors.white);
+/// Black in dark mode and white in light mode, with the accent of Plexamp.
+ThemeData buildTheme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final background = dark ? Colors.black : Colors.white;
+  final scheme = ColorScheme.fromSeed(seedColor: accent, brightness: brightness)
+      .copyWith(
+        surface: background,
+        onSurface: dark ? Colors.white : Colors.black,
+      );
   final base = ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: brightness,
     colorScheme: scheme,
   );
   return base.copyWith(
-    scaffoldBackgroundColor: Colors.black,
-    canvasColor: Colors.black,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.black,
+    scaffoldBackgroundColor: background,
+    canvasColor: background,
+    appBarTheme: AppBarTheme(
+      backgroundColor: background,
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: const Color(0xFF0E0E0E),
+      backgroundColor: scheme.surfaceContainerLow,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
       height: 60,
@@ -45,11 +46,20 @@ ThemeData buildTheme({ColorScheme? fromArtwork}) {
     listTileTheme: const ListTileThemeData(
       contentPadding: EdgeInsets.symmetric(horizontal: 16),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Color(0xFF161616),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surfaceContainer,
       showDragHandle: true,
     ),
   );
+}
+
+/// Text and icon shades derived from the theme, so they read in both modes.
+extension ThemeShades on BuildContext {
+  ColorScheme get colors => Theme.of(this).colorScheme;
+  Color get background => Theme.of(this).scaffoldBackgroundColor;
+  Color get muted => colors.onSurface.withValues(alpha: 0.6);
+  Color get faint => colors.onSurface.withValues(alpha: 0.4);
+  Color get subtle => colors.onSurface.withValues(alpha: 0.24);
 }
 
 String formatDuration(Duration d) {

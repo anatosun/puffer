@@ -90,9 +90,9 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Puffer',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(),
-      darkTheme: buildTheme(),
-      themeMode: ThemeMode.dark,
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       scaffoldMessengerKey: messengerKey,
     );

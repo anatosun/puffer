@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,7 @@ import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
 import '../home/home_page.dart';
 import 'downloaded.dart';
+import '../../ui/theme.dart';
 
 class DownloadedOnlyNotifier extends Notifier<bool> {
   @override
@@ -157,10 +159,7 @@ class LibraryPage extends ConsumerWidget {
                         section.title,
                         style: const TextStyle(fontSize: 18),
                       ),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white38,
-                      ),
+                      trailing: Icon(Icons.chevron_right, color: context.faint),
                       onTap: () => context.push('/library/${section.name}'),
                     ),
                   ListTile(
@@ -172,10 +171,7 @@ class LibraryPage extends ConsumerWidget {
                       'Settings',
                       style: TextStyle(fontSize: 18),
                     ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: Colors.white38,
-                    ),
+                    trailing: Icon(Icons.chevron_right, color: context.faint),
                     onTap: () => context.push('/settings'),
                   ),
                   if (albums.isNotEmpty)

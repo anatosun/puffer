@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/db/database.dart';
 import '../../downloads/download_manager.dart';
+import '../theme.dart';
 
 /// The download states shared by every item, so tracks, albums, playlists and artists use the same icons.
 enum DownloadDisplay { none, queued, downloading, complete, partial }
@@ -25,7 +27,7 @@ class DownloadIcon extends StatelessWidget {
         DownloadDisplay.queued => Icon(
           Icons.schedule,
           size: size,
-          color: Colors.white54,
+          color: context.muted,
         ),
         DownloadDisplay.downloading => CircularProgressIndicator(
           value: progress,
@@ -40,7 +42,7 @@ class DownloadIcon extends StatelessWidget {
         DownloadDisplay.partial => Icon(
           Icons.downloading,
           size: size,
-          color: Colors.white54,
+          color: context.muted,
         ),
       },
     );

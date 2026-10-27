@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/playback_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
+import '../../ui/theme.dart';
 
 class MusicAssistantPage extends ConsumerWidget {
   const MusicAssistantPage({super.key});
@@ -66,9 +68,11 @@ class _SignInState extends ConsumerState<_SignIn> {
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(24),
     children: [
-      const Text(
+      Text(
         'Music Assistant plays your music on speakers in sync over Sendspin, AirPlay, Chromecast and more. Puffer sends it what to play.',
-        style: TextStyle(color: Colors.white70),
+        style: TextStyle(
+          color: context.colors.onSurface.withValues(alpha: 0.7),
+        ),
       ),
       const SizedBox(height: 24),
       TextField(
@@ -187,7 +191,7 @@ class _Connected extends ConsumerWidget {
             instance == null
                 ? 'As stream URLs of your Subsonic server. Add the same server to Music Assistant as an OpenSubsonic provider for full metadata and gapless playback.'
                 : 'Through the OpenSubsonic provider of Music Assistant.',
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
+            style: TextStyle(color: context.muted, fontSize: 13),
           ),
         ),
         RadioGroup<String>(

@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../theme.dart';
 
 /// The image for [coverArt]: the downloaded file when there is one, otherwise the server image unless offline.
 ImageProvider? artworkImage(WidgetRef ref, String? coverArt, {int size = 600}) {
@@ -20,24 +22,28 @@ ImageProvider? artworkImage(WidgetRef ref, String? coverArt, {int size = 600}) {
 
 /// Colours extracted from the artwork, for the album and now-playing backgrounds.
 final artworkSchemeProvider =
-    FutureProvider.family<ColorScheme?, (String, ImageProvider)>((
+    FutureProvider.family<ColorScheme?, (String, ImageProvider, Brightness)>((
       ref,
       key,
     ) async {
       try {
         return await ColorScheme.fromImageProvider(
           provider: key.$2,
-          brightness: Brightness.dark,
+          brightness: key.$3,
         );
       } on Exception {
         return null;
       }
     });
 
-ColorScheme? artworkScheme(WidgetRef ref, String? coverArt) {
+ColorScheme? artworkScheme(
+  WidgetRef ref,
+  String? coverArt,
+  Brightness brightness,
+) {
   final image = artworkImage(ref, coverArt, size: 300);
   if (coverArt == null || image == null) return null;
-  return ref.watch(artworkSchemeProvider((coverArt, image))).value;
+  return ref.watch(artworkSchemeProvider((coverArt, image, brightness))).value;
 }
 
 class Artwork extends ConsumerWidget {
@@ -62,9 +68,9 @@ class Artwork extends ConsumerWidget {
       size: (size ?? 600) > 200 ? 800 : 300,
     );
     final placeholder = Container(
-      color: const Color(0xFF222222),
+      color: context.colors.surfaceContainerHighest,
       alignment: Alignment.center,
-      child: Icon(icon, color: Colors.white24, size: (size ?? 120) * 0.4),
+      child: Icon(icon, color: context.subtle, size: (size ?? 120) * 0.4),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),

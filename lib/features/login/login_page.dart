@@ -78,10 +78,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Subsonic, OpenSubsonic, Navidrome, Gonic, …',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white54),
+                    style: TextStyle(color: context.muted),
                   ),
                   const SizedBox(height: 32),
                   TextField(

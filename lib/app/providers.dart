@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
@@ -90,6 +91,26 @@ final clientProvider = Provider<SubsonicClient?>((ref) {
   ref.onDispose(client.close);
   return client;
 });
+
+// ------------------------------------------------------------ appearance
+
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() =>
+      ThemeMode.values.asNameMap()[ref
+          .read(sharedPreferencesProvider)
+          .getString('themeMode')] ??
+      ThemeMode.system;
+
+  Future<void> set(ThemeMode mode) async {
+    state = mode;
+    await ref.read(sharedPreferencesProvider).setString('themeMode', mode.name);
+  }
+}
+
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);
 
 // ------------------------------------------------------------ offline
 

@@ -102,11 +102,11 @@ class DownloadsSettingsPage extends ConsumerWidget {
               ],
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               'The quality applies to new downloads. Transcoding is done by the server.',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.muted, fontSize: 13),
             ),
           ),
           const _Section('Downloading'),
@@ -157,7 +157,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                 title: Text(artist.artist),
                 trailing: Text(
                   formatBytes(artist.bytes),
-                  style: const TextStyle(color: Colors.white54),
+                  style: TextStyle(color: context.muted),
                 ),
                 children: [
                   for (final album in artist.albums.entries)
@@ -170,7 +170,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                       title: Text(album.key),
                       trailing: Text(
                         formatBytes(album.value),
-                        style: const TextStyle(color: Colors.white54),
+                        style: TextStyle(color: context.muted),
                       ),
                     ),
                 ],

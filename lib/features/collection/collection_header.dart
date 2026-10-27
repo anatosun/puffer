@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -7,6 +8,7 @@ import '../../downloads/download_manager.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/download_indicator.dart';
 import '../../ui/widgets/tiles.dart';
+import '../../ui/theme.dart';
 
 /// The header of album, playlist and artist pages: artwork over a gradient of its colours, the title, and the play, shuffle and download buttons.
 class CollectionHeader extends ConsumerWidget {
@@ -37,8 +39,9 @@ class CollectionHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = artworkScheme(ref, coverArt);
-    final tint = scheme?.primaryContainer ?? const Color(0xFF2A2A2A);
+    final scheme = artworkScheme(ref, coverArt, Theme.of(context).brightness);
+    final tint =
+        scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
     final size = (MediaQuery.sizeOf(context).width * 0.62).clamp(160.0, 320.0);
     final textTheme = Theme.of(context).textTheme;
 
@@ -47,7 +50,7 @@ class CollectionHeader extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [tint.withValues(alpha: 0.85), Colors.black],
+          colors: [tint.withValues(alpha: 0.85), context.background],
         ),
       ),
       padding: EdgeInsets.fromLTRB(
@@ -103,10 +106,7 @@ class CollectionHeader extends ConsumerWidget {
           if (details != null)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                details!,
-                style: const TextStyle(color: Colors.white54),
-              ),
+              child: Text(details!, style: TextStyle(color: context.muted)),
             ),
           const SizedBox(height: 16),
           Row(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -45,7 +46,7 @@ class TrackTile extends ConsumerWidget {
               child: Text(
                 '${track.trackNumber ?? ''}',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: color ?? Colors.white54),
+                style: TextStyle(color: color ?? context.muted),
               ),
             )
           : null,
@@ -59,7 +60,7 @@ class TrackTile extends ConsumerWidget {
         track.artist ?? '',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Colors.white54),
+        style: TextStyle(color: context.muted),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -68,8 +69,8 @@ class TrackTile extends ConsumerWidget {
           const SizedBox(width: 8),
           Text(
             formatDuration(track.duration),
-            style: const TextStyle(
-              color: Colors.white38,
+            style: TextStyle(
+              color: context.faint,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
@@ -162,7 +163,7 @@ class AlbumCard extends ConsumerWidget {
               album.artist ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.muted, fontSize: 13),
             ),
           ],
         ),
@@ -241,7 +242,7 @@ class ArtistTile extends ConsumerWidget {
       subtitle: artist.albumCount > 0
           ? Text(
               '${artist.albumCount} albums',
-              style: const TextStyle(color: Colors.white54),
+              style: TextStyle(color: context.muted),
             )
           : null,
       trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
@@ -279,7 +280,7 @@ class PlaylistTile extends ConsumerWidget {
       title: Text(playlist.name),
       subtitle: Text(
         '${playlist.songCount} songs',
-        style: const TextStyle(color: Colors.white54),
+        style: TextStyle(color: context.muted),
       ),
       trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
       onTap: () => context.push('/playlist/${playlist.id}'),
@@ -318,12 +319,12 @@ class MessageView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: Colors.white24),
+          Icon(icon, size: 48, color: context.subtle),
           const SizedBox(height: 12),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54),
+            style: TextStyle(color: context.muted),
           ),
           if (onRetry != null)
             TextButton(onPressed: onRetry, child: const Text('Retry')),

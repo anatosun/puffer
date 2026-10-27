@@ -20,13 +20,14 @@ ImageProvider? _image(WidgetRef ref, NowPlaying np, {int size = 300}) {
       : CachedNetworkImageProvider(np.imageUrl.toString());
 }
 
-ColorScheme? _scheme(WidgetRef ref, NowPlaying? np) {
+ColorScheme? _scheme(BuildContext context, WidgetRef ref, NowPlaying? np) {
   if (np == null) return null;
-  if (np.coverArt != null) return artworkScheme(ref, np.coverArt);
+  final brightness = Theme.of(context).brightness;
+  if (np.coverArt != null) return artworkScheme(ref, np.coverArt, brightness);
   final image = _image(ref, np);
   if (image == null || np.imageUrl == null) return null;
   return ref
-      .watch(artworkSchemeProvider((np.imageUrl.toString(), image)))
+      .watch(artworkSchemeProvider((np.imageUrl.toString(), image, brightness)))
       .value;
 }
 
@@ -66,7 +67,7 @@ class MiniPlayer extends ConsumerWidget {
     if (np == null) return const SizedBox.shrink();
     ref.watch(clockProvider);
     final controller = ref.read(playbackControllerProvider);
-    final scheme = _scheme(ref, np);
+    final scheme = _scheme(context, ref, np);
     final position = np.positionNow();
 
     return GestureDetector(
@@ -78,10 +79,9 @@ class MiniPlayer extends ConsumerWidget {
         margin: const EdgeInsets.fromLTRB(8, 0, 8, 6),
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            (scheme?.primaryContainer ?? const Color(0xFF2A2A2A)).withValues(
-              alpha: 0.6,
-            ),
-            const Color(0xFF151515),
+            (scheme?.primaryContainer ?? context.colors.surfaceContainerHighest)
+                .withValues(alpha: 0.6),
+            context.colors.surfaceContainer,
           ),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -111,10 +111,7 @@ class MiniPlayer extends ConsumerWidget {
                               : '${np.artist ?? ''} · ${np.outputName}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 13,
-                          ),
+                          style: TextStyle(color: context.muted, fontSize: 13),
                         ),
                       ],
                     ),
@@ -141,7 +138,7 @@ class MiniPlayer extends ConsumerWidget {
                   : (position.inMilliseconds / np.duration.inMilliseconds)
                         .clamp(0, 1),
               minHeight: 2,
-              backgroundColor: Colors.white10,
+              backgroundColor: context.colors.onSurface.withValues(alpha: 0.1),
               color: scheme?.primary ?? accent,
             ),
           ],
@@ -173,8 +170,10 @@ class NowPlayingPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final np = ref.watch(nowPlayingProvider).value;
     final controller = ref.read(playbackControllerProvider);
-    final scheme = _scheme(ref, np);
-    final top = scheme?.primaryContainer ?? const Color(0xFF333333);
+    final scheme = _scheme(context, ref, np);
+    final top =
+        scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
+    final background = context.background;
     final highlight = scheme?.primary ?? accent;
     final track = np?.track;
 
@@ -183,14 +182,14 @@ class NowPlayingPage extends ConsumerWidget {
         if ((d.primaryVelocity ?? 0) > 300) Navigator.pop(context);
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: background,
         body: AnimatedContainer(
           duration: const Duration(milliseconds: 600),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [top, Color.lerp(top, Colors.black, 0.75)!, Colors.black],
+              colors: [top, Color.lerp(top, background, 0.75)!, background],
             ),
           ),
           child: SafeArea(
@@ -221,8 +220,9 @@ class NowPlayingPage extends ConsumerWidget {
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
+                                    style: TextStyle(
+                                      color: context.colors.onSurface
+                                          .withValues(alpha: 0.7),
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -312,9 +312,7 @@ class NowPlayingPage extends ConsumerWidget {
                               children: [
                                 IconButton(
                                   tooltip: 'Shuffle',
-                                  color: np.shuffle
-                                      ? highlight
-                                      : Colors.white54,
+                                  color: np.shuffle ? highlight : context.muted,
                                   icon: const Icon(Icons.shuffle),
                                   onPressed: () =>
                                       controller.setShuffle(!np.shuffle),
@@ -328,7 +326,7 @@ class NowPlayingPage extends ConsumerWidget {
                                 IconButton(
                                   tooltip: 'Repeat',
                                   color: np.repeat == Repeat.off
-                                      ? Colors.white54
+                                      ? context.muted
                                       : highlight,
                                   icon: Icon(
                                     np.repeat == Repeat.one
@@ -387,8 +385,8 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
       0.0,
       max == 0 ? 1.0 : max,
     );
-    const style = TextStyle(
-      color: Colors.white54,
+    final style = TextStyle(
+      color: context.muted,
       fontSize: 12,
       fontFeatures: [FontFeature.tabularFigures()],
     );
@@ -400,8 +398,8 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: SliderComponentShape.noOverlay,
             activeTrackColor: widget.color,
-            thumbColor: Colors.white,
-            inactiveTrackColor: Colors.white24,
+            thumbColor: context.colors.onSurface,
+            inactiveTrackColor: context.subtle,
           ),
           child: Slider(
             value: value,
@@ -456,14 +454,14 @@ class _Controls extends ConsumerWidget {
             child: IconButton.filled(
               iconSize: 48,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
+                backgroundColor: context.colors.onSurface,
+                foregroundColor: context.colors.surface,
               ),
               icon: np.buffering && !np.playing
-                  ? const SizedBox.square(
+                  ? SizedBox.square(
                       dimension: 32,
                       child: CircularProgressIndicator(
-                        color: Colors.black,
+                        color: context.colors.surface,
                         strokeWidth: 3,
                       ),
                     )
@@ -502,13 +500,13 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Icon(Icons.volume_down, color: Colors.white54, size: 20),
+      Icon(Icons.volume_down, color: context.muted, size: 20),
       Expanded(
         child: Slider(
           value: _dragValue ?? widget.volume.toDouble(),
           max: 100,
           activeColor: widget.color,
-          inactiveColor: Colors.white24,
+          inactiveColor: context.subtle,
           onChanged: (v) => setState(() => _dragValue = v),
           onChangeEnd: (v) async {
             await ref.read(playbackControllerProvider).setVolume(v.round());
@@ -516,7 +514,7 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
           },
         ),
       ),
-      const Icon(Icons.volume_up, color: Colors.white54, size: 20),
+      Icon(Icons.volume_up, color: context.muted, size: 20),
     ],
   );
 }

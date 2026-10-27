@@ -27,6 +27,21 @@ class SettingsPage extends ConsumerWidget {
               ].nonNulls.join(' · '),
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.contrast),
+            title: const Text('Appearance'),
+            trailing: SegmentedButton<ThemeMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+              ],
+              selected: {ref.watch(themeModeProvider)},
+              onSelectionChanged: (s) =>
+                  ref.read(themeModeProvider.notifier).set(s.single),
+            ),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.cloud_off),
             title: const Text('Offline mode'),

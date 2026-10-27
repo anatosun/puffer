@@ -67,8 +67,8 @@ class AlbumPage extends ConsumerWidget {
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                         child: Text(
                           'Disc ${disc.key}',
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: context.muted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
