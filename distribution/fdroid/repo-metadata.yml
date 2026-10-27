@@ -1,0 +1,10 @@
+# App metadata for the self-hosted F-Droid repository (.github/workflows/fdroid-repo.yml). Descriptions and screenshots are in fastlane/metadata/android/.
+Categories:
+  - Multimedia
+License: GPL-3.0-or-later
+AuthorName: anatosun
+SourceCode: https://github.com/anatosun/puffer
+IssueTracker: https://github.com/anatosun/puffer/issues
+Changelog: https://github.com/anatosun/puffer/releases
+
+AutoName: Puffer

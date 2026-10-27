@@ -1,0 +1,43 @@
+# Draft build recipe for the official F-Droid repository, submitted to https://gitlab.com/fdroid/fdroiddata as metadata/io.github.anatosun.puffer.yml. F-Droid builds from source and signs with its own key.
+Categories:
+  - Multimedia
+License: GPL-3.0-or-later
+AuthorName: anatosun
+SourceCode: https://github.com/anatosun/puffer
+IssueTracker: https://github.com/anatosun/puffer/issues
+Changelog: https://github.com/anatosun/puffer/releases
+
+AutoName: Puffer
+
+RepoType: git
+Repo: https://github.com/anatosun/puffer.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable  # pin to the exact tag from pubspec.yaml environment.flutter, e.g. flutter@3.x.y
+    rm:
+      - ios
+      - linux
+      - macos
+      - web
+      - windows
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+      - $$flutter$$/bin/dart run build_runner build --delete-conflicting-outputs
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

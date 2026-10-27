@@ -1,0 +1,14 @@
+<p>A music player for your own server. Works with any <b>Subsonic</b> or <b>OpenSubsonic</b> compatible server such as Navidrome, Gonic or Airsonic-Advanced.</p>
+
+<p><b>Features</b></p>
+<ul>
+  <li>A full-screen now-playing view coloured by the album artwork</li>
+  <li>Download songs, albums, playlists and artists for offline listening. Downloaded playlists stay in sync automatically</li>
+  <li>Automatic downloads of everything you add to your library, when switched on</li>
+  <li>A downloaded-only view, and an offline mode in which you browse your downloaded library</li>
+  <li>Choose download quality (original or transcoded) and limit downloads to Wi-Fi</li>
+  <li>Play on your speakers through Music Assistant, with synchronized multi-room playback</li>
+  <li>Background playback, lock screen and notification controls</li>
+</ul>
+
+<p>The app connects only to the servers you configure. It has no advertising and no tracking.</p>
