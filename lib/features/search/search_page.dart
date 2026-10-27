@@ -74,10 +74,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         error: (e, _) => MessageView('$e'),
         data: (r) {
           if (r == null) {
-            return const MessageView('Search your library', icon: Icons.search);
+            return const MessageView('Search your library');
           }
           if (r.artists.isEmpty && r.albums.isEmpty && r.tracks.isEmpty) {
-            return const MessageView('No results', icon: Icons.search_off);
+            return const MessageView('No results');
           }
           return ListView(
             children: [

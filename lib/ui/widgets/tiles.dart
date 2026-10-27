@@ -452,17 +452,11 @@ Future<void> showPlaylistActions(
       (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
 );
 
-/// Error and empty states of lists.
+/// Error and empty states of lists, with the pufferfish.
 class MessageView extends StatelessWidget {
-  const MessageView(
-    this.message, {
-    super.key,
-    this.icon = Icons.cloud_off,
-    this.onRetry,
-  });
+  const MessageView(this.message, {super.key, this.onRetry});
 
   final String message;
-  final IconData icon;
   final VoidCallback? onRetry;
 
   @override
@@ -472,8 +466,11 @@ class MessageView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: context.subtle),
-          const SizedBox(height: 12),
+          Opacity(
+            opacity: 0.55,
+            child: Image.asset('assets/icon/foreground.png', height: 120),
+          ),
+          const SizedBox(height: 4),
           Text(
             message,
             textAlign: TextAlign.center,

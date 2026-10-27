@@ -124,9 +124,7 @@ class AsyncList<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => value.when(
-    data: (items) => items.isEmpty
-        ? MessageView(empty, icon: Icons.library_music_outlined)
-        : builder(items),
+    data: (items) => items.isEmpty ? MessageView(empty) : builder(items),
     loading: () => const ListPlaceholder(),
     error: (e, _) => MessageView('$e', onRetry: onRetry),
   );
