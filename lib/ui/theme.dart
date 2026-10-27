@@ -15,6 +15,7 @@ ThemeData buildTheme(Brightness brightness, {Color seed = accent}) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
+    fontFamily: 'Inter',
   );
   return base.copyWith(
     scaffoldBackgroundColor: background,
