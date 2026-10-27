@@ -21,7 +21,6 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
-
 ## License
 
 Puffer is free software under the [GNU General Public License v3.0 or later](LICENSE).
