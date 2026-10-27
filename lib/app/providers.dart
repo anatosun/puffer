@@ -18,6 +18,7 @@ import '../downloads/download_manager.dart';
 import '../downloads/download_settings.dart';
 import '../downloads/transfer_backend.dart';
 import '../playback/player_handler.dart';
+import '../playback/queue_store.dart';
 
 // ------------------------------------------------------------ overridden in main()
 
@@ -73,6 +74,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
   Future<void> signOut() async {
     await ref.read(downloadManagerProvider)?.removeAll();
     await ref.read(artworkStoreProvider)?.clear();
+    await ref.read(queueStoreProvider).clear();
     await secureStorage.delete(key: _credentialsKey);
     state = null;
   }
@@ -417,6 +419,57 @@ class SessionPlaybackSource implements PlaybackSource {
         .catchError((_) {});
   }
 }
+
+final queueStoreProvider = Provider<QueueStore>(
+  (ref) => QueueStore(
+    File(p.join(ref.watch(supportDirectoryProvider).path, 'queue.json')),
+  ),
+);
+
+/// Restores the queue of this device once per session and saves it when it changes, when playback pauses, and every 15 seconds while playing.
+final queuePersistenceProvider = Provider<void>((ref) {
+  final handler = ref.watch(playbackProvider);
+  final store = ref.watch(queueStoreProvider);
+  if (handler.source == null) return;
+
+  var restored = false;
+  Timer? pending;
+  void save() {
+    if (!restored) return;
+    pending?.cancel();
+    pending = Timer(const Duration(seconds: 1), () {
+      store.save(
+        handler.tracks,
+        handler.player.currentIndex ?? 0,
+        handler.player.position,
+      );
+    });
+  }
+
+  () async {
+    final saved = await store.load();
+    if (saved != null && handler.tracks.isEmpty) {
+      await handler.restore(saved.tracks, saved.index, saved.position);
+    }
+    restored = true;
+  }();
+
+  final subscriptions = [
+    handler.queue.listen((_) => save()),
+    handler.player.currentIndexStream.listen((_) => save()),
+    handler.player.playingStream.listen((_) => save()),
+  ];
+  final timer = Timer.periodic(const Duration(seconds: 15), (_) {
+    if (handler.player.playing) save();
+  });
+  ref.onDispose(() {
+    pending?.cancel();
+    timer.cancel();
+    for (final s in subscriptions) {
+      s.cancel();
+    }
+  });
+});
 
 /// Connects the player to the current session.
 final playbackProvider = Provider<PlayerHandler>((ref) {

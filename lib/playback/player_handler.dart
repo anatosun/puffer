@@ -99,6 +99,19 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await player.play();
   }
 
+  /// Loads a saved queue paused at [position] of track [index].
+  Future<void> restore(List<Track> tracks, int index, Duration position) async {
+    if (tracks.isEmpty || source == null) return;
+    _tracks = List.of(tracks);
+    queue.add([for (final t in _tracks) _mediaItem(t)]);
+    final sources = await Future.wait(_tracks.map(_audioSource));
+    await player.setAudioSources(
+      sources,
+      initialIndex: index,
+      initialPosition: position,
+    );
+  }
+
   Future<void> playNext(List<Track> tracks) async {
     if (_tracks.isEmpty) return playTracks(tracks);
     var insertAt = (player.currentIndex ?? -1) + 1;

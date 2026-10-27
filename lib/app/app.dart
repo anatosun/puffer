@@ -103,6 +103,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(playbackProvider);
+    ref.watch(queuePersistenceProvider);
     final accent = ref.watch(accentProvider).color;
     return MaterialApp.router(
       title: 'Puffer',
