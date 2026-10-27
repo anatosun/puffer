@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 const accent = Color(0xFFE5A00D);
 
-/// Black in dark mode and white in light mode, with the accent of Plexamp.
-ThemeData buildTheme(Brightness brightness) {
+/// Black in dark mode and white in light mode, coloured by [seed], the amber of Plexamp unless the person picks another accent.
+ThemeData buildTheme(Brightness brightness, {Color seed = accent}) {
   final dark = brightness == Brightness.dark;
   final background = dark ? Colors.black : Colors.white;
-  final scheme = ColorScheme.fromSeed(seedColor: accent, brightness: brightness)
+  final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: brightness)
       .copyWith(
         surface: background,
         onSurface: dark ? Colors.white : Colors.black,

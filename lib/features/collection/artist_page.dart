@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/experience.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
@@ -53,10 +54,9 @@ class ArtistPage extends ConsumerWidget {
                 ..sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
               return LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = (constraints.maxWidth / 180).floor().clamp(
-                    2,
-                    8,
-                  );
+                  final columns = ref
+                      .watch(coverSizeProvider)
+                      .columns(constraints.maxWidth);
                   final width =
                       (constraints.maxWidth - 16 * (columns + 1)) / columns;
                   return CustomScrollView(

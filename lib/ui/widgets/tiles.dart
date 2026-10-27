@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/experience.dart';
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
@@ -190,17 +191,43 @@ Future<void> showAlbumActions(
   artistId: album.artistId,
 );
 
-class AlbumGrid extends StatelessWidget {
+/// A horizontal row of album cards at the cover size the person picked.
+class AlbumShelf extends ConsumerWidget {
+  const AlbumShelf(this.albums, {super.key, this.loading = false});
+
+  final List<Album> albums;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = ref.watch(coverSizeProvider).shelfWidth;
+    return SizedBox(
+      height: width + 60,
+      child: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: albums.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (context, i) => AlbumCard(albums[i], width: width),
+            ),
+    );
+  }
+}
+
+class AlbumGrid extends ConsumerWidget {
   const AlbumGrid(this.albums, {super.key, this.controller});
 
   final List<Album> albums;
   final ScrollController? controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final size = ref.watch(coverSizeProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / 180).floor().clamp(2, 8);
+        final columns = size.columns(constraints.maxWidth);
         final width = (constraints.maxWidth - 16 * (columns + 1)) / columns;
         return GridView.builder(
           controller: controller,

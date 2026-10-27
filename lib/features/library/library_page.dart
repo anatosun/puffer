@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/widgets/tiles.dart';
+import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
 import '../home/home_page.dart';
 import 'downloaded.dart';
@@ -143,7 +144,9 @@ class LibraryPage extends ConsumerWidget {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final columns = (constraints.maxWidth / 180).floor().clamp(2, 8);
+          final columns = ref
+              .watch(coverSizeProvider)
+              .columns(constraints.maxWidth);
           final width = (constraints.maxWidth - 16 * (columns + 1)) / columns;
           return CustomScrollView(
             slivers: [

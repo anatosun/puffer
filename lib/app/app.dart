@@ -17,6 +17,7 @@ import '../features/settings/playback_settings_page.dart';
 import '../features/settings/settings_page.dart';
 import '../ui/messages.dart';
 import '../ui/theme.dart';
+import 'experience.dart';
 import 'providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -25,7 +26,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(signedIn.dispose);
 
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: ref.read(startTabProvider).path,
     refreshListenable: signedIn,
     redirect: (context, state) {
       final atLogin = state.matchedLocation == '/login';
@@ -97,11 +98,12 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(playbackProvider);
+    final accent = ref.watch(accentProvider).color;
     return MaterialApp.router(
       title: 'Puffer',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
+      theme: buildTheme(Brightness.light, seed: accent),
+      darkTheme: buildTheme(Brightness.dark, seed: accent),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       scaffoldMessengerKey: messengerKey,

@@ -86,16 +86,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ],
               if (r.albums.isNotEmpty) ...[
                 const _Heading('Albums'),
-                SizedBox(
-                  height: 210,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: r.albums.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 14),
-                    itemBuilder: (_, i) => AlbumCard(r.albums[i]),
-                  ),
-                ),
+                AlbumShelf(r.albums),
               ],
               if (r.tracks.isNotEmpty) ...[
                 const _Heading('Songs'),

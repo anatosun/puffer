@@ -140,7 +140,7 @@ class MiniPlayer extends ConsumerWidget {
                         .clamp(0, 1),
               minHeight: 2,
               backgroundColor: context.colors.onSurface.withValues(alpha: 0.1),
-              color: scheme?.primary ?? accent,
+              color: scheme?.primary ?? context.colors.primary,
             ),
           ],
         ),
@@ -175,7 +175,7 @@ class NowPlayingPage extends ConsumerWidget {
     final top =
         scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
     final background = context.background;
-    final highlight = scheme?.primary ?? accent;
+    final highlight = scheme?.primary ?? context.colors.primary;
     final track = np?.track;
 
     return GestureDetector(

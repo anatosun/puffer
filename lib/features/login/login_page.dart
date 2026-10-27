@@ -70,7 +70,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 padding: const EdgeInsets.all(24),
                 shrinkWrap: true,
                 children: [
-                  const Icon(Icons.graphic_eq, size: 64, color: accent),
+                  Icon(
+                    Icons.graphic_eq,
+                    size: 64,
+                    color: context.colors.primary,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Connect to your server',

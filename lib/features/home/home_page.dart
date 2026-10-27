@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/widgets/tiles.dart';
+import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
 import '../library/downloaded.dart';
 
@@ -40,40 +41,21 @@ class HomePage extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          for (final type in ['recent', 'newest', 'frequent', 'random']) {
-            ref.invalidate(albumListProvider(type));
-          }
+          ref.invalidate(albumListProvider);
         },
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            if (offline)
-              _Shelf(
-                title: 'Downloaded',
-                albums: ref.watch(downloadedAlbumsProvider),
-              )
-            else ...[
-              _Shelf(
-                title: 'Recently played',
-                albums: ref.watch(albumListProvider('recent')),
-              ),
-              _Shelf(
-                title: 'Recently added',
-                albums: ref.watch(albumListProvider('newest')),
-              ),
-              _Shelf(
-                title: 'Most played',
-                albums: ref.watch(albumListProvider('frequent')),
-              ),
-              _Shelf(
-                title: 'Discover',
-                albums: ref.watch(albumListProvider('random')),
-              ),
-              _Shelf(
-                title: 'Downloaded',
-                albums: ref.watch(downloadedAlbumsProvider),
-              ),
-            ],
+            // Offline, only downloaded albums can play.
+            for (final setting in ref.watch(homeShelvesProvider))
+              if (setting.visible &&
+                  (!offline || setting.shelf == HomeShelf.downloaded))
+                _Shelf(
+                  title: setting.shelf.label,
+                  albums: setting.shelf.albumList == null
+                      ? ref.watch(downloadedAlbumsProvider)
+                      : ref.watch(albumListProvider(setting.shelf.albumList!)),
+                ),
           ],
         ),
       ),
@@ -98,18 +80,7 @@ class _Shelf extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        SizedBox(
-          height: 210,
-          child: albums.isLoading && list.isEmpty
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: list.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 14),
-                  itemBuilder: (context, i) => AlbumCard(list[i]),
-                ),
-        ),
+        AlbumShelf(list, loading: albums.isLoading && list.isEmpty),
       ],
     );
   }
