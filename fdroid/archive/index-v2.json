@@ -1,0 +1,20 @@
+{
+  "repo": {
+    "name": {
+      "en-US": "Puffer (archive)"
+    },
+    "description": {
+      "en-US": "Older versions of Puffer."
+    },
+    "icon": {
+      "en-US": {
+        "name": "/icons/icon.png",
+        "sha256": "87e74d933e866f53ca9215b34a371a656437537b4636f658fc60d4256cc74d2c",
+        "size": 811
+      }
+    },
+    "address": "https://anatosun.github.io/puffer/fdroid/archive",
+    "timestamp": 1793118718000
+  },
+  "packages": {}
+}
