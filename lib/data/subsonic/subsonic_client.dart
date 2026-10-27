@@ -304,6 +304,10 @@ class SubsonicClient {
   Future<void> unstar({String? trackId, String? albumId, String? artistId}) =>
       _get('unstar', {'id': trackId, 'albumId': albumId, 'artistId': artistId});
 
+  /// Rates a song, album or artist from 1 to 5 stars; 0 removes the rating.
+  Future<void> setRating(String id, int rating) =>
+      _get('setRating', {'id': id, 'rating': rating});
+
   Future<void> scrobble(String id, {required bool submission}) =>
       _get('scrobble', {
         'id': id,

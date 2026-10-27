@@ -26,6 +26,8 @@ Future<void> showItemActions(
   String? albumId,
   String? artistId,
   Playlist? playlist,
+  int? rating,
+  void Function(int rating)? onRated,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -65,6 +67,18 @@ Future<void> showItemActions(
                         overflow: TextOverflow.ellipsis,
                       ),
               ),
+              if (rating != null && !offline)
+                _RatingRow(
+                  rating: rating,
+                  onChanged: (value) async {
+                    try {
+                      await ref.read(clientProvider)!.setRating(id, value);
+                      onRated?.call(value);
+                    } on Exception catch (e) {
+                      showMessage('$e');
+                    }
+                  },
+                ),
               const Divider(height: 1),
               if (mix != null && !offline)
                 ListTile(
@@ -231,7 +245,58 @@ Future<void> showTrackActions(
   coverArt: track.coverArt,
   starred: track.starred,
   tracks: () async => [track],
+  rating: track.rating,
+  onRated: (value) => rememberRating(track.json, value),
   mix: () => ref.read(repositoryProvider)!.instantMix(track),
   albumId: track.albumId,
   artistId: track.artistId,
 );
+
+/// Keeps a rating in the JSON of a model loaded from the server, so its menu shows it next time. Models built from constant maps stay as they are.
+void rememberRating(Map<String, dynamic> json, int rating) {
+  try {
+    json['userRating'] = rating;
+  } on UnsupportedError {
+    // A constant map.
+  }
+}
+
+/// Five stars; tapping the current rating clears it.
+class _RatingRow extends StatefulWidget {
+  const _RatingRow({required this.rating, required this.onChanged});
+
+  final int rating;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_RatingRow> createState() => _RatingRowState();
+}
+
+class _RatingRowState extends State<_RatingRow> {
+  late int _rating = widget.rating;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 8, bottom: 4),
+    child: Row(
+      children: [
+        for (var star = 1; star <= 5; star++)
+          IconButton(
+            tooltip: '$star stars',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              star <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: star <= _rating
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+            onPressed: () {
+              final value = star == _rating ? 0 : star;
+              setState(() => _rating = value);
+              widget.onChanged(value);
+            },
+          ),
+      ],
+    ),
+  );
+}

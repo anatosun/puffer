@@ -194,6 +194,8 @@ Future<void> showAlbumActions(
   tracks: () async =>
       (await ref.read(repositoryProvider)!.album(album.id)).songs,
   mix: () => ref.read(repositoryProvider)!.radio(albumId: album.id),
+  rating: album.rating,
+  onRated: (value) => rememberRating(album.json, value),
   artistId: album.artistId,
 );
 

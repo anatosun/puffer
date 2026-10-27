@@ -29,6 +29,7 @@ class Track {
   int? get year => json['year'] as int?;
   String? get coverArt => json['coverArt'] as String?;
   bool get starred => json['starred'] != null;
+  int get rating => json['userRating'] as int? ?? 0;
 }
 
 class Album {
@@ -48,6 +49,7 @@ class Album {
   int? get year => json['year'] as int?;
   String? get genre => json['genre'] as String?;
   bool get starred => json['starred'] != null;
+  int get rating => json['userRating'] as int? ?? 0;
 
   /// Present only in `getAlbum` responses.
   List<Track> get songs => _list(json['song']).map(Track.new).toList();

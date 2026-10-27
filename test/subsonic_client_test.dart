@@ -68,4 +68,11 @@ void main() {
     expect(requests[1].queryParameters['fromYear'], '1990');
     expect(requests[1].queryParameters['toYear'], '1999');
   });
+
+  test('rating sends the id and the number of stars', () async {
+    await client.setRating('al-1', 4);
+    expect(requests.single.pathSegments.last, 'setRating');
+    expect(requests.single.queryParameters['id'], 'al-1');
+    expect(requests.single.queryParameters['rating'], '4');
+  });
 }
