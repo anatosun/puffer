@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,7 @@ import 'artwork.dart';
 import 'download_indicator.dart';
 import 'item_actions.dart';
 import 'playing_bars.dart';
+import 'pressable.dart';
 import 'shimmer.dart';
 
 /// A track row. Offline, tracks without a downloaded file are greyed out and cannot be played.
@@ -137,6 +139,7 @@ Future<void> playFrom(
   int index, {
   bool shuffle = false,
 }) async {
+  HapticFeedback.lightImpact();
   var list = tracks;
   var start = index;
   if (ref.read(isOfflineProvider)) {
@@ -167,51 +170,53 @@ class AlbumCard extends ConsumerWidget {
     final pin =
         ref.watch(pinStateProvider((PinKind.album, album.id))).value ??
         PinState.none;
-    return SizedBox(
-      width: width,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => context.push('/album/${album.id}'),
-        onLongPress: () => showAlbumActions(context, ref, album),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Artwork(album.coverArt, size: width),
-                if (pin.pinned)
-                  Positioned(
-                    right: 6,
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: DownloadIcon(
-                        displayForPin(pin),
-                        progress: pin.fraction,
-                        size: 16,
+    return Pressable(
+      child: SizedBox(
+        width: width,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => context.push('/album/${album.id}'),
+          onLongPress: () => showAlbumActions(context, ref, album),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  Artwork(album.coverArt, size: width),
+                  if (pin.pinned)
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: DownloadIcon(
+                          displayForPin(pin),
+                          progress: pin.fraction,
+                          size: 16,
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              album.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            Text(
-              album.artist ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.muted, fontSize: 13),
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                album.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                album.artist ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.muted, fontSize: 13),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -272,29 +277,31 @@ class PlaylistCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      width: width,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => context.push('/playlist/${playlist.id}'),
-        onLongPress: () => showPlaylistActions(context, ref, playlist),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Artwork(playlist.coverArt, size: width, icon: Icons.queue_music),
-            const SizedBox(height: 6),
-            Text(
-              playlist.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            Text(
-              '${playlist.songCount} songs',
-              maxLines: 1,
-              style: TextStyle(color: context.muted, fontSize: 13),
-            ),
-          ],
+    return Pressable(
+      child: SizedBox(
+        width: width,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => context.push('/playlist/${playlist.id}'),
+          onLongPress: () => showPlaylistActions(context, ref, playlist),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Artwork(playlist.coverArt, size: width, icon: Icons.queue_music),
+              const SizedBox(height: 6),
+              Text(
+                playlist.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                '${playlist.songCount} songs',
+                maxLines: 1,
+                style: TextStyle(color: context.muted, fontSize: 13),
+              ),
+            ],
+          ),
         ),
       ),
     );

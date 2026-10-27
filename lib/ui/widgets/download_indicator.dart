@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -102,6 +103,7 @@ class PinButton extends ConsumerWidget {
       onPressed: manager == null
           ? null
           : () async {
+              HapticFeedback.mediumImpact();
               if (state.pinned) {
                 final confirmed = await confirmRemoveDownload(context);
                 if (confirmed) await manager.unpin(kind, id);

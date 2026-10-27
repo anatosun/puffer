@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -291,6 +292,7 @@ class _RatingRowState extends State<_RatingRow> {
                   : null,
             ),
             onPressed: () {
+              HapticFeedback.selectionClick();
               final value = star == _rating ? 0 : star;
               setState(() => _rating = value);
               widget.onChanged(value);

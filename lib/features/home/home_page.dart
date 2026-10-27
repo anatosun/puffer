@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
+import '../../ui/widgets/pressable.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
@@ -78,79 +79,81 @@ class _ContinueListening extends ConsumerWidget {
         scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Material(
-        color: tint,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => context.push('/album/${album.id}'),
-          onLongPress: () => showAlbumActions(context, ref, album),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Artwork(album.coverArt, size: 96, radius: 10),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CONTINUE LISTENING',
-                        style: TextStyle(
-                          fontSize: 11,
-                          letterSpacing: 1,
-                          fontWeight: FontWeight.w700,
-                          color:
-                              scheme?.onPrimaryContainer.withValues(
-                                alpha: 0.7,
-                              ) ??
-                              context.muted,
+      child: Pressable(
+        child: Material(
+          color: tint,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => context.push('/album/${album.id}'),
+            onLongPress: () => showAlbumActions(context, ref, album),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Artwork(album.coverArt, size: 96, radius: 10),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'CONTINUE LISTENING',
+                          style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                            color:
+                                scheme?.onPrimaryContainer.withValues(
+                                  alpha: 0.7,
+                                ) ??
+                                context.muted,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        album.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: scheme?.onPrimaryContainer,
-                            ),
-                      ),
-                      Text(
-                        album.artist ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color:
-                              scheme?.onPrimaryContainer.withValues(
-                                alpha: 0.8,
-                              ) ??
-                              context.muted,
+                        const SizedBox(height: 4),
+                        Text(
+                          album.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: scheme?.onPrimaryContainer,
+                              ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          album.artist ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color:
+                                scheme?.onPrimaryContainer.withValues(
+                                  alpha: 0.8,
+                                ) ??
+                                context.muted,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton.filled(
-                  iconSize: 32,
-                  tooltip: 'Play',
-                  style: IconButton.styleFrom(
-                    backgroundColor: scheme?.primary,
-                    foregroundColor: scheme?.onPrimary,
+                  IconButton.filled(
+                    iconSize: 32,
+                    tooltip: 'Play',
+                    style: IconButton.styleFrom(
+                      backgroundColor: scheme?.primary,
+                      foregroundColor: scheme?.onPrimary,
+                    ),
+                    onPressed: () async {
+                      HapticFeedback.lightImpact();
+                      final songs =
+                          (await ref.read(repositoryProvider)!.album(album.id))
+                              .songs;
+                      if (songs.isNotEmpty) await playFrom(ref, songs, 0);
+                    },
+                    icon: const Icon(Icons.play_arrow_rounded),
                   ),
-                  onPressed: () async {
-                    HapticFeedback.lightImpact();
-                    final songs =
-                        (await ref.read(repositoryProvider)!.album(album.id))
-                            .songs;
-                    if (songs.isNotEmpty) await playFrom(ref, songs, 0);
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
