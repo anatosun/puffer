@@ -13,6 +13,7 @@ import '../theme.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
 import 'item_actions.dart';
+import 'playing_bars.dart';
 
 /// A track row. Offline, tracks without a downloaded file are greyed out and cannot be played.
 class TrackTile extends ConsumerWidget {
@@ -40,19 +41,41 @@ class TrackTile extends ConsumerWidget {
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
     final playable = !offline || downloaded.contains(track.id);
     final current = ref.watch(currentTrackIdProvider) == track.id;
+    final playing =
+        current && (ref.watch(nowPlayingProvider).value?.playing ?? false);
     final color = current ? Theme.of(context).colorScheme.primary : null;
 
     final tile = ListTile(
       leading: showArtwork
-          ? Artwork(track.coverArt, size: 44, radius: 4)
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                Artwork(track.coverArt, size: 44, radius: 4),
+                if (current)
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    alignment: Alignment.center,
+                    child: PlayingBars(playing: playing, color: Colors.white),
+                  ),
+              ],
+            )
           : showNumber
           ? SizedBox(
               width: 28,
-              child: Text(
-                '${track.trackNumber ?? ''}',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: color ?? context.muted),
-              ),
+              child: current
+                  ? Center(
+                      child: PlayingBars(playing: playing, color: color!),
+                    )
+                  : Text(
+                      '${track.trackNumber ?? ''}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: context.muted),
+                    ),
             )
           : null,
       title: Text(
