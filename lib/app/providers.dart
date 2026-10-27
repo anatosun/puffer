@@ -19,6 +19,7 @@ import '../downloads/download_settings.dart';
 import '../downloads/transfer_backend.dart';
 import '../playback/player_handler.dart';
 import '../playback/queue_store.dart';
+import '../playback/replay_gain.dart';
 
 // ------------------------------------------------------------ overridden in main()
 
@@ -168,6 +169,31 @@ final cellularQualityProvider =
     NotifierProvider<StreamingQualityNotifier, DownloadQuality>(
       () => StreamingQualityNotifier('playback.qualityCellular'),
     );
+
+final replayGainProvider = NotifierProvider<ReplayGainNotifier, ReplayGainMode>(
+  ReplayGainNotifier.new,
+);
+
+class ReplayGainNotifier extends Notifier<ReplayGainMode> {
+  @override
+  ReplayGainMode build() =>
+      ReplayGainMode.values.asNameMap()[ref
+          .read(sharedPreferencesProvider)
+          .getString('playback.replayGain')] ??
+      ReplayGainMode.track;
+
+  Future<void> set(ReplayGainMode mode) async {
+    state = mode;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString('playback.replayGain', mode.name);
+    final handler = ref.read(playerHandlerProvider);
+    final track = handler.currentTrack;
+    if (track != null) {
+      await handler.player.setVolume(replayGainVolume(track, mode));
+    }
+  }
+}
 
 /// The streaming quality for the current network.
 final streamingQualityProvider = Provider<DownloadQuality>((ref) {
@@ -399,6 +425,10 @@ class SessionPlaybackSource implements PlaybackSource {
     if (local != null) return local.uri;
     return ref.read(clientProvider)?.coverArtUri(coverArt, size: 800);
   }
+
+  @override
+  double volumeFor(Track track) =>
+      replayGainVolume(track, ref.read(replayGainProvider));
 
   @override
   Future<void> nowPlaying(Track track) async {

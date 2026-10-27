@@ -13,6 +13,9 @@ abstract class PlaybackSource {
   Uri? artUri(String? coverArt);
   Future<void> nowPlaying(Track track);
   Future<void> played(Track track);
+
+  /// The volume from 0 to 1 at which [track] plays, for loudness normalisation.
+  double volumeFor(Track track);
 }
 
 /// Plays on the phone through just_audio and reports to the system media controls through audio_service.
@@ -48,6 +51,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (index == null || index >= _tracks.length) return;
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
+      player.setVolume(source?.volumeFor(track) ?? 1);
       source?.nowPlaying(track);
       _scrobbled = null;
     });

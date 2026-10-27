@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../downloads/download_settings.dart';
+import '../../playback/replay_gain.dart';
 import 'settings_section.dart';
 
 class PlaybackSettingsPage extends ConsumerWidget {
@@ -38,6 +39,22 @@ class PlaybackSettingsPage extends ConsumerWidget {
             child: Text(
               'Downloaded music always plays from the file. The server transcodes streams below the original quality.',
               style: TextStyle(fontSize: 13),
+            ),
+          ),
+          const SettingsSection('Loudness'),
+          ListTile(
+            title: const Text('Normalise volume'),
+            subtitle: const Text(
+              'Uses the ReplayGain values the server reports. Album keeps the differences between the songs of an album.',
+            ),
+            trailing: DropdownButton<ReplayGainMode>(
+              value: ref.watch(replayGainProvider),
+              underline: const SizedBox.shrink(),
+              items: [
+                for (final m in ReplayGainMode.values)
+                  DropdownMenuItem(value: m, child: Text(m.label)),
+              ],
+              onChanged: (m) => ref.read(replayGainProvider.notifier).set(m!),
             ),
           ),
           const SettingsSection('Listening history'),
