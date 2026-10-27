@@ -318,7 +318,9 @@ class NowPlayingPage extends ConsumerWidget {
                                   onPressed: () =>
                                       controller.setShuffle(!np.shuffle),
                                 ),
-                                const OutputButton(showName: true),
+                                // The output button takes a slot only once Music Assistant is set up.
+                                if (ref.watch(maCredentialsProvider) != null)
+                                  const OutputButton(showName: true),
                                 IconButton(
                                   tooltip: 'Queue',
                                   icon: const Icon(Icons.queue_music),
