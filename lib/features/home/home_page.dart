@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/theme.dart';
+import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../app/experience.dart';
 import '../cast/output_sheet.dart';
@@ -53,6 +55,110 @@ final recentPlaylistsProvider = StreamProvider<List<Playlist>>((ref) {
   );
 });
 
+String _greeting(DateTime now) => switch (now.hour) {
+  >= 5 && < 12 => 'Good morning',
+  >= 12 && < 18 => 'Good afternoon',
+  _ => 'Good evening',
+};
+
+/// A large card for the album played last, coloured by its artwork, with a play button.
+class _ContinueListening extends ConsumerWidget {
+  const _ContinueListening(this.album);
+
+  final Album album;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = artworkScheme(
+      ref,
+      album.coverArt,
+      Theme.of(context).brightness,
+    );
+    final tint =
+        scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Material(
+        color: tint,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/album/${album.id}'),
+          onLongPress: () => showAlbumActions(context, ref, album),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Artwork(album.coverArt, size: 96, radius: 10),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CONTINUE LISTENING',
+                        style: TextStyle(
+                          fontSize: 11,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w700,
+                          color:
+                              scheme?.onPrimaryContainer.withValues(
+                                alpha: 0.7,
+                              ) ??
+                              context.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        album.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme?.onPrimaryContainer,
+                            ),
+                      ),
+                      Text(
+                        album.artist ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color:
+                              scheme?.onPrimaryContainer.withValues(
+                                alpha: 0.8,
+                              ) ??
+                              context.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton.filled(
+                  iconSize: 32,
+                  tooltip: 'Play',
+                  style: IconButton.styleFrom(
+                    backgroundColor: scheme?.primary,
+                    foregroundColor: scheme?.onPrimary,
+                  ),
+                  onPressed: () async {
+                    HapticFeedback.lightImpact();
+                    final songs =
+                        (await ref.read(repositoryProvider)!.album(album.id))
+                            .songs;
+                    if (songs.isNotEmpty) await playFrom(ref, songs, 0);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
@@ -62,7 +168,10 @@ class HomePage extends ConsumerWidget {
     final offline = ref.watch(isOfflineProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home', style: Theme.of(context).textTheme.headlineMedium),
+        title: Text(
+          _greeting(DateTime.now()),
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
         actions: [
           if (offline)
             const Padding(
@@ -84,6 +193,10 @@ class HomePage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
+            if (!offline)
+              if (ref.watch(albumListProvider('recent')).value?.firstOrNull
+                  case final last?)
+                _ContinueListening(last),
             // Offline, only downloaded albums can play.
             for (final setting in ref.watch(homeShelvesProvider))
               if (setting.visible &&
