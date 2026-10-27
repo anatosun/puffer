@@ -90,10 +90,11 @@ final coverSizeProvider =
       ),
     );
 
-/// A shelf of the home screen. [albumList] is the `getAlbumList2` type, or null for downloaded albums.
+/// A shelf of the home screen. [albumList] is the `getAlbumList2` type of album shelves.
 enum HomeShelf {
   recent('Recently played', 'recent'),
   newest('Recently added', 'newest'),
+  playlists('Recent playlists', null),
   frequent('Most played', 'frequent'),
   random('Discover', 'random'),
   starred('Favourites', 'starred'),

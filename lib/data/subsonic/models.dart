@@ -82,6 +82,10 @@ class Playlist {
   int get songCount => json['songCount'] as int? ?? 0;
   Duration get duration => Duration(seconds: json['duration'] as int? ?? 0);
 
+  /// When the playlist last changed, as an ISO 8601 date.
+  String? get changed =>
+      json['changed'] as String? ?? json['created'] as String?;
+
   /// Present only in `getPlaylist` responses.
   List<Track> get entries => _list(json['entry']).map(Track.new).toList();
 }

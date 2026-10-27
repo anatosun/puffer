@@ -16,6 +16,18 @@ final albumListProvider = FutureProvider.autoDispose
       return repository.albumList(type, size: 20);
     });
 
+/// Playlists, most recently changed first.
+final recentPlaylistsProvider = FutureProvider.autoDispose<List<Playlist>>((
+  ref,
+) async {
+  final repository = ref.watch(repositoryProvider);
+  ref.watch(isOfflineProvider);
+  if (repository == null) return const [];
+  final playlists = [...await repository.playlists()];
+  playlists.sort((a, b) => (b.changed ?? '').compareTo(a.changed ?? ''));
+  return playlists.take(20).toList();
+});
+
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
@@ -42,6 +54,7 @@ class HomePage extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(albumListProvider);
+          ref.invalidate(recentPlaylistsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
@@ -50,12 +63,28 @@ class HomePage extends ConsumerWidget {
             for (final setting in ref.watch(homeShelvesProvider))
               if (setting.visible &&
                   (!offline || setting.shelf == HomeShelf.downloaded))
-                _Shelf(
-                  title: setting.shelf.label,
-                  albums: setting.shelf.albumList == null
-                      ? ref.watch(downloadedAlbumsProvider)
-                      : ref.watch(albumListProvider(setting.shelf.albumList!)),
-                ),
+                switch (setting.shelf) {
+                  HomeShelf.downloaded => _Shelf(
+                    title: setting.shelf.label,
+                    items: ref.watch(downloadedAlbumsProvider),
+                    builder: (albums, loading) =>
+                        AlbumShelf(albums, loading: loading),
+                  ),
+                  HomeShelf.playlists => _Shelf(
+                    title: setting.shelf.label,
+                    items: ref.watch(recentPlaylistsProvider),
+                    builder: (playlists, loading) =>
+                        PlaylistShelf(playlists, loading: loading),
+                  ),
+                  _ => _Shelf(
+                    title: setting.shelf.label,
+                    items: ref.watch(
+                      albumListProvider(setting.shelf.albumList!),
+                    ),
+                    builder: (albums, loading) =>
+                        AlbumShelf(albums, loading: loading),
+                  ),
+                },
           ],
         ),
       ),
@@ -63,16 +92,21 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-class _Shelf extends StatelessWidget {
-  const _Shelf({required this.title, required this.albums});
+class _Shelf<T> extends StatelessWidget {
+  const _Shelf({
+    required this.title,
+    required this.items,
+    required this.builder,
+  });
 
   final String title;
-  final AsyncValue<List<Album>> albums;
+  final AsyncValue<List<T>> items;
+  final Widget Function(List<T> items, bool loading) builder;
 
   @override
   Widget build(BuildContext context) {
-    final list = albums.value ?? const [];
-    if (albums.hasValue && list.isEmpty) return const SizedBox.shrink();
+    final list = items.value ?? <T>[];
+    if (items.hasValue && list.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -80,7 +114,7 @@ class _Shelf extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        AlbumShelf(list, loading: albums.isLoading && list.isEmpty),
+        builder(list, items.isLoading && list.isEmpty),
       ],
     );
   }

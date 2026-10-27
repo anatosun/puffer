@@ -66,7 +66,7 @@ Future<void> showItemActions(
               const Divider(height: 1),
               if (mix != null && !offline)
                 ListTile(
-                  leading: const Icon(Icons.auto_awesome),
+                  leading: const Icon(Icons.radio),
                   title: Text(
                     kind == PinKind.track ? 'Instant mix' : 'Start radio',
                   ),

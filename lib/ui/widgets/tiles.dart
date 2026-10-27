@@ -217,6 +217,69 @@ class AlbumShelf extends ConsumerWidget {
   }
 }
 
+class PlaylistCard extends ConsumerWidget {
+  const PlaylistCard(this.playlist, {super.key, this.width = 150});
+
+  final Playlist playlist;
+  final double width;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      width: width,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => context.push('/playlist/${playlist.id}'),
+        onLongPress: () => showPlaylistActions(context, ref, playlist),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Artwork(playlist.coverArt, size: width, icon: Icons.queue_music),
+            const SizedBox(height: 6),
+            Text(
+              playlist.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            Text(
+              '${playlist.songCount} songs',
+              maxLines: 1,
+              style: TextStyle(color: context.muted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A horizontal row of playlist cards at the cover size the person picked.
+class PlaylistShelf extends ConsumerWidget {
+  const PlaylistShelf(this.playlists, {super.key, this.loading = false});
+
+  final List<Playlist> playlists;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = ref.watch(coverSizeProvider).shelfWidth;
+    return SizedBox(
+      height: width + 60,
+      child: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: playlists.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (context, i) =>
+                  PlaylistCard(playlists[i], width: width),
+            ),
+    );
+  }
+}
+
 class AlbumGrid extends ConsumerWidget {
   const AlbumGrid(this.albums, {super.key, this.controller});
 
@@ -313,20 +376,26 @@ class PlaylistTile extends ConsumerWidget {
       ),
       trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
       onTap: () => context.push('/playlist/${playlist.id}'),
-      onLongPress: () => showItemActions(
-        context,
-        ref,
-        kind: PinKind.playlist,
-        id: playlist.id,
-        title: playlist.name,
-        subtitle: '${playlist.songCount} songs',
-        coverArt: playlist.coverArt,
-        tracks: () async =>
-            (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
-      ),
+      onLongPress: () => showPlaylistActions(context, ref, playlist),
     );
   }
 }
+
+Future<void> showPlaylistActions(
+  BuildContext context,
+  WidgetRef ref,
+  Playlist playlist,
+) => showItemActions(
+  context,
+  ref,
+  kind: PinKind.playlist,
+  id: playlist.id,
+  title: playlist.name,
+  subtitle: '${playlist.songCount} songs',
+  coverArt: playlist.coverArt,
+  tracks: () async =>
+      (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
+);
 
 /// Error and empty states of lists.
 class MessageView extends StatelessWidget {
