@@ -22,7 +22,7 @@ class OutputButton extends ConsumerWidget {
     final output = ref.watch(outputProvider);
     final color = output == null ? null : Theme.of(context).colorScheme.primary;
     final icon = Icon(
-      output == null ? Icons.cast : Icons.cast_connected,
+      output == null ? Icons.speaker_group_outlined : Icons.speaker_group,
       color: color,
     );
     final name = ref.watch(nowPlayingProvider).value?.outputName;
