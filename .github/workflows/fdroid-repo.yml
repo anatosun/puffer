@@ -1,0 +1,119 @@
+name: F-Droid repo
+
+# Publishes a self-hosted F-Droid repository on GitHub Pages at https://<owner>.github.io/<repo>/fdroid/repo, so people get updates before and alongside the official F-Droid repository.
+#
+# It runs after the Release workflow succeeds. It adds the per-ABI APKs of the release to the repository state on the `gh-pages` branch, signs the index and pushes. A release created with GITHUB_TOKEN does not trigger `release: published`, hence `workflow_run`.
+#
+# Required repository secrets:
+#   FDROID_KEYSTORE_BASE64  base64 of a PKCS12 keystore used only to sign the repository index
+#   FDROID_KEYSTORE_PASS
+#   FDROID_KEY_ALIAS
+#   FDROID_KEY_PASS
+#
+# One-time setup: Settings → Pages → Deploy from branch `gh-pages`, root. Never replace the index key: clients pin its fingerprint.
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to add (defaults to latest)
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fdroid-repo
+  cancel-in-progress: false
+
+env:
+  APP_ID: io.github.anatosun.puffer
+
+jobs:
+  update-repo:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Check out gh-pages (or start empty)
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" gh-pages >/dev/null; then
+            git clone --depth 1 --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" site
+          else
+            mkdir site && cd site && git init -b gh-pages \
+              && git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
+            touch .nojekyll
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install fdroidserver
+        run: pip install fdroidserver
+
+      - name: Prepare fdroid workspace
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p work/repo work/archive work/metadata
+          [ -d site/fdroid/repo ] && cp -a site/fdroid/repo/. work/repo/
+          [ -d site/fdroid/archive ] && cp -a site/fdroid/archive/. work/archive/
+
+          # App metadata and store listing; fdroidserver reads the fastlane layout.
+          cp src/distribution/fdroid/repo-metadata.yml "work/metadata/$APP_ID.yml"
+          mkdir -p "work/metadata/$APP_ID"
+          cp -a src/fastlane/metadata/android/. "work/metadata/$APP_ID/"
+
+          echo "$KEYSTORE_BASE64" | base64 -d > work/keystore.p12
+          owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY#*/}"
+          cat > work/config.yml <<EOF
+          repo_url: https://${owner}.github.io/${repo}/fdroid/repo
+          repo_name: Puffer
+          repo_description: >-
+            Official builds of Puffer, published from GitHub releases.
+          archive_url: https://${owner}.github.io/${repo}/fdroid/archive
+          archive_name: Puffer (archive)
+          archive_description: Older versions of Puffer.
+          archive_older: 3
+          keystore: keystore.p12
+          keystorepass: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          repo_keyalias: ${{ secrets.FDROID_KEY_ALIAS }}
+          keypass: ${{ secrets.FDROID_KEY_PASS }}
+          sdk_path: ${ANDROID_HOME}
+          EOF
+          chmod 600 work/config.yml work/keystore.p12
+
+      - name: Download release APKs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          echo "Adding $tag"
+          # Each per-ABI APK has its own versionCode (ABI number * 1000 + build number); the universal APK has the build number and would clash with them.
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir work/repo \
+            --pattern '*-arm64-v8a.apk' --pattern '*-armeabi-v7a.apk' --pattern '*-x86_64.apk' --clobber
+
+      - name: Update and sign index
+        working-directory: work
+        run: fdroid update --use-date-from-apk --pretty
+
+      - name: Publish to gh-pages
+        run: |
+          rm -rf site/fdroid && mkdir -p site/fdroid
+          cp -a work/repo work/archive site/fdroid/
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "F-Droid repo: update" || { echo "No changes"; exit 0; }
+          git push origin gh-pages
