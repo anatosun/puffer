@@ -11,24 +11,46 @@ import '../cast/output_sheet.dart';
 import '../library/album_lists.dart';
 import '../library/downloaded.dart';
 
-final albumListProvider = FutureProvider.autoDispose
-    .family<List<Album>, String>((ref, type) async {
-      final repository = ref.watch(repositoryProvider);
-      ref.watch(isOfflineProvider);
-      if (repository == null) return const [];
-      return repository.albumList(type, size: 20);
-    });
+/// Yields [cached] first when there is one, then [fresh]. A failure of [fresh] after a cached value keeps the cached value.
+Stream<T> _cachedThenFresh<T>(
+  Future<T?> cached,
+  Future<T> Function() fresh,
+) async* {
+  final first = await cached;
+  if (first != null) yield first;
+  try {
+    yield await fresh();
+  } on Exception {
+    if (first == null) rethrow;
+  }
+}
 
-/// Playlists, most recently changed first.
-final recentPlaylistsProvider = FutureProvider.autoDispose<List<Playlist>>((
+/// The albums of a Home shelf. They stay in memory for the session and show from the cache at start-up while the server answers; pull to refresh reloads them.
+final albumListProvider = StreamProvider.family<List<Album>, String>((
   ref,
-) async {
+  type,
+) {
   final repository = ref.watch(repositoryProvider);
   ref.watch(isOfflineProvider);
-  if (repository == null) return const [];
-  final playlists = [...await repository.playlists()];
-  playlists.sort((a, b) => (b.changed ?? '').compareTo(a.changed ?? ''));
-  return playlists;
+  if (repository == null) return Stream.value(const []);
+  return _cachedThenFresh(
+    repository.cachedAlbumList(type, size: 20),
+    () => repository.albumList(type, size: 20),
+  );
+});
+
+/// Playlists, most recently changed first, cached like [albumListProvider].
+final recentPlaylistsProvider = StreamProvider<List<Playlist>>((ref) {
+  final repository = ref.watch(repositoryProvider);
+  ref.watch(isOfflineProvider);
+  if (repository == null) return Stream.value(const []);
+  List<Playlist> sorted(List<Playlist> playlists) =>
+      [...playlists]
+        ..sort((a, b) => (b.changed ?? '').compareTo(a.changed ?? ''));
+  return _cachedThenFresh(
+    repository.cachedPlaylists().then((p) => p == null ? null : sorted(p)),
+    () async => sorted(await repository.playlists()),
+  );
 });
 
 class HomePage extends ConsumerWidget {

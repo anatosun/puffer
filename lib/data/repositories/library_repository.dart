@@ -142,7 +142,7 @@ class LibraryRepository {
     int? toYear,
   }) => _fetch(
     kind: 'list',
-    id: 'albums:$type:$size:$offset:${genre ?? ''}:${fromYear ?? ''}:${toYear ?? ''}',
+    id: _albumListKey(type, size, offset, genre, fromYear, toYear),
     remote: () => client.getAlbumList(
       type,
       size: size,
@@ -154,6 +154,28 @@ class LibraryRepository {
     encode: (l) => [for (final a in l) a.json],
     decode: (j) => jsonList(j).map(Album.new).toList(),
   );
+
+  static String _albumListKey(
+    String type,
+    int size,
+    int offset, [
+    String? genre,
+    int? fromYear,
+    int? toYear,
+  ]) =>
+      'albums:$type:$size:$offset:${genre ?? ''}:${fromYear ?? ''}:${toYear ?? ''}';
+
+  /// The cached first page of an album list, without asking the server.
+  Future<List<Album>?> cachedAlbumList(String type, {int size = 50}) async {
+    final json = await _cached('list', _albumListKey(type, size, 0));
+    return json == null ? null : jsonList(json).map(Album.new).toList();
+  }
+
+  /// The cached playlists, without asking the server.
+  Future<List<Playlist>?> cachedPlaylists() async {
+    final json = await _cached('list', 'playlists');
+    return json == null ? null : jsonList(json).map(Playlist.new).toList();
+  }
 
   Future<List<Genre>> genres() => _fetch(
     kind: 'list',
