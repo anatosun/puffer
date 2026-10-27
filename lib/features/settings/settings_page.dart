@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -32,6 +33,16 @@ class SettingsPage extends ConsumerWidget {
             subtitle: const Text('Show and play only downloaded music'),
             value: ref.watch(manualOfflineProvider),
             onChanged: (v) => ref.read(manualOfflineProvider.notifier).set(v),
+          ),
+          ListTile(
+            leading: const Icon(Icons.speaker_group_outlined),
+            title: const Text('Music Assistant'),
+            subtitle: Text(
+              ref.watch(maCredentialsProvider)?.baseUrl.host ??
+                  'Play on your speakers',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/music-assistant'),
           ),
           ListTile(
             leading: const Icon(Icons.arrow_circle_down_outlined),

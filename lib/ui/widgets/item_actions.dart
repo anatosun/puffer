@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
@@ -31,7 +32,7 @@ Future<void> showItemActions(
             ref.watch(pinStateProvider((kind, id))).value ?? PinState.none;
         final manager = ref.watch(downloadManagerProvider);
         final repository = ref.watch(repositoryProvider);
-        final handler = ref.watch(playbackProvider);
+        final handler = ref.watch(playbackControllerProvider);
         final offline = ref.watch(isOfflineProvider);
         final messenger = ScaffoldMessenger.of(context);
         final router = GoRouter.of(context);

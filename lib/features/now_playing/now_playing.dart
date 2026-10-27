@@ -1,28 +1,58 @@
-import 'package:audio_service/audio_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/providers.dart';
+import '../../app/playback_providers.dart';
+import '../../playback/playback_controller.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
+import '../cast/output_sheet.dart';
 
-final mediaItemProvider = StreamProvider<MediaItem?>(
-  (ref) => ref.watch(playbackProvider).mediaItem,
-);
-final playbackStateProvider = StreamProvider<PlaybackState>(
-  (ref) => ref.watch(playbackProvider).playbackState,
-);
-final positionProvider = StreamProvider<Duration>(
-  (ref) => ref.watch(playbackProvider).player.positionStream,
-);
-final queueProvider = StreamProvider<List<MediaItem>>(
-  (ref) => ref.watch(playbackProvider).queue,
-);
+/// The artwork image of what is playing: the Subsonic cover when the track is known, otherwise the Music Assistant image.
+ImageProvider? _image(WidgetRef ref, NowPlaying np, {int size = 300}) {
+  final subsonic = artworkImage(ref, np.coverArt, size: size);
+  if (subsonic != null) return subsonic;
+  return np.imageUrl == null
+      ? null
+      : CachedNetworkImageProvider(np.imageUrl.toString());
+}
 
-String? _coverArtOf(WidgetRef ref) =>
-    ref.read(playbackProvider).currentTrack?.coverArt;
+ColorScheme? _scheme(WidgetRef ref, NowPlaying? np) {
+  if (np == null) return null;
+  if (np.coverArt != null) return artworkScheme(ref, np.coverArt);
+  final image = _image(ref, np);
+  if (image == null || np.imageUrl == null) return null;
+  return ref
+      .watch(artworkSchemeProvider((np.imageUrl.toString(), image)))
+      .value;
+}
+
+class _NowPlayingArtwork extends ConsumerWidget {
+  const _NowPlayingArtwork(this.np, {required this.size, this.radius = 6});
+
+  final NowPlaying np;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (np.coverArt != null || np.imageUrl == null) {
+      return Artwork(np.coverArt, size: size, radius: radius);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Image(
+        image: _image(ref, np, size: 800)!,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
+    );
+  }
+}
 
 /// The bar above the navigation bar. A tap opens the now-playing screen.
 class MiniPlayer extends ConsumerWidget {
@@ -30,14 +60,12 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final item = ref.watch(mediaItemProvider).value;
-    if (item == null) return const SizedBox.shrink();
-    final playing = ref.watch(playbackStateProvider).value?.playing ?? false;
-    final position = ref.watch(positionProvider).value ?? Duration.zero;
-    final duration = item.duration ?? Duration.zero;
-    final coverArt = _coverArtOf(ref);
-    final scheme = artworkScheme(ref, coverArt);
-    final handler = ref.read(playbackProvider);
+    final np = ref.watch(nowPlayingProvider).value;
+    if (np == null) return const SizedBox.shrink();
+    ref.watch(clockProvider);
+    final controller = ref.read(playbackControllerProvider);
+    final scheme = _scheme(ref, np);
+    final position = np.positionNow();
 
     return GestureDetector(
       onTap: () => openNowPlaying(context),
@@ -63,20 +91,22 @@ class MiniPlayer extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
-                  Artwork(coverArt, size: 44, radius: 4),
+                  _NowPlayingArtwork(np, size: 44, radius: 4),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.title,
+                          np.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
-                          item.artist ?? '',
+                          np.outputName == null
+                              ? (np.artist ?? '')
+                              : '${np.artist ?? ''} · ${np.outputName}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -87,27 +117,24 @@ class MiniPlayer extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  const OutputButton(),
                   IconButton(
                     icon: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      np.playing
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                       size: 32,
                     ),
-                    onPressed: playing ? handler.pause : handler.play,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.skip_next_rounded, size: 28),
-                    onPressed: handler.skipToNext,
+                    onPressed: np.playing ? controller.pause : controller.play,
                   ),
                 ],
               ),
             ),
             LinearProgressIndicator(
-              value: duration.inMilliseconds == 0
+              value: np.duration.inMilliseconds == 0
                   ? 0
-                  : (position.inMilliseconds / duration.inMilliseconds).clamp(
-                      0,
-                      1,
-                    ),
+                  : (position.inMilliseconds / np.duration.inMilliseconds)
+                        .clamp(0, 1),
               minHeight: 2,
               backgroundColor: Colors.white10,
               color: scheme?.primary ?? accent,
@@ -139,13 +166,12 @@ class NowPlayingPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final item = ref.watch(mediaItemProvider).value;
-    final state = ref.watch(playbackStateProvider).value;
-    final handler = ref.read(playbackProvider);
-    final track = handler.currentTrack;
-    final scheme = artworkScheme(ref, track?.coverArt);
+    final np = ref.watch(nowPlayingProvider).value;
+    final controller = ref.read(playbackControllerProvider);
+    final scheme = _scheme(ref, np);
     final top = scheme?.primaryContainer ?? const Color(0xFF333333);
     final highlight = scheme?.primary ?? accent;
+    final track = np?.track;
 
     return GestureDetector(
       onVerticalDragEnd: (d) {
@@ -163,13 +189,13 @@ class NowPlayingPage extends ConsumerWidget {
             ),
           ),
           child: SafeArea(
-            child: item == null
+            child: np == null
                 ? const Center(child: Text('Nothing playing'))
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       final artSize = (constraints.maxWidth - 48).clamp(
                         0.0,
-                        constraints.maxHeight * 0.48,
+                        constraints.maxHeight * 0.45,
                       );
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -186,7 +212,7 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                                 Expanded(
                                   child: Text(
-                                    item.album ?? '',
+                                    np.album ?? '',
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -212,7 +238,7 @@ class NowPlayingPage extends ConsumerWidget {
                             AnimatedSwitcher(
                               duration: const Duration(milliseconds: 300),
                               child: DecoratedBox(
-                                key: ValueKey(item.id),
+                                key: ValueKey(np.title + (np.album ?? '')),
                                 decoration: BoxDecoration(
                                   boxShadow: [
                                     BoxShadow(
@@ -224,8 +250,8 @@ class NowPlayingPage extends ConsumerWidget {
                                     ),
                                   ],
                                 ),
-                                child: Artwork(
-                                  track?.coverArt,
+                                child: _NowPlayingArtwork(
+                                  np,
                                   size: artSize,
                                   radius: 10,
                                 ),
@@ -241,7 +267,7 @@ class NowPlayingPage extends ConsumerWidget {
                                           .push('/album/${track!.albumId}');
                                     },
                               child: Text(
-                                item.title,
+                                np.title,
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -259,7 +285,7 @@ class NowPlayingPage extends ConsumerWidget {
                                           .push('/artist/${track!.artistId}');
                                     },
                               child: Text(
-                                item.artist ?? '',
+                                np.artist ?? '',
                                 style: TextStyle(
                                   color: highlight,
                                   fontSize: 17,
@@ -268,30 +294,27 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _SeekBar(
-                              duration: item.duration ?? Duration.zero,
-                              color: highlight,
-                            ),
-                            _Controls(state: state, color: highlight),
-                            const SizedBox(height: 8),
+                            _SeekBar(np: np, color: highlight),
+                            _Controls(np: np),
+                            if (np.volume != null)
+                              _VolumeSlider(
+                                volume: np.volume!,
+                                color: highlight,
+                              ),
+                            const SizedBox(height: 4),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 IconButton(
                                   tooltip: 'Shuffle',
-                                  color:
-                                      state?.shuffleMode ==
-                                          AudioServiceShuffleMode.all
+                                  color: np.shuffle
                                       ? highlight
                                       : Colors.white54,
                                   icon: const Icon(Icons.shuffle),
-                                  onPressed: () => handler.setShuffleMode(
-                                    state?.shuffleMode ==
-                                            AudioServiceShuffleMode.all
-                                        ? AudioServiceShuffleMode.none
-                                        : AudioServiceShuffleMode.all,
-                                  ),
+                                  onPressed: () =>
+                                      controller.setShuffle(!np.shuffle),
                                 ),
+                                const OutputButton(showName: true),
                                 IconButton(
                                   tooltip: 'Queue',
                                   icon: const Icon(Icons.queue_music),
@@ -299,26 +322,20 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                                 IconButton(
                                   tooltip: 'Repeat',
-                                  color:
-                                      state?.repeatMode ==
-                                          AudioServiceRepeatMode.none
+                                  color: np.repeat == Repeat.off
                                       ? Colors.white54
                                       : highlight,
                                   icon: Icon(
-                                    state?.repeatMode ==
-                                            AudioServiceRepeatMode.one
+                                    np.repeat == Repeat.one
                                         ? Icons.repeat_one
                                         : Icons.repeat,
                                   ),
-                                  onPressed: () => handler.setRepeatMode(
-                                    switch (state?.repeatMode) {
-                                      AudioServiceRepeatMode.all =>
-                                        AudioServiceRepeatMode.one,
-                                      AudioServiceRepeatMode.one =>
-                                        AudioServiceRepeatMode.none,
-                                      _ => AudioServiceRepeatMode.all,
-                                    },
-                                  ),
+                                  onPressed: () =>
+                                      controller.setRepeat(switch (np.repeat) {
+                                        Repeat.off => Repeat.all,
+                                        Repeat.all => Repeat.one,
+                                        Repeat.one => Repeat.off,
+                                      }),
                                 ),
                               ],
                             ),
@@ -343,9 +360,9 @@ class NowPlayingPage extends ConsumerWidget {
 }
 
 class _SeekBar extends ConsumerStatefulWidget {
-  const _SeekBar({required this.duration, required this.color});
+  const _SeekBar({required this.np, required this.color});
 
-  final Duration duration;
+  final NowPlaying np;
   final Color color;
 
   @override
@@ -357,8 +374,10 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    final position = ref.watch(positionProvider).value ?? Duration.zero;
-    final max = widget.duration.inMilliseconds.toDouble();
+    ref.watch(clockProvider);
+    final position = widget.np.positionNow();
+    final duration = widget.np.duration;
+    final max = duration.inMilliseconds.toDouble();
     final value = (_dragValue ?? position.inMilliseconds.toDouble()).clamp(
       0.0,
       max == 0 ? 1.0 : max,
@@ -385,7 +404,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             onChanged: (v) => setState(() => _dragValue = v),
             onChangeEnd: (v) {
               ref
-                  .read(playbackProvider)
+                  .read(playbackControllerProvider)
                   .seek(Duration(milliseconds: v.round()));
               setState(() => _dragValue = null);
             },
@@ -400,7 +419,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
               style: style,
             ),
             Text(
-              '-${formatDuration(widget.duration - Duration(milliseconds: value.round()))}',
+              '-${formatDuration(duration - Duration(milliseconds: value.round()))}',
               style: style,
             ),
           ],
@@ -411,25 +430,20 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 }
 
 class _Controls extends ConsumerWidget {
-  const _Controls({required this.state, required this.color});
+  const _Controls({required this.np});
 
-  final PlaybackState? state;
-  final Color color;
+  final NowPlaying np;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final handler = ref.read(playbackProvider);
-    final playing = state?.playing ?? false;
-    final buffering =
-        state?.processingState == AudioProcessingState.loading ||
-        state?.processingState == AudioProcessingState.buffering;
+    final controller = ref.read(playbackControllerProvider);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         IconButton(
           iconSize: 44,
           icon: const Icon(Icons.skip_previous_rounded),
-          onPressed: handler.skipToPrevious,
+          onPressed: controller.previous,
         ),
         SizedBox.square(
           dimension: 80,
@@ -439,7 +453,7 @@ class _Controls extends ConsumerWidget {
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
             ),
-            icon: buffering && !playing
+            icon: np.buffering && !np.playing
                 ? const SizedBox.square(
                     dimension: 32,
                     child: CircularProgressIndicator(
@@ -448,19 +462,54 @@ class _Controls extends ConsumerWidget {
                     ),
                   )
                 : Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    np.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   ),
-            onPressed: playing ? handler.pause : handler.play,
+            onPressed: np.playing ? controller.pause : controller.play,
           ),
         ),
         IconButton(
           iconSize: 44,
           icon: const Icon(Icons.skip_next_rounded),
-          onPressed: handler.skipToNext,
+          onPressed: controller.next,
         ),
       ],
     );
   }
+}
+
+class _VolumeSlider extends ConsumerStatefulWidget {
+  const _VolumeSlider({required this.volume, required this.color});
+
+  final int volume;
+  final Color color;
+
+  @override
+  ConsumerState<_VolumeSlider> createState() => _VolumeSliderState();
+}
+
+class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const Icon(Icons.volume_down, color: Colors.white54, size: 20),
+      Expanded(
+        child: Slider(
+          value: _dragValue ?? widget.volume.toDouble(),
+          max: 100,
+          activeColor: widget.color,
+          inactiveColor: Colors.white24,
+          onChanged: (v) => setState(() => _dragValue = v),
+          onChangeEnd: (v) async {
+            await ref.read(playbackControllerProvider).setVolume(v.round());
+            if (mounted) setState(() => _dragValue = null);
+          },
+        ),
+      ),
+      const Icon(Icons.volume_up, color: Colors.white54, size: 20),
+    ],
+  );
 }
 
 class _QueueSheet extends ConsumerWidget {
@@ -468,9 +517,9 @@ class _QueueSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final queue = ref.watch(queueProvider).value ?? const [];
-    final current = ref.watch(playbackStateProvider).value?.queueIndex;
-    final handler = ref.read(playbackProvider);
+    final np = ref.watch(nowPlayingProvider).value;
+    final queue = np?.queue ?? const [];
+    final controller = ref.read(playbackControllerProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -481,13 +530,13 @@ class _QueueSheet extends ConsumerWidget {
         Expanded(
           child: ReorderableListView.builder(
             itemCount: queue.length,
-            onReorderItem: handler.moveQueueItem,
+            onReorderItem: controller.move,
             itemBuilder: (context, i) {
               final item = queue[i];
               return Dismissible(
                 key: ValueKey('${item.id}-$i'),
                 direction: DismissDirection.endToStart,
-                onDismissed: (_) => handler.removeQueueItemAt(i),
+                onDismissed: (_) => controller.removeAt(i),
                 background: Container(
                   color: Colors.red.shade900,
                   alignment: Alignment.centerRight,
@@ -495,7 +544,7 @@ class _QueueSheet extends ConsumerWidget {
                   child: const Icon(Icons.delete),
                 ),
                 child: ListTile(
-                  selected: i == current,
+                  selected: i == np?.index,
                   title: Text(
                     item.title,
                     maxLines: 1,
@@ -506,7 +555,7 @@ class _QueueSheet extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  onTap: () => handler.skipToQueueItem(i),
+                  onTap: () => controller.skipTo(i),
                 ),
               );
             },

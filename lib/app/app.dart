@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/cast/music_assistant_page.dart';
 import '../features/collection/album_page.dart';
 import '../features/collection/artist_page.dart';
 import '../features/collection/playlist_page.dart';
@@ -59,6 +60,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, s) => PlaylistPage(s.pathParameters['id']!),
           ),
           GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+          GoRoute(
+            path: '/settings/music-assistant',
+            builder: (_, _) => const MusicAssistantPage(),
+          ),
           GoRoute(
             path: '/settings/downloads',
             builder: (_, _) => const DownloadsSettingsPage(),

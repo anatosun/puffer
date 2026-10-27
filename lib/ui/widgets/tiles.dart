@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
@@ -31,7 +32,7 @@ class TrackTile extends ConsumerWidget {
     final offline = ref.watch(isOfflineProvider);
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
     final playable = !offline || downloaded.contains(track.id);
-    final current = ref.watch(currentTrackIdProvider).value == track.id;
+    final current = ref.watch(currentTrackIdProvider) == track.id;
     final color = current ? Theme.of(context).colorScheme.primary : null;
 
     return Opacity(
@@ -98,12 +99,12 @@ Future<void> playFrom(
     start = list.indexOf(selected).clamp(0, list.length);
   }
   await ref
-      .read(playbackProvider)
+      .read(playbackControllerProvider)
       .playTracks(list, index: start, shuffle: shuffle);
 }
 
-final currentTrackIdProvider = StreamProvider<String?>(
-  (ref) => ref.watch(playbackProvider).mediaItem.map((m) => m?.id),
+final currentTrackIdProvider = Provider<String?>(
+  (ref) => ref.watch(nowPlayingProvider).value?.track?.id,
 );
 
 class AlbumCard extends ConsumerWidget {
