@@ -13,6 +13,7 @@ import '../features/now_playing/now_playing.dart';
 import '../features/search/search_page.dart';
 import '../features/settings/downloads_settings_page.dart';
 import '../features/settings/settings_page.dart';
+import '../ui/messages.dart';
 import '../ui/theme.dart';
 import 'providers.dart';
 
@@ -87,6 +88,7 @@ class App extends ConsumerWidget {
       darkTheme: buildTheme(),
       themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
+      scaffoldMessengerKey: messengerKey,
     );
   }
 }

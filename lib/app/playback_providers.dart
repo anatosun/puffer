@@ -7,6 +7,7 @@ import '../data/music_assistant/ma_client.dart';
 import '../data/music_assistant/ma_models.dart';
 import '../playback/ma_playback_controller.dart';
 import '../playback/playback_controller.dart';
+import '../ui/messages.dart';
 import 'providers.dart';
 
 // ------------------------------------------------------------ Music Assistant session
@@ -161,36 +162,38 @@ class OutputNotifier extends Notifier<String?> {
   @override
   String? build() => ref.read(sharedPreferencesProvider).getString('ma.output');
 
-  /// Switches the output. The queue playing on this device moves to the player.
   Future<void> select(String? playerId) async {
-    if (playerId == state) return;
-    final handler = ref.read(playerHandlerProvider);
-    final tracks = handler.tracks;
-    final index = handler.player.currentIndex ?? 0;
-    final position = handler.player.position;
-    final wasPlaying = handler.player.playing;
-
     state = playerId;
     final prefs = ref.read(sharedPreferencesProvider);
     playerId == null
         ? await prefs.remove('ma.output')
         : await prefs.setString('ma.output', playerId);
-
-    if (playerId != null && wasPlaying && tracks.isNotEmpty) {
-      await handler.pause();
-      final controller = ref.read(playbackControllerProvider);
-      await controller.playTracks(tracks, index: index);
-      if (position > const Duration(seconds: 5)) {
-        await Future<void>.delayed(const Duration(seconds: 2));
-        await controller.seek(position);
-      }
-    }
   }
 }
 
 final outputProvider = NotifierProvider<OutputNotifier, String?>(
   OutputNotifier.new,
 );
+
+/// Switches the output. The queue playing on this device moves to the player.
+Future<void> switchOutput(WidgetRef ref, String? playerId) async {
+  if (playerId == ref.read(outputProvider)) return;
+  final handler = ref.read(playerHandlerProvider);
+  final tracks = handler.tracks;
+  final index = handler.player.currentIndex ?? 0;
+  final position = handler.player.position;
+  final wasPlaying = handler.player.playing;
+
+  await ref.read(outputProvider.notifier).select(playerId);
+  if (playerId == null || !wasPlaying || tracks.isEmpty) return;
+
+  await handler.pause();
+  final controller = ref.read(playbackControllerProvider);
+  await controller.playTracks(tracks, index: index);
+  if (position > const Duration(seconds: 5)) {
+    await controller.seek(position);
+  }
+}
 
 final playbackControllerProvider = Provider<PlaybackController>((ref) {
   final handler = ref.watch(playbackProvider);
@@ -203,6 +206,7 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
       output,
       providerInstance: ref.watch(maSubsonicInstanceProvider),
       streamUri: (track) => ref.read(clientProvider)!.streamUri(track.id),
+      onError: (e) => showMessage('$e'),
     );
   } else {
     controller = LocalPlaybackController(handler);

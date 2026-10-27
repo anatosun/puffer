@@ -14,6 +14,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     this.playerId, {
     this.providerInstance,
     required this.streamUri,
+    this.onError,
   }) {
     _subscriptions = [
       client.queuesStream.listen((_) => _emit()),
@@ -31,6 +32,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   final String playerId;
   final String? providerInstance;
   final Uri Function(Track) streamUri;
+
+  /// Receives failures of transport commands (play, pause, seek, …), which buttons call without awaiting.
+  final void Function(Object error)? onError;
 
   late final List<StreamSubscription<Object?>> _subscriptions;
   final _controller = StreamController<NowPlaying?>.broadcast();
@@ -71,7 +75,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
       if (id != null) return _known[id];
     }
     // Stream URLs carry no Subsonic ID back; the queue order is the order the tracks were sent in.
-    if (index != null && index < _sent.length && _items.length == _sent.length) {
+    if (index != null &&
+        index < _sent.length &&
+        _items.length == _sent.length) {
       return _sent[index];
     }
     return null;
@@ -127,6 +133,14 @@ class MusicAssistantPlaybackController implements PlaybackController {
   Future<void> _queueCommand(String command, [MaJson args = const {}]) =>
       client.command('player_queues/$command', {'queue_id': playerId, ...args});
 
+  Future<void> _control(Future<void> command) async {
+    try {
+      await command;
+    } on MaException catch (e) {
+      onError?.call(e);
+    }
+  }
+
   @override
   Future<void> playTracks(
     List<Track> tracks, {
@@ -166,48 +180,52 @@ class MusicAssistantPlaybackController implements PlaybackController {
   }
 
   @override
-  Future<void> play() => _queueCommand('play');
+  Future<void> play() => _control(_queueCommand('play'));
   @override
-  Future<void> pause() => _queueCommand('pause');
+  Future<void> pause() => _control(_queueCommand('pause'));
   @override
-  Future<void> next() => _queueCommand('next');
+  Future<void> next() => _control(_queueCommand('next'));
   @override
-  Future<void> previous() => _queueCommand('previous');
+  Future<void> previous() => _control(_queueCommand('previous'));
   @override
   Future<void> seek(Duration position) =>
-      _queueCommand('seek', {'position': position.inSeconds});
+      _control(_queueCommand('seek', {'position': position.inSeconds}));
   @override
   Future<void> skipTo(int index) =>
-      _queueCommand('play_index', {'index': index});
+      _control(_queueCommand('play_index', {'index': index}));
   @override
   Future<void> setShuffle(bool enabled) =>
-      _queueCommand('shuffle', {'shuffle_enabled': enabled});
+      _control(_queueCommand('shuffle', {'shuffle_enabled': enabled}));
   @override
   Future<void> setRepeat(Repeat repeat) =>
-      _queueCommand('repeat', {'repeat_mode': repeat.name});
+      _control(_queueCommand('repeat', {'repeat_mode': repeat.name}));
 
   @override
   Future<void> removeAt(int index) async {
     _sent = const [];
-    await _queueCommand('delete_item', {'item_id_or_index': index});
+    await _control(_queueCommand('delete_item', {'item_id_or_index': index}));
   }
 
   @override
   Future<void> move(int from, int to) async {
     if (from >= _items.length) return;
     _sent = const [];
-    await _queueCommand('move_item', {
-      'queue_item_id': _items[from].id,
-      'pos_shift': to - from,
-    });
+    await _control(
+      _queueCommand('move_item', {
+        'queue_item_id': _items[from].id,
+        'pos_shift': to - from,
+      }),
+    );
   }
 
   @override
   Future<void> setVolume(int volume) {
     final group = _player?.isGroup ?? false;
-    return client.command(
-      group ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
-      {'player_id': playerId, 'volume_level': volume},
+    return _control(
+      client.command(
+        group ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
+        {'player_id': playerId, 'volume_level': volume},
+      ),
     );
   }
 

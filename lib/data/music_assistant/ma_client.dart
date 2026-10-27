@@ -282,7 +282,11 @@ class MusicAssistantClient {
     _events.add(event);
   }
 
+  /// Sends a command. Loading media into a queue makes Music Assistant resolve every item first, so it answers late.
   Future<Object?> command(String command, [MaJson args = const {}]) {
+    final timeout = command == 'player_queues/play_media'
+        ? const Duration(minutes: 2)
+        : const Duration(seconds: 30);
     final channel = _channel;
     if (channel == null) {
       return Future.error(
@@ -296,7 +300,7 @@ class MusicAssistantClient {
       jsonEncode({'message_id': id, 'command': command, 'args': args}),
     );
     return completer.future.timeout(
-      const Duration(seconds: 30),
+      timeout,
       onTimeout: () {
         _pending.remove(id);
         throw MaException(0, '$command timed out');

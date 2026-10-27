@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/playback_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
 import '../../data/music_assistant/ma_models.dart';
+import '../../ui/messages.dart';
 
 /// Opens the output picker. Its icon shows when a Music Assistant player is the output.
 class OutputButton extends ConsumerWidget {
@@ -55,7 +56,6 @@ class _OutputSheet extends ConsumerWidget {
     final credentials = ref.watch(maCredentialsProvider);
     final status = ref.watch(maStatusProvider).value;
     final players = ref.watch(maPlayersProvider).value ?? const [];
-    final notifier = ref.read(outputProvider.notifier);
     final router = GoRouter.of(context);
 
     return SafeArea(
@@ -78,7 +78,7 @@ class _OutputSheet extends ConsumerWidget {
               title: 'This device',
               selected: output == null,
               onTap: () {
-                notifier.select(null);
+                runPlayback(() => switchOutput(ref, null));
                 Navigator.pop(context);
               },
             ),
@@ -127,7 +127,7 @@ class _OutputSheet extends ConsumerWidget {
                   },
                   selected: output == player.id,
                   onTap: () {
-                    notifier.select(player.id);
+                    runPlayback(() => switchOutput(ref, player.id));
                     Navigator.pop(context);
                   },
                 ),

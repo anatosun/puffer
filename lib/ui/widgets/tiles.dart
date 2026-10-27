@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../messages.dart';
 import '../theme.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
@@ -35,51 +36,50 @@ class TrackTile extends ConsumerWidget {
     final current = ref.watch(currentTrackIdProvider) == track.id;
     final color = current ? Theme.of(context).colorScheme.primary : null;
 
-    return Opacity(
-      opacity: playable ? 1 : 0.35,
-      child: ListTile(
-        leading: showArtwork
-            ? Artwork(track.coverArt, size: 44, radius: 4)
-            : showNumber
-            ? SizedBox(
-                width: 28,
-                child: Text(
-                  '${track.trackNumber ?? ''}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: color ?? Colors.white54),
-                ),
-              )
-            : null,
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: color),
-        ),
-        subtitle: Text(
-          track.artist ?? '',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white54),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TrackDownloadIcon(track.id),
-            const SizedBox(width: 8),
-            Text(
-              formatDuration(track.duration),
-              style: const TextStyle(
-                color: Colors.white38,
-                fontFeatures: [FontFeature.tabularFigures()],
+    final tile = ListTile(
+      leading: showArtwork
+          ? Artwork(track.coverArt, size: 44, radius: 4)
+          : showNumber
+          ? SizedBox(
+              width: 28,
+              child: Text(
+                '${track.trackNumber ?? ''}',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: color ?? Colors.white54),
               ),
-            ),
-          ],
-        ),
-        onTap: playable ? () => playFrom(ref, tracks, index) : null,
-        onLongPress: () => showTrackActions(context, ref, track),
+            )
+          : null,
+      title: Text(
+        track.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: color),
       ),
+      subtitle: Text(
+        track.artist ?? '',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white54),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TrackDownloadIcon(track.id),
+          const SizedBox(width: 8),
+          Text(
+            formatDuration(track.duration),
+            style: const TextStyle(
+              color: Colors.white38,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+      onTap: playable ? () => playFrom(ref, tracks, index) : null,
+      onLongPress: () => showTrackActions(context, ref, track),
     );
+    // An Opacity of 1 still makes Impeller composite the row in a layer.
+    return playable ? tile : Opacity(opacity: 0.35, child: tile);
   }
 }
 
@@ -98,9 +98,11 @@ Future<void> playFrom(
     list = tracks.where((t) => downloaded.contains(t.id)).toList();
     start = list.indexOf(selected).clamp(0, list.length);
   }
-  await ref
-      .read(playbackControllerProvider)
-      .playTracks(list, index: start, shuffle: shuffle);
+  await runPlayback(
+    () => ref
+        .read(playbackControllerProvider)
+        .playTracks(list, index: start, shuffle: shuffle),
+  );
 }
 
 final currentTrackIdProvider = Provider<String?>(

@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../messages.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
 
@@ -68,7 +69,9 @@ Future<void> showItemActions(
                   title: const Text('Play next'),
                   onTap: () async {
                     close();
-                    await handler.playNext(await tracks());
+                    await runPlayback(
+                      () async => handler.playNext(await tracks()),
+                    );
                   },
                 ),
                 ListTile(
@@ -76,7 +79,9 @@ Future<void> showItemActions(
                   title: const Text('Add to queue'),
                   onTap: () async {
                     close();
-                    await handler.addTracks(await tracks());
+                    await runPlayback(
+                      () async => handler.addTracks(await tracks()),
+                    );
                   },
                 ),
               ],
