@@ -34,7 +34,8 @@ env:
 
 jobs:
   update-repo:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Prereleases (tags with a hyphen, such as v0.1.0-alpha.1) stay out of the F-Droid repo.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && !contains(github.event.workflow_run.head_branch, '-'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
