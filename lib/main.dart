@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/playback_providers.dart';
 import 'app/providers.dart';
 import 'data/db/database.dart';
 import 'playback/player_handler.dart';
@@ -20,6 +21,7 @@ Future<void> main() async {
     SharedPreferences.getInstance(),
     getApplicationSupportDirectory(),
     loadCredentials(),
+    loadMaCredentials(),
   ).wait;
 
   runApp(
@@ -28,6 +30,7 @@ Future<void> main() async {
         sharedPreferencesProvider.overrideWithValue(results.$1),
         supportDirectoryProvider.overrideWithValue(results.$2),
         initialCredentialsProvider.overrideWithValue(results.$3),
+        initialMaCredentialsProvider.overrideWithValue(results.$4),
         databaseProvider.overrideWithValue(AppDatabase()),
         playerHandlerProvider.overrideWithValue(handler),
       ],
