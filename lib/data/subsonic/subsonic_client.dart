@@ -166,6 +166,11 @@ class SubsonicClient {
   Future<Artist> getArtist(String id) async =>
       Artist((await _get('getArtist', {'id': id}))['artist'] as Json);
 
+  Future<ArtistInfo> getArtistInfo(String id) async => ArtistInfo(
+    (await _get('getArtistInfo2', {'id': id}))['artistInfo2'] as Json? ??
+        const {},
+  );
+
   Future<Album> getAlbum(String id) async =>
       Album((await _get('getAlbum', {'id': id}))['album'] as Json);
 

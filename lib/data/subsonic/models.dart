@@ -92,6 +92,36 @@ class Playlist {
   List<Track> get entries => _list(json['entry']).map(Track.new).toList();
 }
 
+class ArtistInfo {
+  const ArtistInfo(this.json);
+
+  final Json json;
+
+  /// The biography as plain text, without the HTML links Last.fm appends.
+  String? get biography {
+    final raw = json['biography'] as String?;
+    if (raw == null) return null;
+    final text = raw
+        .replaceAll(RegExp(r'<a [^>]*>.*?</a>\.?', dotAll: true), '')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .trim();
+    return text.isEmpty ? null : text;
+  }
+
+  /// A photo of the artist. Last.fm's star placeholder counts as none.
+  String? get imageUrl {
+    for (final key in ['largeImageUrl', 'mediumImageUrl', 'smallImageUrl']) {
+      final url = json[key] as String?;
+      if (url != null &&
+          url.isNotEmpty &&
+          !url.contains('2a96cbd8b46e442fc41c2b86b821562f')) {
+        return url;
+      }
+    }
+    return null;
+  }
+}
+
 class Genre {
   const Genre(this.json);
 

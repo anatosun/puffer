@@ -177,6 +177,14 @@ class LibraryRepository {
     return json == null ? null : jsonList(json).map(Playlist.new).toList();
   }
 
+  Future<ArtistInfo> artistInfo(String id) => _fetch(
+    kind: 'artistInfo',
+    id: id,
+    remote: () => client.getArtistInfo(id),
+    encode: (i) => i.json,
+    decode: (j) => ArtistInfo(j as Json),
+  );
+
   Future<List<Genre>> genres() => _fetch(
     kind: 'list',
     id: 'genres',

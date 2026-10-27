@@ -25,67 +25,68 @@ class AlbumPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return TransparentAppBarScaffold(
-      body: ref
-          .watch(albumProvider(id))
-          .when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => MessageView(
+    return ref
+        .watch(albumProvider(id))
+        .when(
+          loading: () => const CollectionPlaceholder(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => CollectionPlaceholder(
+            body: MessageView(
               '$e',
               onRetry: () => ref.invalidate(albumProvider(id)),
             ),
-            data: (album) {
-              final songs = album.songs;
-              final discs = groupBy(songs, (Track t) => t.discNumber);
-              return ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  CollectionHeader(
-                    coverArt: album.coverArt,
-                    title: album.name,
-                    subtitle: album.artist,
-                    onSubtitleTap: album.artistId == null
-                        ? null
-                        : () => context.push('/artist/${album.artistId}'),
-                    details: [
-                      album.genre,
-                      album.year,
-                      '${songs.length} songs',
-                      formatDuration(album.duration),
-                    ].nonNulls.join(' · '),
-                    tracks: songs,
-                    pinKind: PinKind.album,
-                    pinId: album.id,
-                    trailing: StarButton(
-                      starred: album.starred,
-                      albumId: album.id,
-                    ),
-                  ),
-                  for (final disc in discs.entries) ...[
-                    if (discs.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Text(
-                          'Disc ${disc.key}',
-                          style: TextStyle(
-                            color: context.muted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    for (final track in disc.value)
-                      TrackTile(
-                        tracks: songs,
-                        index: songs.indexOf(track),
-                        showArtwork: false,
-                        showNumber: true,
-                      ),
-                  ],
-                  const SizedBox(height: 24),
-                ],
-              );
-            },
           ),
-    );
+          data: (album) {
+            final songs = album.songs;
+            final discs = groupBy(songs, (Track t) => t.discNumber);
+            return Scaffold(
+              body: CollectionView(
+                coverArt: album.coverArt,
+                title: album.name,
+                subtitle: album.artist,
+                onSubtitleTap: album.artistId == null
+                    ? null
+                    : () => context.push('/artist/${album.artistId}'),
+                details: [
+                  album.genre,
+                  album.year,
+                  '${songs.length} songs',
+                  formatDuration(album.duration),
+                ].nonNulls.join(' · '),
+                tracks: songs,
+                pinKind: PinKind.album,
+                pinId: album.id,
+                trailing: StarButton(starred: album.starred, albumId: album.id),
+                slivers: [
+                  SliverList.list(
+                    children: [
+                      for (final disc in discs.entries) ...[
+                        if (discs.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                            child: Text(
+                              'Disc ${disc.key}',
+                              style: TextStyle(
+                                color: context.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        for (final track in disc.value)
+                          TrackTile(
+                            tracks: songs,
+                            index: songs.indexOf(track),
+                            showArtwork: false,
+                            showNumber: true,
+                          ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
   }
 }

@@ -28,42 +28,20 @@ class PlaylistPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playlist = ref.watch(playlistProvider(id));
-    return TransparentAppBarScaffold(
-      actions: [
-        if (playlist.value case final p?)
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () =>
-                showItemActions(
-                  context,
-                  ref,
-                  kind: PinKind.playlist,
-                  id: p.id,
-                  title: p.name,
-                  subtitle: '${p.entries.length} songs',
-                  coverArt: p.coverArt,
-                  playlist: p,
-                  tracks: () async => p.entries,
-                ).then((_) async {
-                  // The playlist is gone after "Delete playlist".
-                  if (!context.mounted) return;
-                  final exists = (await ref.read(
-                    recentPlaylistsProvider.future,
-                  )).any((x) => x.id == p.id);
-                  if (!exists && context.mounted) context.pop();
-                }),
+    return ref
+        .watch(playlistProvider(id))
+        .when(
+          loading: () => const CollectionPlaceholder(
+            body: Center(child: CircularProgressIndicator()),
           ),
-      ],
-      body: playlist.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => MessageView(
-          '$e',
-          onRetry: () => ref.invalidate(playlistProvider(id)),
-        ),
-        data: (playlist) => _PlaylistBody(playlist),
-      ),
-    );
+          error: (e, _) => CollectionPlaceholder(
+            body: MessageView(
+              '$e',
+              onRetry: () => ref.invalidate(playlistProvider(id)),
+            ),
+          ),
+          data: (playlist) => Scaffold(body: _PlaylistBody(playlist)),
+        );
   }
 }
 
@@ -119,10 +97,33 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     );
   }
 
+  void _showMenu() {
+    final p = widget.playlist;
+    showItemActions(
+      context,
+      ref,
+      kind: PinKind.playlist,
+      id: p.id,
+      title: p.name,
+      subtitle: '${_entries.length} songs',
+      coverArt: p.coverArt,
+      playlist: p,
+      tracks: () async => _entries,
+    ).then((_) async {
+      // The playlist is gone after "Delete playlist".
+      if (!mounted) return;
+      final exists = (await ref.read(recentPlaylistsProvider.future))
+          .any((x) => x.id == p.id);
+      if (!exists && mounted) context.pop();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final playlist = widget.playlist;
-    final header = CollectionHeader(
+    final editable =
+        ownsPlaylist(ref, playlist) && !ref.watch(isOfflineProvider);
+    return CollectionView(
       coverArt: playlist.coverArt,
       title: playlist.name,
       subtitle: playlist.owner,
@@ -131,45 +132,43 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       tracks: _entries,
       pinKind: PinKind.playlist,
       pinId: playlist.id,
-    );
-    final editable =
-        ownsPlaylist(ref, playlist) && !ref.watch(isOfflineProvider);
-    if (!editable) {
-      return ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: _entries.length + 1,
-        itemBuilder: (context, i) =>
-            i == 0 ? header : TrackTile(tracks: _entries, index: i - 1),
-      );
-    }
-    return ReorderableListView.builder(
-      padding: EdgeInsets.zero,
-      header: header,
-      buildDefaultDragHandles: false,
-      itemCount: _entries.length,
-      onReorderItem: _move,
-      itemBuilder: (context, i) => Dismissible(
-        key: ValueKey('${_entries[i].id}-$i'),
-        direction: DismissDirection.endToStart,
-        onDismissed: (_) => _remove(i),
-        background: Container(
-          color: Colors.red.shade900,
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 16),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        child: TrackTile(
-          tracks: _entries,
-          index: i,
-          handle: ReorderableDragStartListener(
-            index: i,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Icon(Icons.drag_handle, color: context.faint),
+      actions: [
+        IconButton(icon: const Icon(Icons.more_vert), onPressed: _showMenu),
+      ],
+      slivers: [
+        if (!editable)
+          SliverList.builder(
+            itemCount: _entries.length,
+            itemBuilder: (context, i) => TrackTile(tracks: _entries, index: i),
+          )
+        else
+          SliverReorderableList(
+            itemCount: _entries.length,
+            onReorderItem: _move,
+            itemBuilder: (context, i) => Dismissible(
+              key: ValueKey('${_entries[i].id}-$i'),
+              direction: DismissDirection.endToStart,
+              onDismissed: (_) => _remove(i),
+              background: Container(
+                color: Colors.red.shade900,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 16),
+                child: const Icon(Icons.delete, color: Colors.white),
+              ),
+              child: TrackTile(
+                tracks: _entries,
+                index: i,
+                handle: ReorderableDragStartListener(
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(Icons.drag_handle, color: context.faint),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
