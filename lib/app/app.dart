@@ -1,3 +1,4 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -137,15 +138,26 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(playbackProvider);
     ref.watch(queuePersistenceProvider);
-    final accent = ref.watch(accentProvider).color;
-    return MaterialApp.router(
-      title: 'Puffer',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light, seed: accent),
-      darkTheme: buildTheme(Brightness.dark, seed: accent),
-      themeMode: ref.watch(themeModeProvider),
-      routerConfig: ref.watch(routerProvider),
-      scaffoldMessengerKey: messengerKey,
+    final accent = ref.watch(accentProvider);
+    return DynamicColorBuilder(
+      builder: (light, dark) {
+        final wallpaper = accent == AccentColour.wallpaper;
+        return MaterialApp.router(
+          title: 'Puffer',
+          debugShowCheckedModeBanner: false,
+          theme: buildTheme(
+            Brightness.light,
+            seed: wallpaper ? light?.primary ?? accent.color : accent.color,
+          ),
+          darkTheme: buildTheme(
+            Brightness.dark,
+            seed: wallpaper ? dark?.primary ?? accent.color : accent.color,
+          ),
+          themeMode: ref.watch(themeModeProvider),
+          routerConfig: ref.watch(routerProvider),
+          scaffoldMessengerKey: messengerKey,
+        );
+      },
     );
   }
 }

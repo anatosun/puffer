@@ -23,6 +23,8 @@ class EnumSettingNotifier<T extends Enum> extends Notifier<T> {
 }
 
 enum AccentColour {
+  /// The colour of the wallpaper on Android 12 and later (Material You), amber elsewhere.
+  wallpaper('Wallpaper', Color(0xFFE5A00D)),
   amber('Amber', Color(0xFFE5A00D)),
   coral('Coral', Color(0xFFFF6B5A)),
   rose('Rose', Color(0xFFE5487B)),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -96,7 +98,10 @@ class _AccentPicker extends ConsumerWidget {
         spacing: 12,
         runSpacing: 12,
         children: [
-          for (final accent in AccentColour.values)
+          // Material You exists on Android only.
+          for (final accent in AccentColour.values.where(
+            (a) => a != AccentColour.wallpaper || Platform.isAndroid,
+          ))
             Tooltip(
               message: accent.label,
               child: InkResponse(
@@ -105,7 +110,21 @@ class _AccentPicker extends ConsumerWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: accent.color,
+                    color: accent == AccentColour.wallpaper
+                        ? null
+                        : accent.color,
+                    gradient: accent == AccentColour.wallpaper
+                        ? const SweepGradient(
+                            colors: [
+                              Colors.red,
+                              Colors.amber,
+                              Colors.green,
+                              Colors.blue,
+                              Colors.purple,
+                              Colors.red,
+                            ],
+                          )
+                        : null,
                     shape: BoxShape.circle,
                     border: accent == selected
                         ? Border.all(
