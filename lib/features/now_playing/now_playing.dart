@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -118,15 +119,18 @@ class MiniPlayer extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const OutputButton(),
-                  IconButton(
-                    icon: Icon(
-                      np.playing
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      size: 32,
+                  _StopOnLongPress(
+                    child: IconButton(
+                      icon: Icon(
+                        np.playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 32,
+                      ),
+                      onPressed: np.playing
+                          ? controller.pause
+                          : controller.play,
                     ),
-                    onPressed: np.playing ? controller.pause : controller.play,
                   ),
                 ],
               ),
@@ -446,26 +450,30 @@ class _Controls extends ConsumerWidget {
           icon: const Icon(Icons.skip_previous_rounded),
           onPressed: controller.previous,
         ),
-        SizedBox.square(
-          dimension: 80,
-          child: IconButton.filled(
-            iconSize: 48,
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-            ),
-            icon: np.buffering && !np.playing
-                ? const SizedBox.square(
-                    dimension: 32,
-                    child: CircularProgressIndicator(
-                      color: Colors.black,
-                      strokeWidth: 3,
+        _StopOnLongPress(
+          child: SizedBox.square(
+            dimension: 80,
+            child: IconButton.filled(
+              iconSize: 48,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+              ),
+              icon: np.buffering && !np.playing
+                  ? const SizedBox.square(
+                      dimension: 32,
+                      child: CircularProgressIndicator(
+                        color: Colors.black,
+                        strokeWidth: 3,
+                      ),
+                    )
+                  : Icon(
+                      np.playing
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                     ),
-                  )
-                : Icon(
-                    np.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  ),
-            onPressed: np.playing ? controller.pause : controller.play,
+              onPressed: np.playing ? controller.pause : controller.play,
+            ),
           ),
         ),
         IconButton(
@@ -565,4 +573,20 @@ class _QueueSheet extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Stops playback on a long press of the play button.
+class _StopOnLongPress extends ConsumerWidget {
+  const _StopOnLongPress({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => GestureDetector(
+    onLongPress: () {
+      HapticFeedback.mediumImpact();
+      ref.read(playbackControllerProvider).stop();
+    },
+    child: Tooltip(message: 'Long press to stop', child: child),
+  );
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/widgets/tiles.dart';
+import '../cast/output_sheet.dart';
 import '../library/downloaded.dart';
 
 final albumListProvider = FutureProvider.autoDispose
@@ -35,6 +36,7 @@ class HomePage extends ConsumerWidget {
                 visualDensity: VisualDensity.compact,
               ),
             ),
+          const OutputButton(),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),

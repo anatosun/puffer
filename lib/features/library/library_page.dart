@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/widgets/tiles.dart';
+import '../cast/output_sheet.dart';
 import 'downloaded.dart';
 
 class DownloadedOnlyNotifier extends Notifier<bool> {
@@ -99,7 +100,7 @@ class LibraryPage extends ConsumerWidget {
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 4),
               child: FilterChip(
                 label: const Text('Downloaded'),
                 avatar: const Icon(Icons.arrow_circle_down, size: 18),
@@ -109,6 +110,7 @@ class LibraryPage extends ConsumerWidget {
                     : (_) => ref.read(downloadedOnlyProvider.notifier).toggle(),
               ),
             ),
+            const OutputButton(),
           ],
           bottom: const TabBar(
             isScrollable: true,

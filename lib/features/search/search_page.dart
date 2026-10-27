@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/widgets/tiles.dart';
+import '../cast/output_sheet.dart';
 
 final _queryProvider = NotifierProvider<_QueryNotifier, String>(
   _QueryNotifier.new,
@@ -48,6 +49,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final offline = ref.watch(isOfflineProvider);
     return Scaffold(
       appBar: AppBar(
+        actions: const [OutputButton()],
         title: TextField(
           autofocus: false,
           decoration: InputDecoration(
