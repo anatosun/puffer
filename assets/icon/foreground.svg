@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2B52A"/>
+      <stop offset="1" stop-color="#D99206"/>
+    </linearGradient>
+    <clipPath id="hull"><ellipse cx="500" cy="560" rx="270" ry="190"/></clipPath>
+  </defs>
+  <!-- spikes along the back and belly -->
+  <g fill="#C27F05">
+    <path d="M330 420 l-10 -50 l42 30 z"/>
+    <path d="M610 390 l18 -48 l20 50 z"/>
+    <path d="M700 430 l40 -34 l-6 52 z"/>
+    <path d="M300 690 l-22 44 l50 -18 z"/>
+    <path d="M440 745 l0 50 l38 -38 z"/>
+    <path d="M590 742 l22 46 l18 -50 z"/>
+    <path d="M710 690 l44 26 l-16 -50 z"/>
+  </g>
+  <!-- propeller tail -->
+  <g transform="translate(212 560)">
+    <rect x="-4" y="-16" width="40" height="32" rx="10" fill="#C27F05"/>
+    <ellipse cx="-14" cy="-58" rx="22" ry="52" fill="#F2B52A" transform="rotate(-12)"/>
+    <ellipse cx="-14" cy="58" rx="22" ry="52" fill="#F2B52A" transform="rotate(12)"/>
+    <circle cx="-8" cy="0" r="24" fill="#C27F05"/>
+  </g>
+  <!-- conning tower and periscope -->
+  <path d="M520 382 V258 H588" fill="none" stroke="#C27F05" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="408" y="318" width="176" height="110" rx="34" fill="url(#body)"/>
+  <!-- hull -->
+  <ellipse cx="500" cy="560" rx="270" ry="190" fill="url(#body)"/>
+  <g clip-path="url(#hull)">
+    <ellipse cx="500" cy="770" rx="320" ry="150" fill="#FFE29A"/>
+    <circle cx="380" cy="520" r="10" fill="#C27F05"/>
+    <circle cx="330" cy="600" r="10" fill="#C27F05"/>
+    <circle cx="420" cy="640" r="10" fill="#C27F05"/>
+    <circle cx="560" cy="460" r="10" fill="#C27F05"/>
+  </g>
+  <!-- porthole eye -->
+  <circle cx="640" cy="520" r="74" fill="#FFF4D6"/>
+  <circle cx="640" cy="520" r="74" fill="none" stroke="#9A6404" stroke-width="16"/>
+  <circle cx="656" cy="524" r="40" fill="#141414"/>
+  <circle cx="670" cy="508" r="13" fill="#FFFFFF"/>
+  <!-- lips -->
+  <ellipse cx="772" cy="590" rx="26" ry="22" fill="#E8742A"/>
+  <ellipse cx="780" cy="590" rx="10" ry="8" fill="#8E3E12"/>
+  <!-- pectoral fin -->
+  <path d="M560 610 q-70 30 -40 100 q50 -20 70 -86 z" fill="#C27F05"/>
+</svg>
