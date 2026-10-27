@@ -68,6 +68,7 @@ dev_dependencies:
   drift_dev: ^2.35.2
   mocktail: ^1.0.5
   flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 flutter:
 
   # The following line ensures that the Material Icons font is
@@ -130,3 +131,14 @@ flutter_launcher_icons:
   adaptive_icon_monochrome: assets/icon/foreground.png
   ios: true
   remove_alpha_ios: true
+
+# The start-up screen: run `dart run flutter_native_splash:create` after changing it.
+flutter_native_splash:
+  color: "#FFFFFF"
+  color_dark: "#000000"
+  image: assets/icon/foreground.png
+  android_12:
+    image: assets/icon/splash_android12.png
+    color: "#FFFFFF"
+    color_dark: "#000000"
+  web: false
