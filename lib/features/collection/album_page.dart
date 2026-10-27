@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
 import '../../ui/theme.dart';
+import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import 'collection_header.dart';
 
@@ -28,9 +29,7 @@ class AlbumPage extends ConsumerWidget {
     return ref
         .watch(albumProvider(id))
         .when(
-          loading: () => const CollectionPlaceholder(
-            body: Center(child: CircularProgressIndicator()),
-          ),
+          loading: () => const CollectionPlaceholder(body: ListPlaceholder()),
           error: (e, _) => CollectionPlaceholder(
             body: MessageView(
               '$e',

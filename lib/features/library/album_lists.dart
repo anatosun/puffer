@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/subsonic/models.dart';
+import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
 
@@ -126,7 +127,7 @@ class AsyncList<T> extends StatelessWidget {
     data: (items) => items.isEmpty
         ? MessageView(empty, icon: Icons.library_music_outlined)
         : builder(items),
-    loading: () => const Center(child: CircularProgressIndicator()),
+    loading: () => const ListPlaceholder(),
     error: (e, _) => MessageView('$e', onRetry: onRetry),
   );
 }

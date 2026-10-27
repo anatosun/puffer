@@ -8,6 +8,7 @@ import '../../downloads/download_manager.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/item_actions.dart';
+import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import 'collection_header.dart';
 import '../home/home_page.dart';
@@ -31,9 +32,7 @@ class PlaylistPage extends ConsumerWidget {
     return ref
         .watch(playlistProvider(id))
         .when(
-          loading: () => const CollectionPlaceholder(
-            body: Center(child: CircularProgressIndicator()),
-          ),
+          loading: () => const CollectionPlaceholder(body: ListPlaceholder()),
           error: (e, _) => CollectionPlaceholder(
             body: MessageView(
               '$e',

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
+import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
 
@@ -69,7 +70,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ),
       ),
       body: results.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ListPlaceholder(),
         error: (e, _) => MessageView('$e'),
         data: (r) {
           if (r == null) {

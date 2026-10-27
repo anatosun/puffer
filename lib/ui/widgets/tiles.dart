@@ -14,6 +14,7 @@ import 'artwork.dart';
 import 'download_indicator.dart';
 import 'item_actions.dart';
 import 'playing_bars.dart';
+import 'shimmer.dart';
 
 /// A track row. Offline, tracks without a downloaded file are greyed out and cannot be played.
 class TrackTile extends ConsumerWidget {
@@ -251,7 +252,7 @@ class AlbumShelf extends ConsumerWidget {
     return SizedBox(
       height: width + 60,
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? ShelfPlaceholder(width: width)
           : ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -313,7 +314,7 @@ class PlaylistShelf extends ConsumerWidget {
     return SizedBox(
       height: width + 60,
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? ShelfPlaceholder(width: width)
           : ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
