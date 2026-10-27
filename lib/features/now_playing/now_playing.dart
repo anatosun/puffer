@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +60,79 @@ class _NowPlayingArtwork extends ConsumerWidget {
   }
 }
 
+const _artworkHeroTag = 'now-playing-artwork';
+
+/// The gradient of the artwork colours, with the artwork blurred over it as in Plexamp.
+class _NowPlayingBackground extends ConsumerWidget {
+  const _NowPlayingBackground({
+    required this.np,
+    required this.top,
+    required this.child,
+  });
+
+  final NowPlaying? np;
+  final Color top;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final background = context.background;
+    final np = this.np;
+    final image = np == null || !ref.watch(artworkColoursProvider)
+        ? null
+        : _image(ref, np);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [top, Color.lerp(top, background, 0.75)!, background],
+            ),
+          ),
+        ),
+        if (image != null)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            child: ImageFiltered(
+              key: ValueKey(np!.coverArt ?? np.imageUrl),
+              imageFilter: ImageFilter.blur(
+                sigmaX: 60,
+                sigmaY: 60,
+                tileMode: TileMode.clamp,
+              ),
+              child: Image(
+                image: image,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        if (image != null)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  background.withValues(alpha: 0.25),
+                  background.withValues(alpha: 0.6),
+                  background,
+                ],
+                stops: const [0, 0.55, 1],
+              ),
+            ),
+          ),
+        child,
+      ],
+    );
+  }
+}
+
 /// The bar above the navigation bar. A tap opens the now-playing screen.
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
@@ -94,7 +169,10 @@ class MiniPlayer extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
-                  _NowPlayingArtwork(np, size: 44, radius: 4),
+                  Hero(
+                    tag: _artworkHeroTag,
+                    child: _NowPlayingArtwork(np, size: 44, radius: 4),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -184,15 +262,9 @@ class NowPlayingPage extends ConsumerWidget {
       },
       child: Scaffold(
         backgroundColor: background,
-        body: AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [top, Color.lerp(top, background, 0.75)!, background],
-            ),
-          ),
+        body: _NowPlayingBackground(
+          np: np,
+          top: top,
           child: SafeArea(
             child: np == null
                 ? const Center(child: Text('Nothing playing'))
@@ -241,25 +313,36 @@ class NowPlayingPage extends ConsumerWidget {
                               ],
                             ),
                             const Spacer(),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              child: DecoratedBox(
-                                key: ValueKey(np.title + (np.album ?? '')),
-                                decoration: BoxDecoration(
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      blurRadius: 40,
-                                      offset: const Offset(0, 20),
+                            GestureDetector(
+                              // Swiping the artwork skips to the next or previous track.
+                              onHorizontalDragEnd: (d) {
+                                final v = d.primaryVelocity ?? 0;
+                                if (v < -300) controller.next();
+                                if (v > 300) controller.previous();
+                              },
+                              child: Hero(
+                                tag: _artworkHeroTag,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: DecoratedBox(
+                                    key: ValueKey(np.title + (np.album ?? '')),
+                                    decoration: BoxDecoration(
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          blurRadius: 40,
+                                          offset: const Offset(0, 20),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                child: _NowPlayingArtwork(
-                                  np,
-                                  size: artSize,
-                                  radius: 10,
+                                    child: _NowPlayingArtwork(
+                                      np,
+                                      size: artSize,
+                                      radius: 10,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
