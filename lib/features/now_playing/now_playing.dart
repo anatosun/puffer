@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
+import '../../app/providers.dart';
 import '../../playback/playback_controller.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
@@ -21,7 +22,7 @@ ImageProvider? _image(WidgetRef ref, NowPlaying np, {int size = 300}) {
 }
 
 ColorScheme? _scheme(BuildContext context, WidgetRef ref, NowPlaying? np) {
-  if (np == null) return null;
+  if (np == null || !ref.watch(artworkColoursProvider)) return null;
   final brightness = Theme.of(context).brightness;
   if (np.coverArt != null) return artworkScheme(ref, np.coverArt, brightness);
   final image = _image(ref, np);

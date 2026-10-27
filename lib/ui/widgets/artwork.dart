@@ -41,6 +41,7 @@ ColorScheme? artworkScheme(
   String? coverArt,
   Brightness brightness,
 ) {
+  if (!ref.watch(artworkColoursProvider)) return null;
   final image = artworkImage(ref, coverArt, size: 300);
   if (coverArt == null || image == null) return null;
   return ref.watch(artworkSchemeProvider((coverArt, image, brightness))).value;

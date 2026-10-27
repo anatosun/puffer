@@ -6,6 +6,7 @@ import '../../app/providers.dart';
 import '../../data/db/database.dart';
 import '../../downloads/download_settings.dart';
 import '../../ui/theme.dart';
+import 'settings_section.dart';
 
 class _ArtistUsage {
   const _ArtistUsage(this.artist, this.bytes, this.albums);
@@ -88,7 +89,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                 child: const Text('Retry'),
               ),
             ),
-          const _Section('Quality'),
+          const SettingsSection('Quality'),
           RadioGroup<DownloadQuality>(
             groupValue: settings.quality,
             onChanged: (q) => notifier.update(settings.copyWith(quality: q)),
@@ -109,7 +110,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
               style: TextStyle(color: context.muted, fontSize: 13),
             ),
           ),
-          const _Section('Downloading'),
+          const SettingsSection('Downloading'),
           SwitchListTile(
             title: const Text('Download over cellular'),
             value: settings.overCellular,
@@ -151,7 +152,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
               ),
             ),
           if (usage != null && usage.$2.isNotEmpty) ...[
-            const _Section('Storage by artist'),
+            const SettingsSection('Storage by artist'),
             for (final artist in usage.$2)
               ExpansionTile(
                 title: Text(artist.artist),
@@ -216,24 +217,4 @@ class DownloadsSettingsPage extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _Section extends StatelessWidget {
-  const _Section(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-    child: Text(
-      title.toUpperCase(),
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.primary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1,
-      ),
-    ),
-  );
 }

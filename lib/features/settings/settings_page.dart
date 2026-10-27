@@ -28,19 +28,16 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.contrast),
-            title: const Text('Appearance'),
-            trailing: SegmentedButton<ThemeMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-              ],
-              selected: {ref.watch(themeModeProvider)},
-              onSelectionChanged: (s) =>
-                  ref.read(themeModeProvider.notifier).set(s.single),
-            ),
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Experience'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/experience'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.play_circle_outline),
+            title: const Text('Playback'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/playback'),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.cloud_off),

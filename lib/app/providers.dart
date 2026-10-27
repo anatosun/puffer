@@ -112,6 +112,71 @@ final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
   ThemeModeNotifier.new,
 );
 
+/// A boolean setting stored under [key].
+class BoolSettingNotifier extends Notifier<bool> {
+  BoolSettingNotifier(this.key, this.defaultValue);
+
+  final String key;
+  final bool defaultValue;
+
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(key) ?? defaultValue;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setBool(key, value);
+  }
+}
+
+/// Backgrounds of album pages and of the player take their colours from the artwork.
+final artworkColoursProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.artworkColours', true),
+);
+
+/// Plays are reported to the server, which uses them for "Recently played" and "Most played".
+final scrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('playback.scrobble', true),
+);
+
+/// Streaming quality, one setting for Wi-Fi and wired networks and one for cellular.
+class StreamingQualityNotifier extends Notifier<DownloadQuality> {
+  StreamingQualityNotifier(this.key);
+
+  final String key;
+
+  @override
+  DownloadQuality build() =>
+      DownloadQuality.values.asNameMap()[ref
+          .read(sharedPreferencesProvider)
+          .getString(key)] ??
+      DownloadQuality.original;
+
+  Future<void> set(DownloadQuality quality) async {
+    state = quality;
+    await ref.read(sharedPreferencesProvider).setString(key, quality.name);
+  }
+}
+
+final wifiQualityProvider =
+    NotifierProvider<StreamingQualityNotifier, DownloadQuality>(
+      () => StreamingQualityNotifier('playback.qualityWifi'),
+    );
+final cellularQualityProvider =
+    NotifierProvider<StreamingQualityNotifier, DownloadQuality>(
+      () => StreamingQualityNotifier('playback.qualityCellular'),
+    );
+
+/// The streaming quality for the current network.
+final streamingQualityProvider = Provider<DownloadQuality>((ref) {
+  final networks = ref.watch(connectivityProvider).value ?? const [];
+  final cellular =
+      networks.contains(ConnectivityResult.mobile) &&
+      !networks.contains(ConnectivityResult.wifi) &&
+      !networks.contains(ConnectivityResult.ethernet);
+  return ref.watch(cellular ? cellularQualityProvider : wifiQualityProvider);
+});
+
 // ------------------------------------------------------------ offline
 
 final connectivityProvider = StreamProvider<List<ConnectivityResult>>((
@@ -314,7 +379,16 @@ class SessionPlaybackSource implements PlaybackSource {
       ref.read(downloadManagerProvider)?.localPath(trackId);
 
   @override
-  Uri streamUri(Track track) => ref.read(clientProvider)!.streamUri(track.id);
+  Uri streamUri(Track track) {
+    final quality = ref.read(streamingQualityProvider);
+    return ref
+        .read(clientProvider)!
+        .streamUri(
+          track.id,
+          format: quality.format,
+          maxBitRate: quality.maxBitRate,
+        );
+  }
 
   @override
   Uri? artUri(String? coverArt) {
@@ -326,7 +400,7 @@ class SessionPlaybackSource implements PlaybackSource {
 
   @override
   Future<void> nowPlaying(Track track) async {
-    if (ref.read(isOfflineProvider)) return;
+    if (ref.read(isOfflineProvider) || !ref.read(scrobblingProvider)) return;
     await ref
         .read(clientProvider)
         ?.scrobble(track.id, submission: false)
@@ -336,7 +410,7 @@ class SessionPlaybackSource implements PlaybackSource {
   @override
   Future<void> played(Track track) async {
     await ref.read(downloadManagerProvider)?.markPlayed(track.id);
-    if (ref.read(isOfflineProvider)) return;
+    if (ref.read(isOfflineProvider) || !ref.read(scrobblingProvider)) return;
     await ref
         .read(clientProvider)
         ?.scrobble(track.id, submission: true)
