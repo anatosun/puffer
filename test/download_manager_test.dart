@@ -168,6 +168,39 @@ void main() {
     expect(await fileIds(), containsAll(['t1', 't2']));
   });
 
+  test('a pinned playlist without tracks is complete', () async {
+    library[(PinKind.playlist, 'empty')] = [];
+    await manager.pin(PinKind.playlist, 'empty');
+    final state = await manager.watchPin(PinKind.playlist, 'empty').first;
+    expect(state.isComplete, isTrue);
+    expect(state.isDownloading, isFalse);
+  });
+
+  test('a pin shows as downloading while its tracks are listed', () async {
+    final listed = Completer<List<Track>>();
+    await manager.dispose();
+    manager = DownloadManager(
+      db: db,
+      backend: backend,
+      resolve: (kind, id) => listed.future,
+      urlFor: (t, q) => Uri.parse('http://server/${t.id}'),
+      settings: () => settings,
+    );
+    final states = <PinState>[];
+    final subscription = manager
+        .watchPin(PinKind.playlist, 'slow')
+        .listen(states.add);
+    final pinning = manager.pin(PinKind.playlist, 'slow');
+    await pumpEventQueue();
+    expect(states.last.isDownloading, isTrue);
+
+    listed.complete([]);
+    await pinning;
+    await pumpEventQueue();
+    expect(states.last.isComplete, isTrue);
+    await subscription.cancel();
+  });
+
   test('optimize storage evicts only files held by automatic pins', () async {
     settings = const DownloadSettings(
       optimizeStorage: true,

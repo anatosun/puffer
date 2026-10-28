@@ -20,6 +20,7 @@ class PinState {
     this.complete = 0,
     this.failed = 0,
     this.progress = 0,
+    this.listing = false,
   });
 
   static const none = PinState(pinned: false);
@@ -33,7 +34,11 @@ class PinState {
   /// Sum of the progress of all tracks, between 0 and [total].
   final double progress;
 
-  bool get isComplete => pinned && total > 0 && complete == total;
+  /// The tracks of the item are still being listed, so [total] is not known yet.
+  final bool listing;
+
+  /// Once its tracks are listed, a pinned container without tracks, such as an empty playlist, counts as complete.
+  bool get isComplete => pinned && !listing && complete == total;
   bool get isPartial =>
       pinned && !isComplete && complete + failed == total && total > 0;
   bool get isDownloading => pinned && !isComplete && !isPartial;
@@ -66,6 +71,10 @@ class DownloadManager {
 
   StreamSubscription<TransferUpdate>? _subscription;
 
+  /// Pins whose tracks are being listed; [_listingChanged] fires when the set changes.
+  final _listing = <(PinKind, String)>{};
+  final _listingChanged = StreamController<void>.broadcast();
+
   static const _directory = 'music';
 
   Future<void> start() async {
@@ -73,7 +82,10 @@ class DownloadManager {
     await backend.start();
   }
 
-  Future<void> dispose() async => _subscription?.cancel();
+  Future<void> dispose() async {
+    await _subscription?.cancel();
+    await _listingChanged.close();
+  }
 
   // ---------------------------------------------------------------- pins
 
@@ -94,15 +106,25 @@ class DownloadManager {
             createdAt: existing?.createdAt ?? DateTime.now(),
           ),
         );
-    final List<Track> tracks;
+    _setListing((kind, id), listing: true);
     try {
-      tracks = await resolve(kind, id);
-    } catch (_) {
-      // Without its tracks a new pin would never finish, so it goes again.
-      if (existing == null) await unpin(kind, id);
-      rethrow;
+      final List<Track> tracks;
+      try {
+        tracks = await resolve(kind, id);
+      } catch (_) {
+        // Without its tracks a new pin would never finish, so it goes again.
+        if (existing == null) await unpin(kind, id);
+        rethrow;
+      }
+      await _setPinTracks(kind, id, tracks, redownloadEvicted: !isAutomatic);
+    } finally {
+      _setListing((kind, id), listing: false);
     }
-    await _setPinTracks(kind, id, tracks, redownloadEvicted: !isAutomatic);
+  }
+
+  void _setListing((PinKind, String) key, {required bool listing}) {
+    final changed = listing ? _listing.add(key) : _listing.remove(key);
+    if (changed && !_listingChanged.isClosed) _listingChanged.add(null);
   }
 
   Future<void> unpin(PinKind kind, String id) async {
@@ -379,7 +401,48 @@ class DownloadManager {
     return f?.status == FileStatus.complete ? f!.path : null;
   }
 
+  /// The state of a pin, from the database and from whether its tracks are still being listed.
   Stream<PinState> watchPin(PinKind kind, String id) {
+    final key = (kind, id);
+    PinState? latest;
+    StreamSubscription<PinState>? rows;
+    StreamSubscription<void>? listing;
+    late final StreamController<PinState> out;
+    void emit() {
+      final s = latest;
+      if (s == null) return;
+      out.add(
+        s.pinned
+            ? PinState(
+                pinned: true,
+                automatic: s.automatic,
+                total: s.total,
+                complete: s.complete,
+                failed: s.failed,
+                progress: s.progress,
+                listing: _listing.contains(key),
+              )
+            : s,
+      );
+    }
+
+    out = StreamController<PinState>(
+      onListen: () {
+        rows = _watchPinRow(kind, id).listen((s) {
+          latest = s;
+          emit();
+        }, onError: out.addError);
+        listing = _listingChanged.stream.listen((_) => emit());
+      },
+      onCancel: () async {
+        await rows?.cancel();
+        await listing?.cancel();
+      },
+    );
+    return out.stream;
+  }
+
+  Stream<PinState> _watchPinRow(PinKind kind, String id) {
     const complete = 2, failed = 3;
     assert(
       FileStatus.complete.index == complete &&
