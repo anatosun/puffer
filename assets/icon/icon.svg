@@ -1,18 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <defs>
-    <radialGradient id="sea" cx="0.45" cy="0.2" r="0.95">
-      <stop offset="0" stop-color="#1F78B8"/>
-      <stop offset="0.6" stop-color="#0F4384"/>
-      <stop offset="1" stop-color="#0A2A5C"/>
-    </radialGradient>
-    <radialGradient id="bubble" cx="0.35" cy="0.3" r="0.7">
-      <stop offset="0" stop-color="#8FD0FF"/>
-      <stop offset="1" stop-color="#2F8FE0"/>
-    </radialGradient>
-  </defs>
-  <rect width="1024" height="1024" fill="url(#sea)"/>
-  <g fill="url(#bubble)">
-    <circle cx="866" cy="230" r="32"/><circle cx="800" cy="300" r="18"/><circle cx="848" cy="350" r="16"/><circle cx="826" cy="410" r="11"/>
-  </g>
-  <image href="foreground.svg" width="1024" height="1024"/>
+  <rect width="1024" height="1024" fill="#000000"/>
+  <!-- The foreground, scaled up: without the adaptive-icon mask the mark can fill more of the square. -->
+  <image href="foreground.svg" x="-171.5" y="-171.5" width="1367" height="1367"/>
 </svg>
