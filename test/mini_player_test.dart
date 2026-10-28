@@ -53,39 +53,40 @@ void main() {
   }
 
   for (final brightness in Brightness.values) {
-    testWidgets('the now-playing screen lays out in ${brightness.name} mode', (
-      tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final np = NowPlaying(
-        title: 'A title',
-        artist: 'An artist',
-        album: 'An album',
-        positionAt: DateTime.now(),
-        duration: const Duration(minutes: 3),
-        queue: const [QueueEntry(id: 'a', title: 'A title')],
-        index: 0,
-      );
-      await tester.binding.setSurfaceSize(const Size(400, 860));
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(prefs),
-            nowPlayingProvider.overrideWithValue(AsyncData(np)),
-            connectivityProvider.overrideWithValue(const AsyncData([])),
-            maClientProvider.overrideWithValue(null),
-            playbackControllerProvider.overrideWithValue(_FakeController()),
-          ],
-          child: MaterialApp(
-            theme: buildTheme(brightness),
-            home: const NowPlayingPage(),
+    testWidgets(
+      'the now-playing screen lays out on a small screen in ${brightness.name} mode',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final np = NowPlaying(
+          title: 'A title',
+          artist: 'An artist',
+          album: 'An album',
+          positionAt: DateTime.now(),
+          duration: const Duration(minutes: 3),
+          queue: const [QueueEntry(id: 'a', title: 'A title')],
+          index: 0,
+        );
+        await tester.binding.setSurfaceSize(const Size(360, 640));
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              nowPlayingProvider.overrideWithValue(AsyncData(np)),
+              connectivityProvider.overrideWithValue(const AsyncData([])),
+              maClientProvider.overrideWithValue(null),
+              playbackControllerProvider.overrideWithValue(_FakeController()),
+            ],
+            child: MaterialApp(
+              theme: buildTheme(brightness),
+              home: const NowPlayingPage(),
+            ),
           ),
-        ),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(find.text('A title'), findsOneWidget);
-    });
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(find.text('A title'), findsOneWidget);
+      },
+    );
   }
 }

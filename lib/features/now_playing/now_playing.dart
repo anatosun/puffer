@@ -272,7 +272,7 @@ class NowPlayingPage extends ConsumerWidget {
                     builder: (context, constraints) {
                       final artSize = (constraints.maxWidth - 48).clamp(
                         0.0,
-                        constraints.maxHeight * 0.45,
+                        constraints.maxHeight * 0.42,
                       );
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -313,34 +313,45 @@ class NowPlayingPage extends ConsumerWidget {
                               ],
                             ),
                             const Spacer(),
-                            GestureDetector(
-                              // Swiping the artwork skips to the next or previous track.
-                              onHorizontalDragEnd: (d) {
-                                final v = d.primaryVelocity ?? 0;
-                                if (v < -300) controller.next();
-                                if (v > 300) controller.previous();
-                              },
-                              child: Hero(
-                                tag: _artworkHeroTag,
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 300),
-                                  child: DecoratedBox(
-                                    key: ValueKey(np.title + (np.album ?? '')),
-                                    decoration: BoxDecoration(
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.5,
+                            // The bottom padding keeps the shadow of the artwork clear of the title.
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 22),
+                              child: GestureDetector(
+                                // Swiping the artwork skips to the next or previous track.
+                                onHorizontalDragEnd: (d) {
+                                  final v = d.primaryVelocity ?? 0;
+                                  if (v < -300) controller.next();
+                                  if (v > 300) controller.previous();
+                                },
+                                child: Hero(
+                                  tag: _artworkHeroTag,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    child: DecoratedBox(
+                                      key: ValueKey(
+                                        np.title + (np.album ?? ''),
+                                      ),
+                                      decoration: BoxDecoration(
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha:
+                                                  Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? 0.45
+                                                  : 0.2,
+                                            ),
+                                            blurRadius: 24,
+                                            offset: const Offset(0, 10),
                                           ),
-                                          blurRadius: 40,
-                                          offset: const Offset(0, 20),
-                                        ),
-                                      ],
-                                    ),
-                                    child: _NowPlayingArtwork(
-                                      np,
-                                      size: artSize,
-                                      radius: 10,
+                                        ],
+                                      ),
+                                      child: _NowPlayingArtwork(
+                                        np,
+                                        size: artSize,
+                                        radius: 10,
+                                      ),
                                     ),
                                   ),
                                 ),
