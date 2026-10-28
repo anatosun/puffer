@@ -8,10 +8,10 @@ A music player for iOS and Android for Subsonic and OpenSubsonic servers (Navidr
 
 The app is in early development.
 
-| Now playing | Recently played | Search | Track menu |
-| --- | --- | --- | --- |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200"> |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200"> |
+| Home | Now playing | Recently played | Search | Track menu |
+| --- | --- | --- | --- | --- |
+| <img src="docs/screenshots/home-dark.webp" width="200"> | <img src="docs/screenshots/now-playing-dark.webp" width="200"> | <img src="docs/screenshots/recently-played-dark.webp" width="200"> | <img src="docs/screenshots/search-dark.webp" width="200"> | <img src="docs/screenshots/track-menu-dark.webp" width="200"> |
+| <img src="docs/screenshots/home-light.webp" width="200"> | <img src="docs/screenshots/now-playing-light.webp" width="200"> | <img src="docs/screenshots/recently-played-light.webp" width="200"> | <img src="docs/screenshots/search-light.webp" width="200"> | <img src="docs/screenshots/track-menu-light.webp" width="200"> |
 
 ## Install
 
