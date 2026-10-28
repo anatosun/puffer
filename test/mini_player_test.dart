@@ -111,4 +111,35 @@ void main() {
       },
     );
   }
+
+  testWidgets('a long press on the play button stops playback', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final controller = _FakeController();
+    when(controller.stop).thenAnswer((_) async {});
+    final np = NowPlaying(
+      title: 'A title',
+      artist: 'An artist',
+      positionAt: DateTime.now(),
+      duration: const Duration(minutes: 3),
+      playing: true,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nowPlayingProvider.overrideWithValue(AsyncData(np)),
+          connectivityProvider.overrideWithValue(const AsyncData([])),
+          maClientProvider.overrideWithValue(null),
+          playbackControllerProvider.overrideWithValue(controller),
+        ],
+        child: MaterialApp(
+          home: const Scaffold(bottomNavigationBar: MiniPlayer()),
+        ),
+      ),
+    );
+    await tester.longPress(find.byIcon(Icons.pause_rounded));
+    await tester.pump(const Duration(seconds: 2));
+    verify(controller.stop).called(1);
+  });
 }

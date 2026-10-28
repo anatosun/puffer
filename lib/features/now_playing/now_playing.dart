@@ -816,11 +816,15 @@ class _StopOnLongPress extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => GestureDetector(
-    onLongPress: () {
-      HapticFeedback.mediumImpact();
-      ref.read(playbackControllerProvider).stop();
-    },
-    child: Tooltip(message: 'Long press to stop', child: child),
+  // The tooltip also opens on a long press, so it wraps the detector: the inner recognizer wins the gesture.
+  Widget build(BuildContext context, WidgetRef ref) => Tooltip(
+    message: 'Long press to stop',
+    child: GestureDetector(
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        ref.read(playbackControllerProvider).stop();
+      },
+      child: child,
+    ),
   );
 }
