@@ -1,0 +1,5 @@
+- A new icon: a pufferfish ringed by sound bars
+- Every page shows the artwork of what is playing, blurred; album, artist and playlist pages show their own
+- When nothing plays, the background is a blur of the accent colour; Settings → Experience offers the album played last or none instead
+- The greeting and Continue listening on Home can be switched off
+- A long press on the play button stops playback
