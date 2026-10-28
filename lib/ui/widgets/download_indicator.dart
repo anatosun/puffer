@@ -156,7 +156,8 @@ Future<void> pinWithFeedback(
   final messenger = ScaffoldMessenger.of(context);
   try {
     await pin();
-  } on Exception catch (e) {
+  } catch (e) {
+    // Errors as well as exceptions, so a download never fails without a word.
     messenger.showSnackBar(SnackBar(content: Text('Download failed: $e')));
   }
 }

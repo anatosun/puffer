@@ -294,25 +294,26 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
     if (coverArt != null) await artwork.ensure(coverArt).catchError((_) {});
   }
 
+  // The artwork downloads alongside the tracks rather than before them, so a slow cover holds back no track.
   Future<List<Track>> resolve(PinKind kind, String id) async {
     switch (kind) {
       case PinKind.track:
         return [await repository.track(id)];
       case PinKind.album:
         final album = await repository.album(id);
-        await art(album.coverArt);
+        unawaited(art(album.coverArt));
         return album.songs;
       case PinKind.playlist:
         final playlist = await repository.playlist(id);
-        await art(playlist.coverArt);
+        unawaited(art(playlist.coverArt));
         return playlist.entries;
       case PinKind.artist:
         final artist = await repository.artist(id);
-        await art(artist.coverArt);
+        unawaited(art(artist.coverArt));
         final tracks = <Track>[];
         for (final a in artist.albums) {
           final album = await repository.album(a.id);
-          await art(album.coverArt);
+          unawaited(art(album.coverArt));
           tracks.addAll(album.songs);
         }
         return tracks;

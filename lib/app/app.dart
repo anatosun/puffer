@@ -141,6 +141,8 @@ class App extends ConsumerWidget {
     ref.watch(playbackProvider);
     ref.watch(queuePersistenceProvider);
     ref.watch(sendspinServiceProvider);
+    // Once per session: downloaded playlists pick up changes, and automatic downloads follow the starred items.
+    ref.watch(startupSyncProvider);
     final accent = ref.watch(accentProvider);
     return DynamicColorBuilder(
       builder: (light, dark) {

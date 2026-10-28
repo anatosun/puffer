@@ -83,6 +83,7 @@ class DownloadManager {
     final isAutomatic = existing == null
         ? automatic
         : existing.automatic && automatic;
+    // The pin comes first, so the item shows as downloading while its tracks are listed.
     await db
         .into(db.pins)
         .insertOnConflictUpdate(
@@ -93,7 +94,14 @@ class DownloadManager {
             createdAt: existing?.createdAt ?? DateTime.now(),
           ),
         );
-    final tracks = await resolve(kind, id);
+    final List<Track> tracks;
+    try {
+      tracks = await resolve(kind, id);
+    } catch (_) {
+      // Without its tracks a new pin would never finish, so it goes again.
+      if (existing == null) await unpin(kind, id);
+      rethrow;
+    }
     await _setPinTracks(kind, id, tracks, redownloadEvicted: !isAutomatic);
   }
 
@@ -154,8 +162,8 @@ class DownloadManager {
           tracks,
           redownloadEvicted: !p.automatic,
         );
-      } on Exception {
-        // The server is unreachable or the item is gone; keep the current files.
+      } catch (_) {
+        // The server is unreachable, the item is gone or its data is malformed; keep the current files and sync the other pins.
       }
     }
   }

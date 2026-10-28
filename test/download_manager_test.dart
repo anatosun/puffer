@@ -146,6 +146,28 @@ void main() {
     expect(state.total, 2);
   });
 
+  test('a download whose tracks cannot be listed pins nothing', () async {
+    await expectLater(
+      manager.pin(PinKind.album, 'unknown'),
+      throwsA(isA<TypeError>()),
+    );
+    expect(
+      await manager.watchPin(PinKind.album, 'unknown').first,
+      PinState.none,
+    );
+  });
+
+  test('a pin that fails to sync does not stop the others', () async {
+    await manager.pin(PinKind.album, 'album1');
+    await manager.pin(PinKind.playlist, 'pl1');
+    library.remove((PinKind.album, 'album1'));
+    library[(PinKind.playlist, 'pl1')] = [track('t3'), track('t4')];
+
+    await manager.syncPins();
+    expect(backend.enqueued, contains('t4'));
+    expect(await fileIds(), containsAll(['t1', 't2']));
+  });
+
   test('optimize storage evicts only files held by automatic pins', () async {
     settings = const DownloadSettings(
       optimizeStorage: true,
