@@ -1,0 +1,6 @@
+- Downloads start right away and no longer get stuck on loading
+- Downloaded playlists stay in sync with the server
+- Rate the current song from the player (Settings → Experience)
+- New typeface, Noto Sans, which covers more languages
+- The player shows the next song behind an arrow
+- The long-press menu scrolls on small screens
