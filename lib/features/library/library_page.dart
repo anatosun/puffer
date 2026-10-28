@@ -62,6 +62,9 @@ class LibraryPage extends ConsumerWidget {
         _ => true,
       },
     );
+    final transfers = showDownloaded
+        ? ref.watch(transfersProvider).value?.length ?? 0
+        : 0;
     final prefix = downloaded ? '/library/downloaded' : '/library';
     final primary = Theme.of(context).colorScheme.primary;
 
@@ -92,6 +95,26 @@ class LibraryPage extends ConsumerWidget {
               slivers: [
                 SliverList.list(
                   children: [
+                    if (transfers > 0)
+                      ListTile(
+                        leading: Icon(Icons.downloading, color: primary),
+                        title: const Text(
+                          'Downloading',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$transfers',
+                              style: TextStyle(color: context.muted),
+                            ),
+                            Icon(Icons.chevron_right, color: context.faint),
+                          ],
+                        ),
+                        onTap: () =>
+                            context.push('/library/downloaded/progress'),
+                      ),
                     for (final section in sections)
                       row(
                         section.icon,

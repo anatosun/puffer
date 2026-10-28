@@ -10,6 +10,7 @@ import '../features/collection/playlist_page.dart';
 import '../features/home/home_page.dart';
 import '../features/library/album_lists.dart';
 import '../features/library/library_page.dart';
+import '../features/library/transfers_page.dart';
 import '../features/login/login_page.dart';
 import '../features/now_playing/now_playing.dart';
 import '../features/now_playing/speaker_bar.dart';
@@ -80,6 +81,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/library/downloaded',
             builder: (_, _) => const LibraryPage(downloaded: true),
+          ),
+          GoRoute(
+            path: '/library/downloaded/progress',
+            builder: (_, _) => const TransfersPage(),
           ),
           GoRoute(
             path: '/library/downloaded/:section',

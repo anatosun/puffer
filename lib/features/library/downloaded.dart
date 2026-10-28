@@ -1,7 +1,9 @@
 import 'package:collection/collection.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../data/db/database.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
 
@@ -70,4 +72,58 @@ final downloadedPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
     }
   }
   return playlists;
+});
+
+/// A track file in transfer, with the cached track when there is one.
+class Transfer {
+  const Transfer(this.file, this.track);
+
+  final TrackFile file;
+  final Track? track;
+
+  String get title => track?.title ?? file.trackId;
+}
+
+/// The status line of a transfer. Without Wi-Fi, a queued file that may not download over cellular waits for Wi-Fi.
+String transferStatus(TrackFile file, {bool waitingForWifi = false}) =>
+    switch (file.status) {
+      FileStatus.downloading => '${(file.progress * 100).round()} %',
+      FileStatus.queued when waitingForWifi => 'Waiting for Wi-Fi',
+      FileStatus.queued => 'Waiting',
+      FileStatus.paused => 'Paused',
+      FileStatus.failed => 'Failed',
+      FileStatus.complete || FileStatus.evicted => '',
+    };
+
+/// The track files in transfer, downloading first. The cached tracks are read once per track, not on every progress update.
+final transfersProvider = StreamProvider<List<Transfer>>((ref) {
+  final manager = ref.watch(downloadManagerProvider);
+  final repository = ref.watch(repositoryProvider);
+  if (manager == null || repository == null) return Stream.value(const []);
+  final tracks = <String, Track?>{};
+  return manager.watchTransfers().asyncMap((files) async {
+    final missing = [
+      for (final f in files)
+        if (!tracks.containsKey(f.trackId)) f.trackId,
+    ];
+    if (missing.isNotEmpty) {
+      final found = {
+        for (final t in await repository.cachedTracks(missing)) t.id: t,
+      };
+      for (final id in missing) {
+        tracks[id] = found[id];
+      }
+    }
+    return [for (final f in files) Transfer(f, tracks[f.trackId])];
+  });
+});
+
+/// Whether queued downloads wait for Wi-Fi: downloads over cellular are off and the device has no Wi-Fi or Ethernet.
+final waitingForWifiProvider = Provider<bool>((ref) {
+  if (ref.watch(downloadSettingsProvider).overCellular) return false;
+  final results = ref.watch(connectivityProvider).value;
+  return results != null &&
+      !results.any(
+        (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.ethernet,
+      );
 });

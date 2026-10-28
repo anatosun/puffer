@@ -488,6 +488,27 @@ class DownloadManager {
           .watch()
           .map((rows) => [for (final r in rows) r.trackId]);
 
+  /// Track files not yet on disk: downloading first, then queued, paused and failed, each oldest first.
+  Stream<List<TrackFile>> watchTransfers() {
+    const order = [
+      FileStatus.downloading,
+      FileStatus.queued,
+      FileStatus.paused,
+      FileStatus.failed,
+    ];
+    return (db.select(db.trackFiles)
+          ..where((t) => t.status.isInValues(order))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .watch()
+        .map(
+          (rows) => rows
+            ..sort(
+              (a, b) =>
+                  order.indexOf(a.status).compareTo(order.indexOf(b.status)),
+            ),
+        );
+  }
+
   Stream<List<Pin>> watchPins(PinKind kind) =>
       (db.select(db.pins)..where((t) => t.kind.equals(kind.name))).watch();
 

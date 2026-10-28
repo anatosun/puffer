@@ -226,6 +226,26 @@ void main() {
     });
   });
 
+  test(
+    'transfers list downloading files first and leave out complete ones',
+    () async {
+      await manager.pin(PinKind.album, 'album1');
+      await manager.pin(PinKind.playlist, 'pl1');
+      await complete('t1');
+      backend.controller.add(
+        const TransferUpdate(
+          't3',
+          status: FileStatus.downloading,
+          progress: 0.5,
+        ),
+      );
+      await pumpEventQueue();
+      final transfers = await manager.watchTransfers().first;
+      expect(transfers.map((f) => f.trackId), ['t3', 't2']);
+      expect(transfers.first.progress, 0.5);
+    },
+  );
+
   test('remove all deletes every pin and file', () async {
     await manager.pin(PinKind.album, 'album1');
     await complete('t1');
