@@ -85,7 +85,8 @@ jobs:
           archive_url: https://${owner}.github.io/${repo}/fdroid/archive
           archive_name: Puffer (archive)
           archive_description: Older versions of Puffer.
-          archive_older: 3
+          # archive_older counts APKs, not versions: three versions of three ABIs. With 3, the x86_64 APKs (highest versionCodes) pushed every ARM APK to the archive.
+          archive_older: 9
           keystore: keystore.p12
           keystorepass: ${{ secrets.FDROID_KEYSTORE_PASS }}
           repo_keyalias: ${{ secrets.FDROID_KEY_ALIAS }}
