@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -96,43 +94,7 @@ class _NowPlayingBackground extends ConsumerWidget {
           ),
         ),
         if (image != null)
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 600),
-            // The default layout gives the child loose constraints, which leaves the image at its own size; the backdrop fills the screen.
-            layoutBuilder: (current, previous) =>
-                Stack(fit: StackFit.expand, children: [...previous, ?current]),
-            child: ImageFiltered(
-              key: ValueKey(np!.coverArt ?? np.imageUrl),
-              imageFilter: ImageFilter.blur(
-                sigmaX: 60,
-                sigmaY: 60,
-                tileMode: TileMode.clamp,
-              ),
-              child: Image(
-                image: image,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            ),
-          ),
-        if (image != null)
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  background.withValues(alpha: 0.25),
-                  background.withValues(alpha: 0.6),
-                  background,
-                ],
-                stops: const [0, 0.55, 1],
-              ),
-            ),
-          ),
+          BlurredArtwork(image: image, id: np!.coverArt ?? np.imageUrl!),
         child,
       ],
     );

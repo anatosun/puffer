@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -45,6 +47,68 @@ ColorScheme? artworkScheme(
   final image = artworkImage(ref, coverArt, size: 300);
   if (coverArt == null || image == null) return null;
   return ref.watch(artworkSchemeProvider((coverArt, image, brightness))).value;
+}
+
+/// [image] blurred to fill its parent, fading to the background towards the bottom, as in Plexamp. A change of [id] cross-fades to the new image.
+class BlurredArtwork extends StatelessWidget {
+  const BlurredArtwork({
+    super.key,
+    required this.image,
+    required this.id,
+    this.top = 0.25,
+  });
+
+  final ImageProvider image;
+  final Object id;
+
+  /// The opacity of the background over the top of the image.
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = context.background;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          // The default layout gives the child loose constraints, which leaves the image at its own size; the backdrop fills its parent.
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
+          child: ImageFiltered(
+            key: ValueKey(id),
+            imageFilter: ImageFilter.blur(
+              sigmaX: 60,
+              sigmaY: 60,
+              tileMode: TileMode.clamp,
+            ),
+            child: Image(
+              image: image,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                background.withValues(alpha: top),
+                background.withValues(alpha: 0.6),
+                background,
+              ],
+              stops: const [0, 0.55, 1],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class Artwork extends ConsumerWidget {

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/theme.dart';
@@ -169,69 +170,98 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(startupSyncProvider);
     final offline = ref.watch(isOfflineProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _greeting(DateTime.now()),
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        actions: [
-          if (offline)
-            const Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: Chip(
-                avatar: Icon(Icons.cloud_off, size: 16),
-                label: Text('Offline'),
-                visualDensity: VisualDensity.compact,
-              ),
+    final last = offline
+        ? null
+        : ref.watch(albumListProvider('recent')).value?.firstOrNull;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _HomeBackground(fallback: last?.coverArt),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            // Transparent over the artwork, opaque once the shelves scroll under it.
+            backgroundColor: WidgetStateColor.resolveWith(
+              (states) => states.contains(WidgetState.scrolledUnder)
+                  ? context.background.withValues(alpha: 0.9)
+                  : Colors.transparent,
             ),
-          const OutputButton(),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(albumListProvider);
-          ref.invalidate(recentPlaylistsProvider);
-        },
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            if (!offline)
-              if (ref.watch(albumListProvider('recent')).value?.firstOrNull
-                  case final last?)
-                _ContinueListening(last),
-            // Offline, only downloaded albums can play.
-            for (final setting in ref.watch(homeShelvesProvider))
-              if (setting.visible &&
-                  (!offline || setting.shelf == HomeShelf.downloaded))
-                switch (setting.shelf) {
-                  HomeShelf.downloaded => _Shelf(
-                    shelf: setting.shelf,
-                    items: ref.watch(downloadedAlbumsProvider),
-                    builder: (albums, loading) =>
-                        AlbumShelf(albums, loading: loading),
+            title: Text(
+              _greeting(DateTime.now()),
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            actions: [
+              if (offline)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Chip(
+                    avatar: Icon(Icons.cloud_off, size: 16),
+                    label: Text('Offline'),
+                    visualDensity: VisualDensity.compact,
                   ),
-                  HomeShelf.playlists => _Shelf(
-                    shelf: setting.shelf,
-                    items: ref.watch(recentPlaylistsProvider),
-                    builder: (playlists, loading) => PlaylistShelf(
-                      playlists.take(20).toList(),
-                      loading: loading,
-                    ),
-                  ),
-                  _ => _Shelf(
-                    shelf: setting.shelf,
-                    items: ref.watch(
-                      albumListProvider(setting.shelf.albumList!),
-                    ),
-                    builder: (albums, loading) =>
-                        AlbumShelf(albums, loading: loading),
-                  ),
-                },
-          ],
+                ),
+              const OutputButton(),
+            ],
+          ),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(albumListProvider);
+              ref.invalidate(recentPlaylistsProvider);
+            },
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                if (last != null) _ContinueListening(last),
+                // Offline, only downloaded albums can play.
+                for (final setting in ref.watch(homeShelvesProvider))
+                  if (setting.visible &&
+                      (!offline || setting.shelf == HomeShelf.downloaded))
+                    switch (setting.shelf) {
+                      HomeShelf.downloaded => _Shelf(
+                        shelf: setting.shelf,
+                        items: ref.watch(downloadedAlbumsProvider),
+                        builder: (albums, loading) =>
+                            AlbumShelf(albums, loading: loading),
+                      ),
+                      HomeShelf.playlists => _Shelf(
+                        shelf: setting.shelf,
+                        items: ref.watch(recentPlaylistsProvider),
+                        builder: (playlists, loading) => PlaylistShelf(
+                          playlists.take(20).toList(),
+                          loading: loading,
+                        ),
+                      ),
+                      _ => _Shelf(
+                        shelf: setting.shelf,
+                        items: ref.watch(
+                          albumListProvider(setting.shelf.albumList!),
+                        ),
+                        builder: (albums, loading) =>
+                            AlbumShelf(albums, loading: loading),
+                      ),
+                    },
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
+  }
+}
+
+/// The artwork of what is playing, else of the album played last, blurred behind Home.
+class _HomeBackground extends ConsumerWidget {
+  const _HomeBackground({this.fallback});
+
+  final String? fallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(artworkColoursProvider)) return const SizedBox.shrink();
+    final coverArt = ref.watch(nowPlayingProvider).value?.coverArt ?? fallback;
+    final image = artworkImage(ref, coverArt, size: 300);
+    if (coverArt == null || image == null) return const SizedBox.shrink();
+    return BlurredArtwork(image: image, id: coverArt, top: 0.35);
   }
 }
 
