@@ -50,6 +50,7 @@ Future<void> showOutputSheet(BuildContext context) =>
     );
 
 /// A tap on a player moves playback there. While a player is the output, the checkbox of another player adds it to the group or removes it.
+/// Players are listed by group: each player that leads, or plays on its own, followed by the players that follow it. A tap on a player moves playback there, taking a following player out of its group first. While a player is the output, the checkbox of another player adds it to the group or removes it; the unlink button ungroups.
 class _OutputSheet extends ConsumerWidget {
   const _OutputSheet();
 
@@ -57,19 +58,34 @@ class _OutputSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final output = ref.watch(outputProvider);
     final status = ref.watch(maStatusProvider).value;
-    final players = ref.watch(maPlayersProvider).value ?? const [];
-    final router = GoRouter.of(context);
+    final players = ref.watch(maPlayersProvider).value ?? const <MaPlayer>[];
+    final client = ref.watch(maClientProvider);
+    final router = GoRouter.maybeOf(context);
+    final byId = {for (final p in players) p.id: p};
 
-    final leader = players.where((p) => p.id == output).firstOrNull;
-    bool isMember(MaPlayer p) =>
-        leader != null &&
-        (p.syncedTo == leader.id ||
-            (p.id != leader.id && leader.groupMembers.contains(p.id)));
-    final shown = players.where((p) => p.selectable || isMember(p)).toList();
+    /// The players following [leader], from their own state and from the member list of the leader.
+    List<MaPlayer> membersOf(MaPlayer leader) => {
+      for (final p in players)
+        if (p.syncedTo == leader.id) p.id: p,
+      for (final id in leader.groupMembers)
+        if (id != leader.id && byId[id] != null) id: byId[id]!,
+    }.values.toList();
 
-    void select(String? id) {
+    final current = byId[output];
+    bool inCurrentGroup(MaPlayer p) =>
+        current != null && membersOf(current).any((m) => m.id == p.id);
+
+    void select(MaPlayer? player) {
       Navigator.pop(context);
-      runPlayback(() => switchOutput(ref, id));
+      runPlayback(() async {
+        // A player that follows another plays the whole group; picking it alone takes it out first.
+        if (player != null && player.syncedTo != null) {
+          await client?.command('players/cmd/ungroup', {
+            'player_id': player.id,
+          });
+        }
+        await switchOutput(ref, player?.id);
+      });
     }
 
     Future<void> toggleMember(MaPlayer p, bool add) async {
@@ -78,6 +94,87 @@ class _OutputSheet extends ConsumerWidget {
         await controller.setMembers(
           add: add ? [p.id] : const [],
           remove: add ? const [] : [p.id],
+        );
+      }
+    }
+
+    Future<void> ungroup(List<String> ids) => runPlayback(() async {
+      await client?.command('players/cmd/ungroup_many', {'player_ids': ids});
+    });
+
+    Widget? groupControl(MaPlayer player, {required bool following}) {
+      if (current != null &&
+          player.id != current.id &&
+          (inCurrentGroup(player) ||
+              current.canGroupWith.contains(player.id))) {
+        return Checkbox(
+          value: inCurrentGroup(player),
+          onChanged: (v) => toggleMember(player, v ?? false),
+        );
+      }
+      if (following) {
+        return IconButton(
+          tooltip: 'Ungroup',
+          icon: const Icon(Icons.link_off),
+          onPressed: () => ungroup([player.id]),
+        );
+      }
+      return null;
+    }
+
+    final rows = <Widget>[];
+    final followers = {
+      for (final p in players)
+        if (p.selectable && p.type != 'group') ...membersOf(p).map((m) => m.id),
+    };
+    for (final leader in players.where(
+      (p) => p.selectable && !followers.contains(p.id),
+    )) {
+      final members = membersOf(leader);
+      // A group player is a fixed group configured in Music Assistant; its members cannot be released one by one.
+      final fixed = leader.type == 'group';
+      rows.add(
+        _OutputTile(
+          icon: leader.isGroup || members.isNotEmpty
+              ? Icons.speaker_group
+              : Icons.speaker,
+          title: leader.name,
+          subtitle: [
+            if (members.isNotEmpty)
+              'With ${members.map((m) => m.name).join(', ')}',
+            switch (leader.state) {
+              MaPlaybackState.playing => 'Playing',
+              MaPlaybackState.paused => 'Paused',
+              _ => null,
+            },
+          ].nonNulls.join(' · '),
+          selected: output == leader.id,
+          onTap: () => select(leader),
+          trailing: output == leader.id
+              ? null
+              : groupControl(leader, following: false) ??
+                    (members.isNotEmpty && !fixed
+                        ? IconButton(
+                            tooltip: 'Ungroup',
+                            icon: const Icon(Icons.link_off),
+                            onPressed: () =>
+                                ungroup([for (final m in members) m.id]),
+                          )
+                        : null),
+        ),
+      );
+      if (fixed) continue;
+      for (final member in members) {
+        rows.add(
+          _OutputTile(
+            icon: Icons.subdirectory_arrow_right,
+            title: member.name,
+            subtitle: 'In group with ${leader.name}',
+            indent: true,
+            selected: false,
+            onTap: () => select(member),
+            trailing: groupControl(member, following: true),
+          ),
         );
       }
     }
@@ -123,32 +220,11 @@ class _OutputSheet extends ConsumerWidget {
                 }),
                 onTap: () {
                   Navigator.pop(context);
-                  router.push('/settings/music-assistant');
+                  router?.push('/settings/music-assistant');
                 },
               )
             else
-              for (final player in shown)
-                _OutputTile(
-                  icon: player.isGroup ? Icons.speaker_group : Icons.speaker,
-                  title: player.name,
-                  subtitle: isMember(player)
-                      ? 'In group'
-                      : switch (player.state) {
-                          MaPlaybackState.playing => 'Playing',
-                          MaPlaybackState.paused => 'Paused',
-                          _ => null,
-                        },
-                  selected: output == player.id,
-                  onTap: () => select(player.id),
-                  member:
-                      leader == null ||
-                          player.id == leader.id ||
-                          !(isMember(player) ||
-                              leader.canGroupWith.contains(player.id))
-                      ? null
-                      : isMember(player),
-                  onMemberChanged: (add) => toggleMember(player, add),
-                ),
+              ...rows,
             const SizedBox(height: 8),
           ],
         ),
@@ -164,8 +240,8 @@ class _OutputTile extends StatelessWidget {
     this.subtitle,
     required this.selected,
     required this.onTap,
-    this.member,
-    this.onMemberChanged,
+    this.trailing,
+    this.indent = false,
   });
 
   final IconData icon;
@@ -173,15 +249,16 @@ class _OutputTile extends StatelessWidget {
   final String? subtitle;
   final bool selected;
   final VoidCallback onTap;
+  final Widget? trailing;
 
-  /// Whether the player is in the group of the output; null when it cannot join it.
-  final bool? member;
-  final ValueChanged<bool>? onMemberChanged;
+  /// Indents the row under its group leader.
+  final bool indent;
 
   @override
   Widget build(BuildContext context) {
     final color = selected ? Theme.of(context).colorScheme.primary : null;
     return ListTile(
+      contentPadding: EdgeInsets.only(left: indent ? 40 : 16, right: 16),
       leading: Icon(icon, color: color),
       title: Text(
         title,
@@ -190,15 +267,8 @@ class _OutputTile extends StatelessWidget {
           fontWeight: selected ? FontWeight.w700 : null,
         ),
       ),
-      subtitle: subtitle == null ? null : Text(subtitle!),
-      trailing: selected
-          ? Icon(Icons.check, color: color)
-          : member == null
-          ? null
-          : Checkbox(
-              value: member,
-              onChanged: (v) => onMemberChanged?.call(v ?? false),
-            ),
+      subtitle: subtitle == null || subtitle!.isEmpty ? null : Text(subtitle!),
+      trailing: selected ? Icon(Icons.check, color: color) : trailing,
       onTap: onTap,
     );
   }
