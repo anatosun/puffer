@@ -261,6 +261,10 @@ class NowPlayingPage extends ConsumerWidget {
     final background = context.background;
     final highlight = scheme?.primary ?? context.colors.primary;
     final track = np?.track;
+    final showRating =
+        track != null &&
+        ref.watch(playerRatingProvider) &&
+        !ref.watch(isOfflineProvider);
 
     return Scaffold(
       backgroundColor: background,
@@ -274,7 +278,8 @@ class NowPlayingPage extends ConsumerWidget {
                   builder: (context, constraints) {
                     final artSize = (constraints.maxWidth - 48).clamp(
                       0.0,
-                      constraints.maxHeight * 0.42,
+                      // The stars take a row, so the artwork gives up the room.
+                      constraints.maxHeight * (showRating ? 0.38 : 0.42),
                     );
                     return _PlayerScroll(
                       player: Padding(
@@ -399,7 +404,20 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            if (showRating)
+                              RatingStars(
+                                key: ValueKey(track.id),
+                                rating: track.rating,
+                                color: highlight,
+                                alignment: MainAxisAlignment.center,
+                                onChanged: (value) async {
+                                  if (await rate(ref, track.id, value)) {
+                                    rememberRating(track.json, value);
+                                  }
+                                },
+                              )
+                            else
+                              const SizedBox(height: 16),
                             _SeekBar(np: np, color: highlight),
                             _Controls(np: np),
                             if (np.volume != null)
@@ -689,16 +707,27 @@ class _UpNext extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.keyboard_arrow_up, size: 18, color: context.muted),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                next == null ? 'Queue' : 'Up next · ${next.title}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.muted, fontSize: 13),
-              ),
+            Icon(
+              Icons.keyboard_arrow_up,
+              size: 22,
+              color: context.muted,
+              semanticLabel: next == null ? 'Queue' : 'Up next',
             ),
+            if (next != null) ...[
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  next.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

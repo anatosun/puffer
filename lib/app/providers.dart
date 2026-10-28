@@ -137,6 +137,11 @@ final artworkColoursProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.artworkColours', true),
 );
 
+/// The player shows the rating of the current track, which can be changed there.
+final playerRatingProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.playerRating', false),
+);
+
 /// Plays are reported to the server, which uses them for "Recently played" and "Most played".
 final scrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('playback.scrobble', true),

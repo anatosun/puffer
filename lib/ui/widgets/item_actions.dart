@@ -45,179 +45,180 @@ Future<void> showItemActions(
         final router = GoRouter.of(context);
         void close() => Navigator.pop(sheetContext);
 
+        // The actions scroll when they do not fit, on short screens or with large text.
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Artwork(
-                  coverArt,
-                  size: 48,
-                  icon: kind == PinKind.artist ? Icons.person : Icons.album,
-                ),
-                title: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: subtitle == null
-                    ? null
-                    : Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-              ),
-              if (rating != null && !offline)
-                _RatingRow(
-                  rating: rating,
-                  onChanged: (value) async {
-                    try {
-                      await ref.read(clientProvider)!.setRating(id, value);
-                      onRated?.call(value);
-                    } on Exception catch (e) {
-                      showMessage('$e');
-                    }
-                  },
-                ),
-              const Divider(height: 1),
-              if (mix != null && !offline)
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 ListTile(
-                  leading: const Icon(Icons.radio),
-                  title: Text(
-                    kind == PinKind.track ? 'Instant mix' : 'Start radio',
-                  ),
-                  onTap: () async {
-                    close();
-                    await runPlayback(() async {
-                      final tracks = await mix();
-                      if (tracks.isEmpty) {
-                        showMessage('The server found no similar songs');
-                        return;
-                      }
-                      await handler.playTracks(tracks);
-                    });
-                  },
-                ),
-              if (tracks != null) ...[
-                ListTile(
-                  leading: const Icon(Icons.playlist_play),
-                  title: const Text('Play next'),
-                  onTap: () async {
-                    close();
-                    await runPlayback(
-                      () async => handler.playNext(await tracks()),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.playlist_add),
-                  title: const Text('Add to queue'),
-                  onTap: () async {
-                    close();
-                    await runPlayback(
-                      () async => handler.addTracks(await tracks()),
-                    );
-                  },
-                ),
-              ],
-              if (tracks != null && !offline)
-                ListTile(
-                  leading: const Icon(Icons.playlist_add_check),
-                  title: const Text('Add to playlist'),
-                  onTap: () {
-                    close();
-                    showAddToPlaylist(context, ref, tracks);
-                  },
-                ),
-              if (playlist != null &&
-                  !offline &&
-                  ownsPlaylist(ref, playlist)) ...[
-                ListTile(
-                  leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Rename'),
-                  onTap: () {
-                    close();
-                    renamePlaylist(context, ref, playlist);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: const Text('Delete playlist'),
-                  onTap: () {
-                    close();
-                    deletePlaylist(context, ref, playlist);
-                  },
-                ),
-              ],
-              if (manager != null)
-                pin.pinned
-                    ? ListTile(
-                        leading: const Icon(Icons.remove_circle_outline),
-                        title: const Text('Remove download'),
-                        onTap: () async {
-                          close();
-                          await manager.unpin(kind, id);
-                        },
-                      )
-                    : ListTile(
-                        enabled: !offline,
-                        leading: const Icon(Icons.arrow_circle_down_outlined),
-                        title: const Text('Download'),
-                        onTap: () async {
-                          close();
-                          await pinWithFeedback(
-                            context,
-                            () => manager.pin(kind, id),
-                          );
-                        },
-                      ),
-              if (starred != null &&
-                  repository != null &&
-                  kind != PinKind.playlist)
-                ListTile(
-                  enabled: !offline,
-                  leading: Icon(
-                    starred ? Icons.favorite : Icons.favorite_border,
+                  leading: Artwork(
+                    coverArt,
+                    size: 48,
+                    icon: kind == PinKind.artist ? Icons.person : Icons.album,
                   ),
                   title: Text(
-                    starred ? 'Remove from library' : 'Add to library',
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  onTap: () async {
-                    close();
-                    try {
-                      await repository.setStarred(
-                        starred: !starred,
-                        trackId: kind == PinKind.track ? id : null,
-                        albumId: kind == PinKind.album ? id : null,
-                        artistId: kind == PinKind.artist ? id : null,
+                  subtitle: subtitle == null
+                      ? null
+                      : Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                ),
+                if (rating != null && !offline)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, bottom: 4),
+                    child: RatingStars(
+                      rating: rating,
+                      onChanged: (value) async {
+                        if (await rate(ref, id, value)) onRated?.call(value);
+                      },
+                    ),
+                  ),
+                const Divider(height: 1),
+                if (mix != null && !offline)
+                  ListTile(
+                    leading: const Icon(Icons.radio),
+                    title: Text(
+                      kind == PinKind.track ? 'Instant mix' : 'Start radio',
+                    ),
+                    onTap: () async {
+                      close();
+                      await runPlayback(() async {
+                        final tracks = await mix();
+                        if (tracks.isEmpty) {
+                          showMessage('The server found no similar songs');
+                          return;
+                        }
+                        await handler.playTracks(tracks);
+                      });
+                    },
+                  ),
+                if (tracks != null) ...[
+                  ListTile(
+                    leading: const Icon(Icons.playlist_play),
+                    title: const Text('Play next'),
+                    onTap: () async {
+                      close();
+                      await runPlayback(
+                        () async => handler.playNext(await tracks()),
                       );
-                      ref.invalidate(starredProvider);
-                      await ref.read(syncAutomaticDownloadsProvider)();
-                    } on Exception catch (e) {
-                      messenger.showSnackBar(SnackBar(content: Text('$e')));
-                    }
-                  },
-                ),
-              if (albumId != null && kind != PinKind.album)
-                ListTile(
-                  leading: const Icon(Icons.album_outlined),
-                  title: const Text('Go to album'),
-                  onTap: () {
-                    close();
-                    router.push('/album/$albumId');
-                  },
-                ),
-              if (artistId != null && kind != PinKind.artist)
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: const Text('Go to artist'),
-                  onTap: () {
-                    close();
-                    router.push('/artist/$artistId');
-                  },
-                ),
-            ],
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add),
+                    title: const Text('Add to queue'),
+                    onTap: () async {
+                      close();
+                      await runPlayback(
+                        () async => handler.addTracks(await tracks()),
+                      );
+                    },
+                  ),
+                ],
+                if (tracks != null && !offline)
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add_check),
+                    title: const Text('Add to playlist'),
+                    onTap: () {
+                      close();
+                      showAddToPlaylist(context, ref, tracks);
+                    },
+                  ),
+                if (playlist != null &&
+                    !offline &&
+                    ownsPlaylist(ref, playlist)) ...[
+                  ListTile(
+                    leading: const Icon(Icons.edit_outlined),
+                    title: const Text('Rename'),
+                    onTap: () {
+                      close();
+                      renamePlaylist(context, ref, playlist);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.delete_outline),
+                    title: const Text('Delete playlist'),
+                    onTap: () {
+                      close();
+                      deletePlaylist(context, ref, playlist);
+                    },
+                  ),
+                ],
+                if (manager != null)
+                  pin.pinned
+                      ? ListTile(
+                          leading: const Icon(Icons.remove_circle_outline),
+                          title: const Text('Remove download'),
+                          onTap: () async {
+                            close();
+                            await manager.unpin(kind, id);
+                          },
+                        )
+                      : ListTile(
+                          enabled: !offline,
+                          leading: const Icon(Icons.arrow_circle_down_outlined),
+                          title: const Text('Download'),
+                          onTap: () async {
+                            close();
+                            await pinWithFeedback(
+                              context,
+                              () => manager.pin(kind, id),
+                            );
+                          },
+                        ),
+                if (starred != null &&
+                    repository != null &&
+                    kind != PinKind.playlist)
+                  ListTile(
+                    enabled: !offline,
+                    leading: Icon(
+                      starred ? Icons.favorite : Icons.favorite_border,
+                    ),
+                    title: Text(
+                      starred ? 'Remove from library' : 'Add to library',
+                    ),
+                    onTap: () async {
+                      close();
+                      try {
+                        await repository.setStarred(
+                          starred: !starred,
+                          trackId: kind == PinKind.track ? id : null,
+                          albumId: kind == PinKind.album ? id : null,
+                          artistId: kind == PinKind.artist ? id : null,
+                        );
+                        ref.invalidate(starredProvider);
+                        await ref.read(syncAutomaticDownloadsProvider)();
+                      } on Exception catch (e) {
+                        messenger.showSnackBar(SnackBar(content: Text('$e')));
+                      }
+                    },
+                  ),
+                if (albumId != null && kind != PinKind.album)
+                  ListTile(
+                    leading: const Icon(Icons.album_outlined),
+                    title: const Text('Go to album'),
+                    onTap: () {
+                      close();
+                      router.push('/album/$albumId');
+                    },
+                  ),
+                if (artistId != null && kind != PinKind.artist)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: const Text('Go to artist'),
+                    onTap: () {
+                      close();
+                      router.push('/artist/$artistId');
+                    },
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -262,43 +263,68 @@ void rememberRating(Map<String, dynamic> json, int rating) {
   }
 }
 
+/// Sends a rating from 0 to 5 to the server and reports whether it was saved.
+Future<bool> rate(WidgetRef ref, String id, int rating) async {
+  try {
+    await ref.read(clientProvider)!.setRating(id, rating);
+    return true;
+  } on Exception catch (e) {
+    showMessage('$e');
+    return false;
+  }
+}
+
 /// Five stars; tapping the current rating clears it.
-class _RatingRow extends StatefulWidget {
-  const _RatingRow({required this.rating, required this.onChanged});
+class RatingStars extends StatefulWidget {
+  const RatingStars({
+    super.key,
+    required this.rating,
+    required this.onChanged,
+    this.color,
+    this.alignment = MainAxisAlignment.start,
+  });
 
   final int rating;
   final ValueChanged<int> onChanged;
 
+  /// The colour of the filled stars; the primary colour of the theme when null.
+  final Color? color;
+  final MainAxisAlignment alignment;
+
   @override
-  State<_RatingRow> createState() => _RatingRowState();
+  State<RatingStars> createState() => _RatingStarsState();
 }
 
-class _RatingRowState extends State<_RatingRow> {
+class _RatingStarsState extends State<RatingStars> {
   late int _rating = widget.rating;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 8, bottom: 4),
-    child: Row(
-      children: [
-        for (var star = 1; star <= 5; star++)
-          IconButton(
-            tooltip: '$star stars',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              star <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: star <= _rating
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
-            ),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              final value = star == _rating ? 0 : star;
-              setState(() => _rating = value);
-              widget.onChanged(value);
-            },
+  void didUpdateWidget(RatingStars old) {
+    super.didUpdateWidget(old);
+    if (widget.rating != old.rating) _rating = widget.rating;
+  }
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: widget.alignment,
+    children: [
+      for (var star = 1; star <= 5; star++)
+        IconButton(
+          tooltip: '$star stars',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            star <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+            color: star <= _rating
+                ? widget.color ?? Theme.of(context).colorScheme.primary
+                : null,
           ),
-      ],
-    ),
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            final value = star == _rating ? 0 : star;
+            setState(() => _rating = value);
+            widget.onChanged(value);
+          },
+        ),
+    ],
   );
 }

@@ -52,6 +52,14 @@ class ExperienceSettingsPage extends ConsumerWidget {
             value: ref.watch(artworkColoursProvider),
             onChanged: (v) => ref.read(artworkColoursProvider.notifier).set(v),
           ),
+          SwitchListTile(
+            title: const Text('Rating in the player'),
+            subtitle: const Text(
+              'The player shows the stars of the current song, and tapping one rates it',
+            ),
+            value: ref.watch(playerRatingProvider),
+            onChanged: (v) => ref.read(playerRatingProvider.notifier).set(v),
+          ),
           const SettingsSection('Layout'),
           ListTile(
             title: const Text('Start on'),

@@ -1,9 +1,11 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
+import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/features/now_playing/now_playing.dart';
 import 'package:puffer/playback/playback_controller.dart';
 import 'package:puffer/ui/theme.dart';
@@ -52,13 +54,19 @@ void main() {
     );
   }
 
-  for (final brightness in Brightness.values) {
+  for (final (brightness, rating) in [
+    for (final b in Brightness.values) (b, false),
+    (Brightness.dark, true),
+  ]) {
     testWidgets(
-      'the now-playing screen lays out on a small screen in ${brightness.name} mode',
+      'the now-playing screen lays out on a small screen in ${brightness.name} mode${rating ? ' with the rating' : ''}',
       (tester) async {
-        SharedPreferences.setMockInitialValues({});
+        SharedPreferences.setMockInitialValues({
+          'experience.playerRating': rating,
+        });
         final prefs = await SharedPreferences.getInstance();
         final np = NowPlaying(
+          track: const Track({'id': 'a', 'title': 'A title', 'userRating': 3}),
           title: 'A title',
           artist: 'An artist',
           album: 'An album',
@@ -77,7 +85,9 @@ void main() {
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
               nowPlayingProvider.overrideWithValue(AsyncData(np)),
-              connectivityProvider.overrideWithValue(const AsyncData([])),
+              connectivityProvider.overrideWithValue(
+                const AsyncData([ConnectivityResult.wifi]),
+              ),
               maClientProvider.overrideWithValue(null),
               playbackControllerProvider.overrideWithValue(_FakeController()),
             ],
@@ -89,14 +99,15 @@ void main() {
         );
         await tester.pump();
         expect(tester.takeException(), isNull);
-        expect(find.text('Up next · Next one'), findsOneWidget);
+        expect(find.text('Next one'), findsOneWidget);
+        expect(find.byIcon(Icons.star_rounded), findsNWidgets(rating ? 3 : 0));
 
         // Scrolling down continues into the queue, past tracks included.
         await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(find.text('Played before'), findsOneWidget);
-        expect(find.text('Next one'), findsOneWidget);
+        expect(find.text('Next one'), findsWidgets);
       },
     );
   }
