@@ -100,7 +100,12 @@ class MusicAssistantPlaybackController implements PlaybackController {
       title: track?.title ?? item.title,
       artist: track?.artist ?? item.artist,
       album: track?.album ?? item.album,
-      coverArt: track?.coverArt,
+      // Images of the OpenSubsonic provider carry the Subsonic cover art id as their path.
+      coverArt:
+          track?.coverArt ??
+          (item.image != null && item.image!.provider == providerInstance
+              ? item.image!.path
+              : null),
       imageUrl: item.image?.url(client.baseUrl),
       duration: track?.duration ?? item.duration,
       position: queue.position(now),

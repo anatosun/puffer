@@ -51,17 +51,20 @@ class MaImage {
   String get provider => json['provider'] as String? ?? 'builtin';
   bool get remotelyAccessible => json['remotely_accessible'] as bool? ?? false;
 
-  /// A URL for the image: the path itself when the server says it is reachable, otherwise through the image proxy of Music Assistant.
-  Uri url(Uri serverBase, {int size = 512}) => remotelyAccessible
-      ? Uri.parse(path)
-      : serverBase.replace(
-          path: '${serverBase.path}/imageproxy',
-          queryParameters: {
-            'path': path,
-            'provider': provider,
-            'size': '$size',
-          },
-        );
+  /// The id under which the image proxy of Music Assistant serves the image.
+  String? get proxyId => json['proxy_id'] as String?;
+
+  /// A URL for the image: through the image proxy of Music Assistant when it sent a proxy id, otherwise the path itself when the server says it is reachable. [size] must be one the proxy accepts (80, 160, 256, 512 or 1024).
+  Uri? url(Uri serverBase, {int size = 512}) {
+    final id = proxyId;
+    if (id != null) {
+      return serverBase.replace(
+        path: '${serverBase.path}/imageproxy/$id',
+        queryParameters: {'size': '$size'},
+      );
+    }
+    return remotelyAccessible ? Uri.tryParse(path) : null;
+  }
 }
 
 class MaQueueItem {

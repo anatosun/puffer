@@ -347,4 +347,61 @@ void main() {
     controller.dispose();
     await client.close();
   });
+
+  test('images go through the proxy id, or the path when reachable', () {
+    final base = Uri.parse('http://ma:8095');
+    expect(
+      const MaImage({'path': 'al-1', 'provider': 'x', 'proxy_id': 'abc'})
+          .url(base)
+          .toString(),
+      'http://ma:8095/imageproxy/abc?size=512',
+    );
+    expect(
+      const MaImage({'path': 'https://img/x.jpg', 'remotely_accessible': true})
+          .url(base)
+          .toString(),
+      'https://img/x.jpg',
+    );
+    expect(const MaImage({'path': 'al-1', 'provider': 'x'}).url(base), isNull);
+  });
+
+  test(
+    'a queue item from the Subsonic provider shows the Subsonic cover',
+    () async {
+      final client = await connected();
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        providerInstance: 'opensubsonic--abc',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      );
+      final next = controller.state.firstWhere((np) => np != null);
+      server.send({
+        'event': 'queue_updated',
+        'object_id': 'kitchen',
+        'data': {
+          'queue_id': 'kitchen',
+          'active': true,
+          'state': 'paused',
+          'items': 1,
+          'current_index': 0,
+          'current_item': {
+            'queue_id': 'kitchen',
+            'queue_item_id': 'q1',
+            'name': 'Song added elsewhere',
+            'image': {
+              'path': 'al-9',
+              'provider': 'opensubsonic--abc',
+              'proxy_id': 'p9',
+            },
+          },
+        },
+      });
+      final np = (await next)!;
+      expect(np.coverArt, 'al-9');
+      expect(np.title, 'Song added elsewhere');
+      controller.dispose();
+      await client.close();
+    },
+  );
 }
