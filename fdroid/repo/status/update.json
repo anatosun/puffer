@@ -9,7 +9,7 @@
     "--pretty"
   ],
   "disabled": [],
-  "endTimestamp": 1793173435774,
+  "endTimestamp": 1793175273946,
   "failedBuilds": {},
   "jarsigner": "/usr/bin/jarsigner",
   "keytool": "/usr/bin/keytool",
@@ -23,17 +23,17 @@
     "io.github.anatosun.puffer"
   ],
   "stages": {
-    "archive_old_apks archive": 1793173429344,
-    "delete_disabled_builds": 1793173426481,
-    "index.make archive": 1793173429346,
-    "index.make repo": 1793173432735,
-    "prepare_apps archive": 1793173429345,
-    "prepare_apps repo": 1793173432617,
-    "process_apks": 1793173426481,
-    "read_added_date_from_all_apks": 1793173429344,
-    "remove_apks": 1793173429343,
-    "scan_repo_files": 1793173429342
+    "archive_old_apks archive": 1793175267658,
+    "delete_disabled_builds": 1793175259335,
+    "index.make archive": 1793175267659,
+    "index.make repo": 1793175271315,
+    "prepare_apps archive": 1793175267659,
+    "prepare_apps repo": 1793175271151,
+    "process_apks": 1793175259343,
+    "read_added_date_from_all_apks": 1793175267657,
+    "remove_apks": 1793175266704,
+    "scan_repo_files": 1793175266703
   },
-  "startTimestamp": 1793173426000,
+  "startTimestamp": 1793175259000,
   "subcommand": "update"
 }

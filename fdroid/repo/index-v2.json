@@ -14,7 +14,7 @@
       }
     },
     "address": "https://anatosun.github.io/puffer/fdroid/repo",
-    "timestamp": 1793173432000,
+    "timestamp": 1793175271000,
     "categories": {
       "Multimedia": {
         "name": {
@@ -32,7 +32,7 @@
         ],
         "changelog": "https://github.com/anatosun/puffer/releases",
         "issueTracker": "https://github.com/anatosun/puffer/issues",
-        "lastUpdated": 1793173426000,
+        "lastUpdated": 1793175258000,
         "license": "GPL-3.0-or-later",
         "sourceCode": "https://github.com/anatosun/puffer",
         "authorName": "anatosun",
@@ -47,14 +47,70 @@
         },
         "icon": {
           "en-US": {
-            "name": "/io.github.anatosun.puffer/en-US/icon_tINtYDLk4BxButW78GpwWSBMGAtp8R6RMbfbeHq9Kfg=.png",
-            "sha256": "b4836d6032e4e01c41bad5bbf06a7059204c180b69f11e9131b7db787abd29f8",
-            "size": 37415
+            "name": "/io.github.anatosun.puffer/en-US/icon_kXj1uqa-TcLFOQGzZSDA52tel9O_nIJA2SepGIVjD-w=.png",
+            "sha256": "9178f5baa6be4dc2c53901b36520c0e76b5e97d3bf9c8240d927a91885630fec",
+            "size": 69930
           }
         },
         "preferredSigner": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
       },
       "versions": {
+        "d75d587d0e5a9d5341ba677b3289d49e358d1e2f51004caecab4f17329f59c11": {
+          "added": 1793175258000,
+          "file": {
+            "name": "/puffer-0.1.0-alpha.5-x86_64.apk",
+            "sha256": "d75d587d0e5a9d5341ba677b3289d49e358d1e2f51004caecab4f17329f59c11",
+            "size": 28274000
+          },
+          "manifest": {
+            "nativecode": [
+              "x86_64"
+            ],
+            "versionName": "0.1.0-alpha.5",
+            "versionCode": 4005,
+            "usesSdk": {
+              "minSdkVersion": 24,
+              "targetSdkVersion": 36
+            },
+            "signer": {
+              "sha256": [
+                "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
+              ]
+            },
+            "usesPermission": [
+              {
+                "name": "android.permission.INTERNET"
+              },
+              {
+                "name": "android.permission.ACCESS_NETWORK_STATE"
+              },
+              {
+                "name": "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+              },
+              {
+                "name": "android.permission.WAKE_LOCK"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+              },
+              {
+                "name": "android.permission.POST_NOTIFICATIONS"
+              },
+              {
+                "name": "android.permission.RECEIVE_BOOT_COMPLETED"
+              },
+              {
+                "name": "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+              }
+            ]
+          }
+        },
         "a47884bb4fbdc539ac4d89ce3d9b93447df71d358a7724e182abf3457dd934d6": {
           "added": 1793173426000,
           "file": {
@@ -139,62 +195,6 @@
               },
               {
                 "name": "android.permission.ACCESS_NETWORK_STATE"
-              },
-              {
-                "name": "android.permission.WAKE_LOCK"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
-              },
-              {
-                "name": "android.permission.POST_NOTIFICATIONS"
-              },
-              {
-                "name": "android.permission.RECEIVE_BOOT_COMPLETED"
-              },
-              {
-                "name": "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-              }
-            ]
-          }
-        },
-        "6103c35b8b7301977b9fbd0a1ced5327e8a79e7fa55cc27da051a14b5c86c3be": {
-          "added": 1793173426000,
-          "file": {
-            "name": "/puffer-0.1.0-alpha.4-arm64-v8a.apk",
-            "sha256": "6103c35b8b7301977b9fbd0a1ced5327e8a79e7fa55cc27da051a14b5c86c3be",
-            "size": 26570278
-          },
-          "manifest": {
-            "nativecode": [
-              "arm64-v8a"
-            ],
-            "versionName": "0.1.0-alpha.4",
-            "versionCode": 2004,
-            "usesSdk": {
-              "minSdkVersion": 24,
-              "targetSdkVersion": 36
-            },
-            "signer": {
-              "sha256": [
-                "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
-              ]
-            },
-            "usesPermission": [
-              {
-                "name": "android.permission.INTERNET"
-              },
-              {
-                "name": "android.permission.ACCESS_NETWORK_STATE"
-              },
-              {
-                "name": "android.permission.CHANGE_WIFI_MULTICAST_STATE"
               },
               {
                 "name": "android.permission.WAKE_LOCK"
