@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../app/sendspin_providers.dart';
+import '../../sendspin/session.dart';
 import '../../downloads/download_settings.dart';
 import '../../playback/replay_gain.dart';
 import 'settings_section.dart';
@@ -57,6 +59,8 @@ class PlaybackSettingsPage extends ConsumerWidget {
               onChanged: (m) => ref.read(replayGainProvider.notifier).set(m!),
             ),
           ),
+          const SettingsSection('Speaker'),
+          const _SpeakerSettings(),
           const SettingsSection('Listening history'),
           SwitchListTile(
             title: const Text('Report plays to the server'),
@@ -68,6 +72,85 @@ class PlaybackSettingsPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The phone as a Sendspin speaker of Music Assistant.
+class _SpeakerSettings extends ConsumerWidget {
+  const _SpeakerSettings();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(sendspinEnabledProvider);
+    final name = ref.watch(sendspinNameProvider);
+    final status =
+        ref.watch(sendspinStatusProvider).value ?? const SendspinStatus();
+    return Column(
+      children: [
+        SwitchListTile(
+          title: const Text('Play as a speaker'),
+          subtitle: const Text(
+            'Music Assistant can play on this phone in sync with your other speakers, over Sendspin.',
+          ),
+          value: enabled,
+          onChanged: (v) => ref.read(sendspinEnabledProvider.notifier).set(v),
+        ),
+        if (enabled) ...[
+          ListTile(
+            title: const Text('Speaker name'),
+            subtitle: Text(name),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: () async {
+              final controller = TextEditingController(text: name);
+              final value = await showDialog<String>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Speaker name'),
+                  content: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    onSubmitted: (v) => Navigator.pop(context, v),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, controller.text),
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              );
+              controller.dispose();
+              if (value != null) {
+                await ref.read(sendspinNameProvider.notifier).set(value);
+              }
+            },
+          ),
+          ListTile(
+            leading: Icon(
+              status.connected ? Icons.check_circle : Icons.wifi_tethering,
+              color: status.connected ? Colors.green : null,
+            ),
+            title: Text(
+              status.connected
+                  ? 'Connected to ${status.serverName ?? 'Music Assistant'}'
+                  : 'Waiting for Music Assistant',
+            ),
+            subtitle: Text(
+              status.connected
+                  ? [
+                      if (status.groupName != null) 'Group ${status.groupName}',
+                      if (status.playing) 'playing',
+                    ].join(' · ')
+                  : 'Music Assistant finds the phone on the local network. Approve "$name" there the first time.',
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

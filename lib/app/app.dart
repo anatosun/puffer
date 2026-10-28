@@ -12,6 +12,7 @@ import '../features/library/album_lists.dart';
 import '../features/library/library_page.dart';
 import '../features/login/login_page.dart';
 import '../features/now_playing/now_playing.dart';
+import '../features/now_playing/speaker_bar.dart';
 import '../features/search/search_page.dart';
 import '../features/settings/downloads_settings_page.dart';
 import '../features/settings/experience_settings_page.dart';
@@ -21,6 +22,7 @@ import '../ui/messages.dart';
 import '../ui/theme.dart';
 import 'experience.dart';
 import 'providers.dart';
+import 'sendspin_providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final signedIn = ValueNotifier(ref.read(credentialsProvider) != null);
@@ -138,6 +140,7 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(playbackProvider);
     ref.watch(queuePersistenceProvider);
+    ref.watch(sendspinServiceProvider);
     final accent = ref.watch(accentProvider);
     return DynamicColorBuilder(
       builder: (light, dark) {
@@ -181,6 +184,7 @@ class _Shell extends StatelessWidget {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const SpeakerBar(),
           const MiniPlayer(),
           NavigationBar(
             selectedIndex: index < 0 ? 0 : index,
