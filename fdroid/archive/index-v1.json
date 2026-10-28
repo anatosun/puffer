@@ -1,6 +1,6 @@
 {
   "repo": {
-    "timestamp": 1793118718000,
+    "timestamp": 1793173429000,
     "version": 20002,
     "name": "Puffer (archive)",
     "icon": "icon.png",
@@ -11,6 +11,198 @@
     "install": [],
     "uninstall": []
   },
-  "apps": [],
-  "packages": {}
+  "apps": [
+    {
+      "authorName": "anatosun",
+      "categories": [
+        "Multimedia"
+      ],
+      "changelog": "https://github.com/anatosun/puffer/releases",
+      "suggestedVersionCode": "2003",
+      "issueTracker": "https://github.com/anatosun/puffer/issues",
+      "license": "GPL-3.0-or-later",
+      "sourceCode": "https://github.com/anatosun/puffer",
+      "added": 1793118713000,
+      "packageName": "io.github.anatosun.puffer",
+      "lastUpdated": 1793173426000,
+      "localized": {
+        "en-US": {
+          "name": "Puffer"
+        }
+      }
+    }
+  ],
+  "packages": {
+    "io.github.anatosun.puffer": [
+      {
+        "added": 1793118713000,
+        "apkName": "puffer-0.1.0-alpha.3-arm64-v8a.apk",
+        "hash": "73050ec84de0fd460cf013c0b21b483835673bbf19e8a021d31fc287229de26f",
+        "hashType": "sha256",
+        "minSdkVersion": 24,
+        "nativecode": [
+          "arm64-v8a"
+        ],
+        "packageName": "io.github.anatosun.puffer",
+        "sig": "06566612b5f037896ac4ae7a3cf22440",
+        "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
+        "size": 26097662,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "android.permission.ACCESS_NETWORK_STATE",
+            null
+          ],
+          [
+            "android.permission.WAKE_LOCK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+            null
+          ],
+          [
+            "android.permission.POST_NOTIFICATIONS",
+            null
+          ],
+          [
+            "android.permission.RECEIVE_BOOT_COMPLETED",
+            null
+          ],
+          [
+            "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 2003,
+        "versionName": "0.1.0-alpha.3"
+      },
+      {
+        "added": 1793173425000,
+        "apkName": "puffer-0.1.0-alpha.4-armeabi-v7a.apk",
+        "hash": "7c5faae5a2a99854f10438ead790f18aca1369a5148d14cfc8234522eb60251e",
+        "hashType": "sha256",
+        "minSdkVersion": 24,
+        "nativecode": [
+          "armeabi-v7a"
+        ],
+        "packageName": "io.github.anatosun.puffer",
+        "sig": "06566612b5f037896ac4ae7a3cf22440",
+        "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
+        "size": 24208754,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "android.permission.ACCESS_NETWORK_STATE",
+            null
+          ],
+          [
+            "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+            null
+          ],
+          [
+            "android.permission.WAKE_LOCK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+            null
+          ],
+          [
+            "android.permission.POST_NOTIFICATIONS",
+            null
+          ],
+          [
+            "android.permission.RECEIVE_BOOT_COMPLETED",
+            null
+          ],
+          [
+            "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 1004,
+        "versionName": "0.1.0-alpha.4"
+      },
+      {
+        "added": 1793118713000,
+        "apkName": "puffer-0.1.0-alpha.3-armeabi-v7a.apk",
+        "hash": "e7d9e8ad2c59b7299b8ae58f880485528a459b2a9af7df55908de979a576d8f2",
+        "hashType": "sha256",
+        "minSdkVersion": 24,
+        "nativecode": [
+          "armeabi-v7a"
+        ],
+        "packageName": "io.github.anatosun.puffer",
+        "sig": "06566612b5f037896ac4ae7a3cf22440",
+        "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
+        "size": 23752520,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "android.permission.ACCESS_NETWORK_STATE",
+            null
+          ],
+          [
+            "android.permission.WAKE_LOCK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+            null
+          ],
+          [
+            "android.permission.POST_NOTIFICATIONS",
+            null
+          ],
+          [
+            "android.permission.RECEIVE_BOOT_COMPLETED",
+            null
+          ],
+          [
+            "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 1003,
+        "versionName": "0.1.0-alpha.3"
+      }
+    ]
+  }
 }
