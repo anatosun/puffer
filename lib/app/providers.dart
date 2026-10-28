@@ -252,6 +252,16 @@ final isOfflineProvider = Provider<bool>((ref) {
   return results != null && results.every((r) => r == ConnectivityResult.none);
 });
 
+/// Whether downloads wait for Wi-Fi: downloads over cellular are off and the device has no Wi-Fi or Ethernet. Unknown connectivity does not hold them.
+final waitingForWifiProvider = Provider<bool>((ref) {
+  if (ref.watch(downloadSettingsProvider).overCellular) return false;
+  final results = ref.watch(connectivityProvider).value;
+  return results != null &&
+      !results.any(
+        (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.ethernet,
+      );
+});
+
 // ------------------------------------------------------------ library
 
 final repositoryProvider = Provider<LibraryRepository?>((ref) {
@@ -348,6 +358,16 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
     fetchArtwork: art,
   );
   unawaited(manager.start());
+  ref.listen(
+    downloadSettingsProvider.select((s) => s.simultaneous),
+    (_, count) => unawaited(manager.backend.setMaxConcurrent(count)),
+    fireImmediately: true,
+  );
+  ref.listen(
+    waitingForWifiProvider,
+    (_, held) => unawaited(manager.setHeld(held)),
+    fireImmediately: true,
+  );
   ref.onDispose(manager.dispose);
   return manager;
 });

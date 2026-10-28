@@ -77,6 +77,9 @@ class DownloadManager {
 
   static const _directory = 'music';
 
+  /// While true, new files stay queued in the database and are not handed to [backend].
+  bool _held = false;
+
   Future<void> start() async {
     _subscription ??= backend.updates.listen(_onUpdate);
     await backend.start();
@@ -241,17 +244,53 @@ class DownloadManager {
               createdAt: DateTime.now(),
             ),
           );
-      await backend.enqueue(
-        id: track.id,
-        url: urlFor(track, s.quality),
-        directory: _directory,
-        filename: '${track.id}.${s.quality.format ?? track.suffix}',
-        wifiOnly: !s.overCellular,
-      );
+      if (!_held) await _transfer(track, s);
       final art = track.coverArt;
       if (art != null && fetchArtwork != null) {
         unawaited(fetchArtwork!(art).catchError((_) {}));
       }
+    }
+  }
+
+  Future<void> _transfer(Track track, DownloadSettings s) => backend.enqueue(
+    id: track.id,
+    url: urlFor(track, s.quality),
+    directory: _directory,
+    filename: '${track.id}.${s.quality.format ?? track.suffix}',
+  );
+
+  /// Holds back or releases the transfers, for "Download over cellular". Holding cancels the transfers in progress and keeps their files queued. Releasing hands every queued file to [backend] again, which also replaces transfers queued by an earlier version with a Wi-Fi constraint.
+  Future<void> setHeld(bool held) async {
+    _held = held;
+    final rows =
+        await (db.select(db.trackFiles)..where(
+              (t) => held
+                  ? t.status.isInValues([
+                      FileStatus.queued,
+                      FileStatus.downloading,
+                      FileStatus.paused,
+                    ])
+                  : t.status.equalsValue(FileStatus.queued),
+            ))
+            .get();
+    if (held) {
+      for (final f in rows) {
+        await backend.cancel(f.trackId);
+      }
+      await (db.update(
+        db.trackFiles,
+      )..where((t) => t.trackId.isIn(rows.map((f) => f.trackId)))).write(
+        const TrackFilesCompanion(
+          status: Value(FileStatus.queued),
+          progress: Value(0),
+        ),
+      );
+      return;
+    }
+    final s = settings();
+    for (final track in await _cachedTracks(rows.map((f) => f.trackId))) {
+      if (_held) return;
+      await _transfer(track, s);
     }
   }
 
@@ -313,16 +352,17 @@ class DownloadManager {
       db.trackFiles,
     )..where((t) => t.status.equalsValue(FileStatus.failed))).get();
     if (failed.isEmpty) return;
-    final rows =
-        await (db.select(db.cachedItems)..where(
-              (t) =>
-                  t.kind.equals('track') &
-                  t.id.isIn(failed.map((f) => f.trackId)),
-            ))
-            .get();
-    await _ensureFiles([
-      for (final r in rows) Track(_decode(r.json)),
-    ], redownloadEvicted: false);
+    await _ensureFiles(
+      await _cachedTracks(failed.map((f) => f.trackId)),
+      redownloadEvicted: false,
+    );
+  }
+
+  Future<List<Track>> _cachedTracks(Iterable<String> ids) async {
+    final rows = await (db.select(
+      db.cachedItems,
+    )..where((t) => t.kind.equals('track') & t.id.isIn(ids))).get();
+    return [for (final r in rows) Track(_decode(r.json))];
   }
 
   Future<void> markPlayed(String trackId) =>

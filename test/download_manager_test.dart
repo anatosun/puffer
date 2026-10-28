@@ -26,11 +26,13 @@ class FakeBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
-    required bool wifiOnly,
   }) async => enqueued.add(id);
 
   @override
   Future<void> cancel(String id) async => cancelled.add(id);
+
+  @override
+  Future<void> setMaxConcurrent(int count) async {}
 }
 
 Track track(String id) => Track({'id': id, 'title': id, 'suffix': 'flac'});
@@ -245,6 +247,44 @@ void main() {
       expect(transfers.first.progress, 0.5);
     },
   );
+
+  test('held downloads stay queued until released', () async {
+    for (final id in ['t1', 't2']) {
+      await db
+          .into(db.cachedItems)
+          .insert(
+            CachedItemsCompanion.insert(
+              kind: 'track',
+              id: id,
+              json: '{"id": "$id", "title": "$id", "suffix": "flac"}',
+              updatedAt: DateTime(2026),
+            ),
+          );
+    }
+    await manager.setHeld(true);
+    await manager.pin(PinKind.album, 'album1');
+    expect(backend.enqueued, isEmpty);
+    expect((await manager.watchTransfers().first).map((f) => f.status), [
+      FileStatus.queued,
+      FileStatus.queued,
+    ]);
+
+    await manager.setHeld(false);
+    expect(backend.enqueued, unorderedEquals(['t1', 't2']));
+  });
+
+  test('holding cancels transfers in progress and queues them again', () async {
+    await manager.pin(PinKind.album, 'album1');
+    backend.controller.add(
+      const TransferUpdate('t1', status: FileStatus.downloading, progress: 0.5),
+    );
+    await pumpEventQueue();
+    await manager.setHeld(true);
+    expect(backend.cancelled, containsAll(['t1', 't2']));
+    final t1 = await manager.watchTrack('t1').first;
+    expect(t1!.status, FileStatus.queued);
+    expect(t1.progress, 0);
+  });
 
   test('remove all deletes every pin and file', () async {
     await manager.pin(PinKind.album, 'album1');

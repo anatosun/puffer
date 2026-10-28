@@ -21,6 +21,7 @@ class DownloadSettings {
     this.automaticDownloads = false,
     this.optimizeStorage = false,
     this.storageLimitBytes = 8 * 1024 * 1024 * 1024,
+    this.simultaneous = 3,
   });
 
   final DownloadQuality quality;
@@ -29,18 +30,23 @@ class DownloadSettings {
   final bool optimizeStorage;
   final int storageLimitBytes;
 
+  /// The number of files downloading at the same time.
+  final int simultaneous;
+
   DownloadSettings copyWith({
     DownloadQuality? quality,
     bool? overCellular,
     bool? automaticDownloads,
     bool? optimizeStorage,
     int? storageLimitBytes,
+    int? simultaneous,
   }) => DownloadSettings(
     quality: quality ?? this.quality,
     overCellular: overCellular ?? this.overCellular,
     automaticDownloads: automaticDownloads ?? this.automaticDownloads,
     optimizeStorage: optimizeStorage ?? this.optimizeStorage,
     storageLimitBytes: storageLimitBytes ?? this.storageLimitBytes,
+    simultaneous: simultaneous ?? this.simultaneous,
   );
 
   static DownloadSettings load(SharedPreferences prefs) => DownloadSettings(
@@ -54,6 +60,7 @@ class DownloadSettings {
     optimizeStorage: prefs.getBool('downloads.optimize') ?? false,
     storageLimitBytes:
         prefs.getInt('downloads.limit') ?? 8 * 1024 * 1024 * 1024,
+    simultaneous: prefs.getInt('downloads.simultaneous') ?? 3,
   );
 
   Future<void> save(SharedPreferences prefs) async {
@@ -62,5 +69,6 @@ class DownloadSettings {
     await prefs.setBool('downloads.automatic', automaticDownloads);
     await prefs.setBool('downloads.optimize', optimizeStorage);
     await prefs.setInt('downloads.limit', storageLimitBytes);
+    await prefs.setInt('downloads.simultaneous', simultaneous);
   }
 }

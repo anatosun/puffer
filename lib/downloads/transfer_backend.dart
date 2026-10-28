@@ -15,7 +15,7 @@ class TransferUpdate {
   final String? path;
 }
 
-/// File transfers, separated from [DownloadManager] so tests can replace them.
+/// File transfers, separated from [DownloadManager] so tests can replace them. They require no particular network: [DownloadManager] holds them back while only cellular is available and downloads over cellular are off, because the Wi-Fi constraint of background_downloader never let them start on some phones.
 abstract class TransferBackend {
   Stream<TransferUpdate> get updates;
   Future<void> start();
@@ -24,9 +24,11 @@ abstract class TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
-    required bool wifiOnly,
   });
   Future<void> cancel(String id);
+
+  /// Limits the number of transfers running at the same time.
+  Future<void> setMaxConcurrent(int count);
 }
 
 class BackgroundDownloaderBackend implements TransferBackend {
@@ -74,7 +76,6 @@ class BackgroundDownloaderBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
-    required bool wifiOnly,
   }) async {
     await _downloader.cancelTaskWithId(id);
     await _downloader.enqueue(
@@ -86,7 +87,6 @@ class BackgroundDownloaderBackend implements TransferBackend {
         baseDirectory: BaseDirectory.applicationSupport,
         group: _group,
         updates: Updates.statusAndProgress,
-        requiresWiFi: wifiOnly,
         retries: 3,
         allowPause: true,
       ),
@@ -95,4 +95,10 @@ class BackgroundDownloaderBackend implements TransferBackend {
 
   @override
   Future<void> cancel(String id) async => _downloader.cancelTaskWithId(id);
+
+  /// The holding queue of background_downloader is native, so it keeps starting transfers while the app is suspended. It is lost when the app is killed; [DownloadManager.setHeld] enqueues the queued files again at start-up.
+  @override
+  Future<void> setMaxConcurrent(int count) => _downloader.configure(
+    globalConfig: (Config.holdingQueue, (count, null, null)),
+  );
 }

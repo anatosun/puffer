@@ -1,5 +1,4 @@
 import 'package:collection/collection.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -116,14 +115,4 @@ final transfersProvider = StreamProvider<List<Transfer>>((ref) {
     }
     return [for (final f in files) Transfer(f, tracks[f.trackId])];
   });
-});
-
-/// Whether queued downloads wait for Wi-Fi: downloads over cellular are off and the device has no Wi-Fi or Ethernet.
-final waitingForWifiProvider = Provider<bool>((ref) {
-  if (ref.watch(downloadSettingsProvider).overCellular) return false;
-  final results = ref.watch(connectivityProvider).value;
-  return results != null &&
-      !results.any(
-        (r) => r == ConnectivityResult.wifi || r == ConnectivityResult.ethernet,
-      );
 });

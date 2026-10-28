@@ -55,6 +55,7 @@ final _failedCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 const _limits = [2, 4, 8, 16, 32, 64];
+const _simultaneous = [1, 2, 3, 4, 6];
 
 class DownloadsSettingsPage extends ConsumerWidget {
   const DownloadsSettingsPage({super.key});
@@ -119,6 +120,21 @@ class DownloadsSettingsPage extends ConsumerWidget {
               value: settings.overCellular,
               onChanged: (v) =>
                   notifier.update(settings.copyWith(overCellular: v)),
+            ),
+            ListTile(
+              title: const Text('Simultaneous downloads'),
+              trailing: DropdownButton<int>(
+                value: _simultaneous.contains(settings.simultaneous)
+                    ? settings.simultaneous
+                    : 3,
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final n in _simultaneous)
+                    DropdownMenuItem(value: n, child: Text('$n')),
+                ],
+                onChanged: (n) =>
+                    notifier.update(settings.copyWith(simultaneous: n)),
+              ),
             ),
             SwitchListTile(
               title: const Text('Automatic downloads'),
