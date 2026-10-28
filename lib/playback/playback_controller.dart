@@ -8,11 +8,21 @@ import 'player_handler.dart';
 enum Repeat { off, one, all }
 
 class QueueEntry {
-  const QueueEntry({required this.id, required this.title, this.artist});
+  const QueueEntry({
+    required this.id,
+    required this.title,
+    this.artist,
+    this.coverArt,
+    this.imageUrl,
+  });
 
   final String id;
   final String title;
   final String? artist;
+  final String? coverArt;
+
+  /// Artwork from Music Assistant, used when [coverArt] is unknown.
+  final Uri? imageUrl;
 }
 
 /// What is playing, on the phone or on a Music Assistant player. The now-playing screen reads only this.
@@ -148,6 +158,7 @@ class LocalPlaybackController implements PlaybackController {
     if (item == null) return null;
     final s = handler.playbackState.value;
     final track = handler.currentTrack;
+    final covers = {for (final t in handler.tracks) t.id: t.coverArt};
     return NowPlaying(
       track: track,
       title: item.title,
@@ -169,7 +180,12 @@ class LocalPlaybackController implements PlaybackController {
       },
       queue: [
         for (final m in handler.queue.value)
-          QueueEntry(id: m.id, title: m.title, artist: m.artist),
+          QueueEntry(
+            id: m.id,
+            title: m.title,
+            artist: m.artist,
+            coverArt: covers[m.id],
+          ),
       ],
       index: s.queueIndex,
     );

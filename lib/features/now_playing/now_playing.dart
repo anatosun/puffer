@@ -33,22 +33,29 @@ ColorScheme? _scheme(BuildContext context, WidgetRef ref, NowPlaying? np) {
       .value;
 }
 
+/// The Subsonic cover when [coverArt] is known, otherwise the Music Assistant image at [imageUrl].
 class _NowPlayingArtwork extends ConsumerWidget {
-  const _NowPlayingArtwork(this.np, {required this.size, this.radius = 6});
+  const _NowPlayingArtwork(
+    this.coverArt,
+    this.imageUrl, {
+    required this.size,
+    this.radius = 6,
+  });
 
-  final NowPlaying np;
+  final String? coverArt;
+  final Uri? imageUrl;
   final double size;
   final double radius;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (np.coverArt != null || np.imageUrl == null) {
-      return Artwork(np.coverArt, size: size, radius: radius);
+    if (coverArt != null || imageUrl == null) {
+      return Artwork(coverArt, size: size, radius: radius);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Image(
-        image: _image(ref, np, size: 800)!,
+        image: CachedNetworkImageProvider(imageUrl.toString()),
         width: size,
         height: size,
         fit: BoxFit.cover,
@@ -139,7 +146,12 @@ class MiniPlayer extends ConsumerWidget {
                 children: [
                   Hero(
                     tag: _artworkHeroTag,
-                    child: _NowPlayingArtwork(np, size: 44, radius: 4),
+                    child: _NowPlayingArtwork(
+                      np.coverArt,
+                      np.imageUrl,
+                      size: 44,
+                      radius: 4,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -321,7 +333,8 @@ class NowPlayingPage extends ConsumerWidget {
                                         ],
                                       ),
                                       child: _NowPlayingArtwork(
-                                        np,
+                                        np.coverArt,
+                                        np.imageUrl,
                                         size: artSize,
                                         radius: 10,
                                       ),
@@ -758,20 +771,30 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
               // Played tracks are dimmed.
               opacity: current != null && i < current ? 0.5 : 1,
               child: ListTile(
-                leading: SizedBox(
-                  width: 24,
-                  child: playing
-                      ? Center(
-                          child: PlayingBars(
-                            playing: np?.playing ?? false,
-                            color: context.colors.primary,
-                          ),
-                        )
-                      : Text(
-                          '${i + 1}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: context.faint),
+                leading: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _NowPlayingArtwork(
+                      item.coverArt,
+                      item.imageUrl,
+                      size: 44,
+                      radius: 4,
+                    ),
+                    if (playing) ...[
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(4),
                         ),
+                      ),
+                      PlayingBars(
+                        playing: np?.playing ?? false,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ],
                 ),
                 selected: playing,
                 title: Text(

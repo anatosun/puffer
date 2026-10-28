@@ -123,6 +123,12 @@ class MusicAssistantPlaybackController implements PlaybackController {
             id: it.id,
             title: _trackFor(it, i)?.title ?? it.title,
             artist: _trackFor(it, i)?.artist ?? it.artist,
+            coverArt:
+                _trackFor(it, i)?.coverArt ??
+                (it.image != null && it.image!.provider == providerInstance
+                    ? it.image!.path
+                    : null),
+            imageUrl: it.image?.url(client.baseUrl, size: 160),
           ),
       ],
       index: queue.currentIndex,
