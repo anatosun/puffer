@@ -186,8 +186,12 @@ Future<void> switchOutput(WidgetRef ref, String? playerId) async {
     return;
   }
 
+  // A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing.
   final snapshot = await source.snapshot();
-  final moving = snapshot != null && snapshot.playing;
+  final targetEmpty = playerId == null
+      ? ref.read(playerHandlerProvider).tracks.isEmpty
+      : (ref.read(maClientProvider)?.queues[playerId]?.currentItem == null);
+  final moving = snapshot != null && (snapshot.playing || targetEmpty);
   if (moving) await source.stop();
   await ref.read(outputProvider.notifier).select(playerId);
   if (!moving) return;
@@ -196,6 +200,7 @@ Future<void> switchOutput(WidgetRef ref, String? playerId) async {
   if (snapshot.position > const Duration(seconds: 5)) {
     await target.seek(snapshot.position);
   }
+  if (!snapshot.playing) await target.pause();
 }
 
 final playbackControllerProvider = Provider<PlaybackController>((ref) {
