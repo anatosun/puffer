@@ -1,0 +1,2 @@
+- Downloads no longer stay at "Waiting" on Android when "Download over cellular" is off
+- Settings → Downloads sets the number of simultaneous downloads (3 by default)
