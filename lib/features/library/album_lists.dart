@@ -7,6 +7,7 @@ import '../../data/subsonic/models.dart';
 import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
+import '../../ui/widgets/backdrop.dart';
 
 /// A `getAlbumList2` request: the type, with the genre of `byGenre` or the years of `byYear`.
 typedef AlbumQuery = ({String type, String? genre, int? fromYear, int? toYear});
@@ -138,8 +139,11 @@ class AlbumQueryPage extends StatelessWidget {
   final AlbumQuery query;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title), actions: const [OutputButton()]),
-    body: PagedAlbumGrid(query),
+  Widget build(BuildContext context) => Backdrop(
+    child: Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(title: Text(title), actions: const [OutputButton()]),
+      body: PagedAlbumGrid(query),
+    ),
   );
 }

@@ -21,7 +21,12 @@ ThemeData buildTheme(Brightness brightness, {Color seed = accent}) {
     scaffoldBackgroundColor: background,
     canvasColor: background,
     appBarTheme: AppBarTheme(
-      backgroundColor: background,
+      // Transparent over the artwork behind a page, opaque once the content scrolls under it.
+      backgroundColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.scrolledUnder)
+            ? background.withValues(alpha: 0.9)
+            : Colors.transparent,
+      ),
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
     ),

@@ -8,6 +8,7 @@ import '../../data/subsonic/models.dart';
 import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
+import '../../ui/widgets/backdrop.dart';
 
 final _queryProvider = NotifierProvider<_QueryNotifier, String>(
   _QueryNotifier.new,
@@ -48,56 +49,59 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final results = ref.watch(_resultsProvider);
     final offline = ref.watch(isOfflineProvider);
-    return Scaffold(
-      appBar: AppBar(
-        actions: const [OutputButton()],
-        title: TextField(
-          autofocus: false,
-          decoration: InputDecoration(
-            hintText: offline
-                ? 'Search downloaded music'
-                : 'Artists, albums, songs',
-            prefixIcon: const Icon(Icons.search),
-            border: InputBorder.none,
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          actions: const [OutputButton()],
+          title: TextField(
+            autofocus: false,
+            decoration: InputDecoration(
+              hintText: offline
+                  ? 'Search downloaded music'
+                  : 'Artists, albums, songs',
+              prefixIcon: const Icon(Icons.search),
+              border: InputBorder.none,
+            ),
+            onChanged: (value) {
+              _debounce?.cancel();
+              _debounce = Timer(
+                const Duration(milliseconds: 300),
+                () => ref.read(_queryProvider.notifier).set(value),
+              );
+            },
           ),
-          onChanged: (value) {
-            _debounce?.cancel();
-            _debounce = Timer(
-              const Duration(milliseconds: 300),
-              () => ref.read(_queryProvider.notifier).set(value),
+        ),
+        body: results.when(
+          loading: () => const ListPlaceholder(),
+          error: (e, _) => MessageView('$e'),
+          data: (r) {
+            if (r == null) {
+              return const MessageView('Search your library');
+            }
+            if (r.artists.isEmpty && r.albums.isEmpty && r.tracks.isEmpty) {
+              return const MessageView('No results');
+            }
+            return ListView(
+              children: [
+                if (r.artists.isNotEmpty) ...[
+                  const _Heading('Artists'),
+                  for (final a in r.artists) ArtistTile(a),
+                ],
+                if (r.albums.isNotEmpty) ...[
+                  const _Heading('Albums'),
+                  AlbumShelf(r.albums),
+                ],
+                if (r.tracks.isNotEmpty) ...[
+                  const _Heading('Songs'),
+                  for (var i = 0; i < r.tracks.length; i++)
+                    TrackTile(tracks: r.tracks, index: i),
+                ],
+                const SizedBox(height: 24),
+              ],
             );
           },
         ),
-      ),
-      body: results.when(
-        loading: () => const ListPlaceholder(),
-        error: (e, _) => MessageView('$e'),
-        data: (r) {
-          if (r == null) {
-            return const MessageView('Search your library');
-          }
-          if (r.artists.isEmpty && r.albums.isEmpty && r.tracks.isEmpty) {
-            return const MessageView('No results');
-          }
-          return ListView(
-            children: [
-              if (r.artists.isNotEmpty) ...[
-                const _Heading('Artists'),
-                for (final a in r.artists) ArtistTile(a),
-              ],
-              if (r.albums.isNotEmpty) ...[
-                const _Heading('Albums'),
-                AlbumShelf(r.albums),
-              ],
-              if (r.tracks.isNotEmpty) ...[
-                const _Heading('Songs'),
-                for (var i = 0; i < r.tracks.length; i++)
-                  TrackTile(tracks: r.tracks, index: i),
-              ],
-              const SizedBox(height: 24),
-            ],
-          );
-        },
       ),
     );
   }

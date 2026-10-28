@@ -12,6 +12,7 @@ import '../home/home_page.dart';
 import 'album_lists.dart';
 import 'downloaded.dart';
 import '../../ui/theme.dart';
+import '../../ui/widgets/backdrop.dart';
 
 final _artistsProvider = FutureProvider.autoDispose<List<Artist>>(
   (ref) async => await ref.watch(repositoryProvider)?.artists() ?? const [],
@@ -71,63 +72,70 @@ class LibraryPage extends ConsumerWidget {
       onTap: () => context.push(path),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          downloaded ? 'Downloaded' : 'Library',
-          style: Theme.of(context).textTheme.headlineMedium,
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            downloaded ? 'Downloaded' : 'Library',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          actions: const [OutputButton()],
         ),
-        actions: const [OutputButton()],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = ref
-              .watch(coverSizeProvider)
-              .columns(constraints.maxWidth);
-          final width = (constraints.maxWidth - 16 * (columns + 1)) / columns;
-          return CustomScrollView(
-            slivers: [
-              SliverList.list(
-                children: [
-                  for (final section in sections)
-                    row(section.icon, section.title, '$prefix/${section.name}'),
-                  if (!downloaded && !offline)
-                    row(
-                      Icons.arrow_circle_down,
-                      'Downloaded',
-                      '/library/downloaded',
-                    ),
-                  if (!downloaded)
-                    row(Icons.settings_outlined, 'Settings', '/settings'),
-                  if (albums.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                      child: Text(
-                        showDownloaded
-                            ? 'Recently downloaded'
-                            : 'Recently added',
-                        style: Theme.of(context).textTheme.titleLarge,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = ref
+                .watch(coverSizeProvider)
+                .columns(constraints.maxWidth);
+            final width = (constraints.maxWidth - 16 * (columns + 1)) / columns;
+            return CustomScrollView(
+              slivers: [
+                SliverList.list(
+                  children: [
+                    for (final section in sections)
+                      row(
+                        section.icon,
+                        section.title,
+                        '$prefix/${section.name}',
                       ),
-                    ),
-                ],
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverGrid.builder(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: width / (width + 48),
-                  ),
-                  itemCount: albums.length,
-                  itemBuilder: (context, i) =>
-                      AlbumCard(albums[i], width: width),
+                    if (!downloaded && !offline)
+                      row(
+                        Icons.arrow_circle_down,
+                        'Downloaded',
+                        '/library/downloaded',
+                      ),
+                    if (!downloaded)
+                      row(Icons.settings_outlined, 'Settings', '/settings'),
+                    if (albums.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                        child: Text(
+                          showDownloaded
+                              ? 'Recently downloaded'
+                              : 'Recently added',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-            ],
-          );
-        },
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverGrid.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: width / (width + 48),
+                    ),
+                    itemCount: albums.length,
+                    itemBuilder: (context, i) =>
+                        AlbumCard(albums[i], width: width),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -225,12 +233,15 @@ class LibrarySectionPage extends ConsumerWidget {
         empty: 'No downloaded songs',
       ),
     };
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(section.title),
-        actions: const [OutputButton()],
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(section.title),
+          actions: const [OutputButton()],
+        ),
+        body: body,
       ),
-      body: body,
     );
   }
 }

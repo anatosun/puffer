@@ -13,6 +13,7 @@ import '../../ui/widgets/tiles.dart';
 import 'collection_header.dart';
 import '../home/home_page.dart';
 import 'playlist_edit.dart';
+import '../../ui/widgets/backdrop.dart';
 
 final playlistProvider = FutureProvider.autoDispose.family<Playlist, String>((
   ref,
@@ -39,7 +40,14 @@ class PlaylistPage extends ConsumerWidget {
               onRetry: () => ref.invalidate(playlistProvider(id)),
             ),
           ),
-          data: (playlist) => Scaffold(body: _PlaylistBody(playlist)),
+          data: (playlist) => Backdrop(
+            coverArt: playlist.coverArt,
+            top: 0.25,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: _PlaylistBody(playlist),
+            ),
+          ),
         );
   }
 }

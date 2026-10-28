@@ -6,89 +6,110 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/experience.dart';
 import '../../app/providers.dart';
 import 'settings_section.dart';
+import '../../ui/widgets/backdrop.dart';
 
 class ExperienceSettingsPage extends ConsumerWidget {
   const ExperienceSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Experience')),
-      body: ListView(
-        children: [
-          const SettingsSection('Appearance'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SegmentedButton<ThemeMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: ThemeMode.system,
-                  label: Text('System'),
-                  icon: Icon(Icons.brightness_auto),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text('Light'),
-                  icon: Icon(Icons.light_mode_outlined),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text('Dark'),
-                  icon: Icon(Icons.dark_mode_outlined),
-                ),
-              ],
-              selected: {ref.watch(themeModeProvider)},
-              onSelectionChanged: (s) =>
-                  ref.read(themeModeProvider.notifier).set(s.single),
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('Experience')),
+        body: ListView(
+          children: [
+            const SettingsSection('Appearance'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    label: Text('System'),
+                    icon: Icon(Icons.brightness_auto),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    label: Text('Light'),
+                    icon: Icon(Icons.light_mode_outlined),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    label: Text('Dark'),
+                    icon: Icon(Icons.dark_mode_outlined),
+                  ),
+                ],
+                selected: {ref.watch(themeModeProvider)},
+                onSelectionChanged: (s) =>
+                    ref.read(themeModeProvider.notifier).set(s.single),
+              ),
             ),
-          ),
-          const _AccentPicker(),
-          SwitchListTile(
-            title: const Text('Colours from artwork'),
-            subtitle: const Text(
-              'Album pages and the player take their colours from the album artwork',
+            const _AccentPicker(),
+            SwitchListTile(
+              title: const Text('Colours from artwork'),
+              subtitle: const Text(
+                'Album pages and the player take their colours from the album artwork',
+              ),
+              value: ref.watch(artworkColoursProvider),
+              onChanged: (v) =>
+                  ref.read(artworkColoursProvider.notifier).set(v),
             ),
-            value: ref.watch(artworkColoursProvider),
-            onChanged: (v) => ref.read(artworkColoursProvider.notifier).set(v),
-          ),
-          SwitchListTile(
-            title: const Text('Rating in the player'),
-            subtitle: const Text(
-              'The player shows the stars of the current song, and tapping one rates it',
+            SwitchListTile(
+              title: const Text('Rating in the player'),
+              subtitle: const Text(
+                'The player shows the stars of the current song, and tapping one rates it',
+              ),
+              value: ref.watch(playerRatingProvider),
+              onChanged: (v) => ref.read(playerRatingProvider.notifier).set(v),
             ),
-            value: ref.watch(playerRatingProvider),
-            onChanged: (v) => ref.read(playerRatingProvider.notifier).set(v),
-          ),
-          const SettingsSection('Layout'),
-          ListTile(
-            title: const Text('Start on'),
-            trailing: DropdownButton<StartTab>(
-              value: ref.watch(startTabProvider),
-              underline: const SizedBox.shrink(),
-              items: [
-                for (final t in StartTab.values)
-                  DropdownMenuItem(value: t, child: Text(t.label)),
-              ],
-              onChanged: (t) => ref.read(startTabProvider.notifier).set(t!),
+            ListTile(
+              enabled: ref.watch(artworkColoursProvider),
+              title: const Text('When nothing plays'),
+              subtitle: const Text('The background behind the pages'),
+              trailing: DropdownButton<IdleBackground>(
+                value: ref.watch(idleBackgroundProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final b in IdleBackground.values)
+                    DropdownMenuItem(value: b, child: Text(b.label)),
+                ],
+                onChanged: ref.watch(artworkColoursProvider)
+                    ? (b) => ref.read(idleBackgroundProvider.notifier).set(b!)
+                    : null,
+              ),
             ),
-          ),
-          ListTile(
-            title: const Text('Cover size'),
-            trailing: SegmentedButton<CoverSize>(
-              showSelectedIcon: false,
-              segments: [
-                for (final c in CoverSize.values)
-                  ButtonSegment(value: c, label: Text(c.label)),
-              ],
-              selected: {ref.watch(coverSizeProvider)},
-              onSelectionChanged: (s) =>
-                  ref.read(coverSizeProvider.notifier).set(s.single),
+            const SettingsSection('Layout'),
+            ListTile(
+              title: const Text('Start on'),
+              trailing: DropdownButton<StartTab>(
+                value: ref.watch(startTabProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final t in StartTab.values)
+                    DropdownMenuItem(value: t, child: Text(t.label)),
+                ],
+                onChanged: (t) => ref.read(startTabProvider.notifier).set(t!),
+              ),
             ),
-          ),
-          const SettingsSection('Home'),
-          const _ShelfList(),
-        ],
+            ListTile(
+              title: const Text('Cover size'),
+              trailing: SegmentedButton<CoverSize>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final c in CoverSize.values)
+                    ButtonSegment(value: c, label: Text(c.label)),
+                ],
+                selected: {ref.watch(coverSizeProvider)},
+                onSelectionChanged: (s) =>
+                    ref.read(coverSizeProvider.notifier).set(s.single),
+              ),
+            ),
+            const SettingsSection('Home'),
+            const _ShelfList(),
+          ],
+        ),
       ),
     );
   }

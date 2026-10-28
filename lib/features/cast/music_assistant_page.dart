@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/playback_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
 import '../../ui/theme.dart';
+import '../../ui/widgets/backdrop.dart';
 
 class MusicAssistantPage extends ConsumerWidget {
   const MusicAssistantPage({super.key});
@@ -12,9 +13,12 @@ class MusicAssistantPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final credentials = ref.watch(maCredentialsProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Music Assistant')),
-      body: credentials == null ? const _SignIn() : _Connected(credentials),
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('Music Assistant')),
+        body: credentials == null ? const _SignIn() : _Connected(credentials),
+      ),
     );
   }
 }

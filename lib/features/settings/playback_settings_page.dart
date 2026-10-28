@@ -7,6 +7,7 @@ import '../../sendspin/session.dart';
 import '../../downloads/download_settings.dart';
 import '../../playback/replay_gain.dart';
 import 'settings_section.dart';
+import '../../ui/widgets/backdrop.dart';
 
 class PlaybackSettingsPage extends ConsumerWidget {
   const PlaybackSettingsPage({super.key});
@@ -29,48 +30,51 @@ class PlaybackSettingsPage extends ConsumerWidget {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Playback')),
-      body: ListView(
-        children: [
-          const SettingsSection('Streaming quality'),
-          quality('On Wi-Fi', wifiQualityProvider),
-          quality('On cellular', cellularQualityProvider),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Downloaded music always plays from the file. The server transcodes streams below the original quality.',
-              style: TextStyle(fontSize: 13),
+    return Backdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('Playback')),
+        body: ListView(
+          children: [
+            const SettingsSection('Streaming quality'),
+            quality('On Wi-Fi', wifiQualityProvider),
+            quality('On cellular', cellularQualityProvider),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Downloaded music always plays from the file. The server transcodes streams below the original quality.',
+                style: TextStyle(fontSize: 13),
+              ),
             ),
-          ),
-          const SettingsSection('Loudness'),
-          ListTile(
-            title: const Text('Normalise volume'),
-            subtitle: const Text(
-              'Uses the ReplayGain values the server reports. Album keeps the differences between the songs of an album.',
+            const SettingsSection('Loudness'),
+            ListTile(
+              title: const Text('Normalise volume'),
+              subtitle: const Text(
+                'Uses the ReplayGain values the server reports. Album keeps the differences between the songs of an album.',
+              ),
+              trailing: DropdownButton<ReplayGainMode>(
+                value: ref.watch(replayGainProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final m in ReplayGainMode.values)
+                    DropdownMenuItem(value: m, child: Text(m.label)),
+                ],
+                onChanged: (m) => ref.read(replayGainProvider.notifier).set(m!),
+              ),
             ),
-            trailing: DropdownButton<ReplayGainMode>(
-              value: ref.watch(replayGainProvider),
-              underline: const SizedBox.shrink(),
-              items: [
-                for (final m in ReplayGainMode.values)
-                  DropdownMenuItem(value: m, child: Text(m.label)),
-              ],
-              onChanged: (m) => ref.read(replayGainProvider.notifier).set(m!),
+            const SettingsSection('Speaker'),
+            const _SpeakerSettings(),
+            const SettingsSection('Listening history'),
+            SwitchListTile(
+              title: const Text('Report plays to the server'),
+              subtitle: const Text(
+                'Keeps "Recently played" and "Most played" up to date',
+              ),
+              value: ref.watch(scrobblingProvider),
+              onChanged: (v) => ref.read(scrobblingProvider.notifier).set(v),
             ),
-          ),
-          const SettingsSection('Speaker'),
-          const _SpeakerSettings(),
-          const SettingsSection('Listening history'),
-          SwitchListTile(
-            title: const Text('Report plays to the server'),
-            subtitle: const Text(
-              'Keeps "Recently played" and "Most played" up to date',
-            ),
-            value: ref.watch(scrobblingProvider),
-            onChanged: (v) => ref.read(scrobblingProvider.notifier).set(v),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

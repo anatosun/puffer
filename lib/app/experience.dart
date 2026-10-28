@@ -68,6 +68,26 @@ final startTabProvider =
       ),
     );
 
+/// The background of the pages when nothing is playing.
+enum IdleBackground {
+  accent('Accent colour'),
+  lastPlayed('Last played album'),
+  none('None');
+
+  const IdleBackground(this.label);
+
+  final String label;
+}
+
+final idleBackgroundProvider =
+    NotifierProvider<EnumSettingNotifier<IdleBackground>, IdleBackground>(
+      () => EnumSettingNotifier(
+        'experience.idleBackground',
+        IdleBackground.values,
+        IdleBackground.accent,
+      ),
+    );
+
 /// Cover size of album grids and shelves: the target column width of grids and the card width of shelves.
 enum CoverSize {
   small('Small', 130, 120),

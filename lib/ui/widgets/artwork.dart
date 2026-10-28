@@ -53,12 +53,18 @@ ColorScheme? artworkScheme(
 class BlurredArtwork extends StatelessWidget {
   const BlurredArtwork({
     super.key,
-    required this.image,
+    required ImageProvider this.image,
     required this.id,
     this.top = 0.25,
-  });
+  }) : colours = const [];
 
-  final ImageProvider image;
+  /// Patches of [colours] blurred in place of an image, for when there is no artwork to show.
+  BlurredArtwork.colours(this.colours, {super.key, this.top = 0.25})
+    : image = null,
+      id = Object.hashAll(colours);
+
+  final ImageProvider? image;
+  final List<Color> colours;
   final Object id;
 
   /// The opacity of the background over the top of the image.
@@ -82,14 +88,16 @@ class BlurredArtwork extends StatelessWidget {
               sigmaY: 60,
               tileMode: TileMode.clamp,
             ),
-            child: Image(
-              image: image,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
-            ),
+            child: image == null
+                ? _ColourPatches(colours)
+                : Image(
+                    image: image!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
           ),
         ),
         DecoratedBox(
@@ -109,6 +117,42 @@ class BlurredArtwork extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Round patches of colour spread over the top of the screen, which the blur turns into soft light.
+class _ColourPatches extends StatelessWidget {
+  const _ColourPatches(this.colours);
+
+  final List<Color> colours;
+
+  static const _spots = [
+    (Alignment(-1, -1), 0.9),
+    (Alignment(1, -0.7), 0.75),
+    (Alignment(-0.2, -0.1), 0.6),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      for (final (i, colour) in colours.indexed)
+        Align(
+          alignment: _spots[i % _spots.length].$1,
+          child: FractionallySizedBox(
+            widthFactor: _spots[i % _spots.length].$2,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colour,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }
 
 class Artwork extends ConsumerWidget {

@@ -10,6 +10,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import 'collection_header.dart';
+import '../../ui/widgets/backdrop.dart';
 
 final artistProvider = FutureProvider.autoDispose.family<Artist, String>((
   ref,
@@ -67,50 +68,55 @@ class ArtistPage extends ConsumerWidget {
           data: (artist) {
             final albums = [...artist.albums]
               ..sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
-            return Scaffold(
-              body: LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = ref
-                      .watch(coverSizeProvider)
-                      .columns(constraints.maxWidth);
-                  final width =
-                      (constraints.maxWidth - 16 * (columns + 1)) / columns;
-                  return CollectionView(
-                    coverArt: artist.coverArt,
-                    image: photo == null || ref.watch(isOfflineProvider)
-                        ? null
-                        : CachedNetworkImageProvider(photo),
-                    title: artist.name,
-                    details: '${albums.length} albums',
-                    tracks: tracks,
-                    pinKind: PinKind.artist,
-                    pinId: artist.id,
-                    circular: true,
-                    trailing: StarButton(
-                      starred: artist.starred,
-                      artistId: artist.id,
-                    ),
-                    slivers: [
-                      if (info?.biography case final biography?)
-                        SliverToBoxAdapter(child: _Biography(biography)),
-                      SliverPadding(
-                        padding: const EdgeInsets.all(16),
-                        sliver: SliverGrid.builder(
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: columns,
-                                mainAxisSpacing: 16,
-                                crossAxisSpacing: 16,
-                                childAspectRatio: width / (width + 48),
-                              ),
-                          itemCount: albums.length,
-                          itemBuilder: (context, i) =>
-                              AlbumCard(albums[i], width: width),
-                        ),
+            return Backdrop(
+              coverArt: artist.coverArt,
+              top: 0.25,
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                body: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = ref
+                        .watch(coverSizeProvider)
+                        .columns(constraints.maxWidth);
+                    final width =
+                        (constraints.maxWidth - 16 * (columns + 1)) / columns;
+                    return CollectionView(
+                      coverArt: artist.coverArt,
+                      image: photo == null || ref.watch(isOfflineProvider)
+                          ? null
+                          : CachedNetworkImageProvider(photo),
+                      title: artist.name,
+                      details: '${albums.length} albums',
+                      tracks: tracks,
+                      pinKind: PinKind.artist,
+                      pinId: artist.id,
+                      circular: true,
+                      trailing: StarButton(
+                        starred: artist.starred,
+                        artistId: artist.id,
                       ),
-                    ],
-                  );
-                },
+                      slivers: [
+                        if (info?.biography case final biography?)
+                          SliverToBoxAdapter(child: _Biography(biography)),
+                        SliverPadding(
+                          padding: const EdgeInsets.all(16),
+                          sliver: SliverGrid.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  childAspectRatio: width / (width + 48),
+                                ),
+                            itemCount: albums.length,
+                            itemBuilder: (context, i) =>
+                                AlbumCard(albums[i], width: width),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             );
           },

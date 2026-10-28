@@ -53,6 +53,8 @@ class CollectionView extends ConsumerWidget {
           .withValues(alpha: 0.85),
       context.background,
     );
+    // With artwork colours, the blurred artwork behind the page shows through the open header.
+    final blurred = scheme != null;
     final size = (MediaQuery.sizeOf(context).width * 0.62).clamp(160.0, 320.0);
     final top = MediaQuery.paddingOf(context).top;
     final expanded = size + 32;
@@ -107,7 +109,7 @@ class CollectionView extends ConsumerWidget {
           pinned: true,
           stretch: true,
           expandedHeight: expanded,
-          backgroundColor: tint,
+          backgroundColor: blurred ? Colors.transparent : tint,
           surfaceTintColor: Colors.transparent,
           actions: actions,
           flexibleSpace: LayoutBuilder(
@@ -120,7 +122,11 @@ class CollectionView extends ConsumerWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(color: tint),
+                  ColoredBox(
+                    color: blurred
+                        ? tint.withValues(alpha: 1 - openness.clamp(0.0, 1.0))
+                        : tint,
+                  ),
                   Positioned(
                     left: 0,
                     right: 0,
@@ -158,13 +164,15 @@ class CollectionView extends ConsumerWidget {
         ),
         SliverToBoxAdapter(
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [tint, context.background],
-              ),
-            ),
+            decoration: blurred
+                ? null
+                : BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [tint, context.background],
+                    ),
+                  ),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
             child: Column(
               children: [
