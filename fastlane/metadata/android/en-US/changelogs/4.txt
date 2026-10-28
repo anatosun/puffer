@@ -1,0 +1,6 @@
+- Play as a speaker: Music Assistant can play on the phone over Sendspin, in sync with your other speakers (experimental)
+- Speaker groups in "Play on": see, build and ungroup them
+- The queue continues below the player; swipe the cover to skip
+- Queues move between the phone and speakers, even when paused
+- Music Assistant artwork loads again
+- Fixed the square behind the artwork in the player
