@@ -1,0 +1,1 @@
+- An empty downloaded playlist shows as downloaded instead of loading forever
