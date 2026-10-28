@@ -1,0 +1,2 @@
+- Home shows the artwork of what is playing, blurred, behind the shelves
+- The F-Droid repository offers the app to ARM phones again
