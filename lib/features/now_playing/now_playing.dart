@@ -98,6 +98,9 @@ class _NowPlayingBackground extends ConsumerWidget {
         if (image != null)
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 600),
+            // The default layout gives the child loose constraints, which leaves the image at its own size; the backdrop fills the screen.
+            layoutBuilder: (current, previous) =>
+                Stack(fit: StackFit.expand, children: [...previous, ?current]),
             child: ImageFiltered(
               key: ValueKey(np!.coverArt ?? np.imageUrl),
               imageFilter: ImageFilter.blur(
@@ -108,6 +111,8 @@ class _NowPlayingBackground extends ConsumerWidget {
               child: Image(
                 image: image,
                 fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
                 gaplessPlayback: true,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
