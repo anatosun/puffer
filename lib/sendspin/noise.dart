@@ -89,8 +89,9 @@ class CipherState {
   }) async {
     final key = _key;
     if (key == null) return Uint8List.fromList(ciphertext);
-    if (ciphertext.length < 16)
+    if (ciphertext.length < 16) {
       throw const NoiseException('ciphertext shorter than its tag');
+    }
     final box = SecretBox(
       ciphertext.sublist(0, ciphertext.length - 16),
       nonce: _nonce(_n),
@@ -220,8 +221,9 @@ class NoiseResponder {
 
   /// Reads message 1 (`e, es, ss`) and returns its payload, which is readable before the PSK is known.
   Future<Uint8List> readMessage1(List<int> message) async {
-    if (message.length < 32 + 16)
+    if (message.length < 32 + 16) {
       throw const NoiseException('message 1 too short');
+    }
     final re = Uint8List.fromList(message.sublist(0, 32));
     _remoteEphemeral = re;
     await _mixHash(re);
