@@ -1,0 +1,3 @@
+pcm_player is part of Puffer and licensed under the GNU General Public License v3.0 or later; see the LICENSE file at the root of the repository.
+
+src/miniaudio.h is miniaudio by David Reid (https://miniaud.io), available under your choice of the public domain (Unlicense) or MIT No Attribution; its licence statements are at the end of that file.
