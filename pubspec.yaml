@@ -83,18 +83,18 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/foreground.png
-  # Inter by Rasmus Andersson, SIL Open Font License 1.1 (assets/fonts/Inter-LICENSE.txt).
+  # Noto Sans by the Noto Project Authors, SIL Open Font License 1.1 (assets/fonts/NotoSans-LICENSE.txt).
   fonts:
-    - family: Inter
+    - family: Noto Sans
       fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
-        - asset: assets/fonts/Inter-Medium.ttf
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Inter-SemiBold.ttf
+        - asset: assets/fonts/NotoSans-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Inter-Bold.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
           weight: 700
-        - asset: assets/fonts/Inter-ExtraBold.ttf
+        - asset: assets/fonts/NotoSans-ExtraBold.ttf
           weight: 800
 
   # To add assets to your application, add an assets section, like this:
