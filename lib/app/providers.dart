@@ -142,6 +142,16 @@ final playerRatingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.playerRating', false),
 );
 
+/// Home greets the person by the time of day; otherwise its title is "Home".
+final greetingProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.greeting', true),
+);
+
+/// Home opens with the album played last, to resume it.
+final continueListeningProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.continueListening', true),
+);
+
 /// Plays are reported to the server, which uses them for "Recently played" and "Most played".
 final scrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('playback.scrobble', true),

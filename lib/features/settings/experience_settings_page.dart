@@ -107,6 +107,21 @@ class ExperienceSettingsPage extends ConsumerWidget {
               ),
             ),
             const SettingsSection('Home'),
+            SwitchListTile(
+              title: const Text('Greeting'),
+              subtitle: const Text(
+                'The title of Home greets you by the time of day',
+              ),
+              value: ref.watch(greetingProvider),
+              onChanged: (v) => ref.read(greetingProvider.notifier).set(v),
+            ),
+            SwitchListTile(
+              title: const Text('Continue listening'),
+              subtitle: const Text('Home opens with the album you played last'),
+              value: ref.watch(continueListeningProvider),
+              onChanged: (v) =>
+                  ref.read(continueListeningProvider.notifier).set(v),
+            ),
             const _ShelfList(),
           ],
         ),

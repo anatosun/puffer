@@ -170,7 +170,7 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(startupSyncProvider);
     final offline = ref.watch(isOfflineProvider);
-    final last = offline
+    final last = offline || !ref.watch(continueListeningProvider)
         ? null
         : ref.watch(albumListProvider('recent')).value?.firstOrNull;
     return Backdrop(
@@ -178,7 +178,7 @@ class HomePage extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(
-            _greeting(DateTime.now()),
+            ref.watch(greetingProvider) ? _greeting(DateTime.now()) : 'Home',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           actions: [
