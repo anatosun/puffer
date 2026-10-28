@@ -77,11 +77,17 @@ class CollectionView extends ConsumerWidget {
       if (circular) return ClipOval(child: picture);
       return DecoratedBox(
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 30,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(
+                alpha: Theme.of(context).brightness == Brightness.dark
+                    ? 0.35
+                    : 0.15,
+              ),
+              blurRadius: 24,
+              spreadRadius: -4,
+              offset: const Offset(0, 10),
             ),
           ],
         ),

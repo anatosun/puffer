@@ -329,7 +329,9 @@ class NowPlayingPage extends ConsumerWidget {
                                       key: ValueKey(
                                         np.title + (np.album ?? ''),
                                       ),
+                                      // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
                                       decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
                                         boxShadow: [
                                           BoxShadow(
                                             color: Colors.black.withValues(
@@ -337,11 +339,12 @@ class NowPlayingPage extends ConsumerWidget {
                                                   Theme.of(context)
                                                           .brightness ==
                                                       Brightness.dark
-                                                  ? 0.45
-                                                  : 0.2,
+                                                  ? 0.35
+                                                  : 0.15,
                                             ),
-                                            blurRadius: 24,
-                                            offset: const Offset(0, 10),
+                                            blurRadius: 20,
+                                            spreadRadius: -4,
+                                            offset: const Offset(0, 8),
                                           ),
                                         ],
                                       ),
