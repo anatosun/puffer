@@ -64,8 +64,12 @@ void main() {
           album: 'An album',
           positionAt: DateTime.now(),
           duration: const Duration(minutes: 3),
-          queue: const [QueueEntry(id: 'a', title: 'A title')],
-          index: 0,
+          queue: const [
+            QueueEntry(id: 'p', title: 'Played before'),
+            QueueEntry(id: 'a', title: 'A title'),
+            QueueEntry(id: 'n', title: 'Next one'),
+          ],
+          index: 1,
         );
         await tester.binding.setSurfaceSize(const Size(360, 640));
         await tester.pumpWidget(
@@ -85,7 +89,14 @@ void main() {
         );
         await tester.pump();
         expect(tester.takeException(), isNull);
-        expect(find.text('A title'), findsOneWidget);
+        expect(find.text('Up next · Next one'), findsOneWidget);
+
+        // Scrolling down continues into the queue, past tracks included.
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Played before'), findsOneWidget);
+        expect(find.text('Next one'), findsOneWidget);
       },
     );
   }

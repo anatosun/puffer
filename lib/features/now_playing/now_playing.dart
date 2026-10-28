@@ -12,6 +12,7 @@ import '../../playback/playback_controller.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
+import '../../ui/widgets/playing_bars.dart';
 import '../cast/output_sheet.dart';
 
 /// The artwork image of what is playing: the Subsonic cover when the track is known, otherwise the Music Assistant image.
@@ -256,25 +257,22 @@ class NowPlayingPage extends ConsumerWidget {
     final highlight = scheme?.primary ?? context.colors.primary;
     final track = np?.track;
 
-    return GestureDetector(
-      onVerticalDragEnd: (d) {
-        if ((d.primaryVelocity ?? 0) > 300) Navigator.pop(context);
-      },
-      child: Scaffold(
-        backgroundColor: background,
-        body: _NowPlayingBackground(
-          np: np,
-          top: top,
-          child: SafeArea(
-            child: np == null
-                ? const Center(child: Text('Nothing playing'))
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final artSize = (constraints.maxWidth - 48).clamp(
-                        0.0,
-                        constraints.maxHeight * 0.42,
-                      );
-                      return Padding(
+    return Scaffold(
+      backgroundColor: background,
+      body: _NowPlayingBackground(
+        np: np,
+        top: top,
+        child: SafeArea(
+          child: np == null
+              ? const Center(child: Text('Nothing playing'))
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final artSize = (constraints.maxWidth - 48).clamp(
+                      0.0,
+                      constraints.maxHeight * 0.42,
+                    );
+                    return _PlayerScroll(
+                      player: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           children: [
@@ -416,11 +414,6 @@ class NowPlayingPage extends ConsumerWidget {
                                 if (ref.watch(maCredentialsProvider) != null)
                                   const OutputButton(showName: true),
                                 IconButton(
-                                  tooltip: 'Queue',
-                                  icon: const Icon(Icons.queue_music),
-                                  onPressed: () => _showQueue(context),
-                                ),
-                                IconButton(
                                   tooltip: 'Repeat',
                                   color: np.repeat == Repeat.off
                                       ? context.muted
@@ -439,24 +432,17 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            _UpNext(np: np),
                           ],
                         ),
-                      );
-                    },
-                  ),
-          ),
+                      ),
+                    );
+                  },
+                ),
         ),
       ),
     );
   }
-
-  void _showQueue(BuildContext context) => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) =>
-        const FractionallySizedBox(heightFactor: 0.75, child: _QueueSheet()),
-  );
 }
 
 class _SeekBar extends ConsumerStatefulWidget {
@@ -616,19 +602,115 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
   );
 }
 
-/// The queue. Pressing and dragging a track moves it; swiping it away removes it.
-class _QueueSheet extends ConsumerStatefulWidget {
-  const _QueueSheet();
+/// The player on the first screen, then the queue below it. Pulling down from the top closes the player.
+class _PlayerScroll extends StatefulWidget {
+  const _PlayerScroll({required this.player});
+
+  final Widget player;
 
   @override
-  ConsumerState<_QueueSheet> createState() => _QueueSheetState();
+  State<_PlayerScroll> createState() => _PlayerScrollState();
+}
+
+class _PlayerScrollState extends State<_PlayerScroll> {
+  bool _closing = false;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) =>
+        NotificationListener<ScrollUpdateNotification>(
+          onNotification: (n) {
+            if (!_closing && n.dragDetails != null && n.metrics.pixels < -90) {
+              _closing = true;
+              Navigator.pop(context);
+            }
+            return false;
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: widget.player,
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Text(
+                    'Queue',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ),
+              const _QueueSliver(),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
+          ),
+        ),
+  );
+}
+
+/// The next track at the bottom of the player. A tap scrolls to the queue.
+class _UpNext extends StatelessWidget {
+  const _UpNext({required this.np});
+
+  final NowPlaying np;
+
+  @override
+  Widget build(BuildContext context) {
+    final index = np.index;
+    final next = index != null && index + 1 < np.queue.length
+        ? np.queue[index + 1]
+        : null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        final position = Scrollable.of(context).position;
+        position.animateTo(
+          position.viewportDimension,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.keyboard_arrow_up, size: 18, color: context.muted),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                next == null ? 'Queue' : 'Up next · ${next.title}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.muted, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The queue: played tracks dimmed, the current one marked, upcoming ones below. Pressing and dragging a track moves it; swiping it away removes it.
+class _QueueSliver extends ConsumerStatefulWidget {
+  const _QueueSliver();
+
+  @override
+  ConsumerState<_QueueSliver> createState() => _QueueSliverState();
 }
 
 bool _sameOrder(List<QueueEntry> a, List<QueueEntry> b) =>
     a.length == b.length &&
     Iterable.generate(a.length).every((i) => a[i].id == b[i].id);
 
-class _QueueSheetState extends ConsumerState<_QueueSheet> {
+class _QueueSliverState extends ConsumerState<_QueueSliver> {
   /// The order after a move, shown until the output reports the new queue.
   List<QueueEntry>? _moved;
   List<QueueEntry>? _movedFrom;
@@ -642,79 +724,88 @@ class _QueueSheetState extends ConsumerState<_QueueSheet> {
       _movedFrom = null;
     }
     final queue = _moved ?? reported;
+    final current = np?.index;
     final controller = ref.read(playbackControllerProvider);
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text('Queue', style: Theme.of(context).textTheme.titleLarge),
-        ),
-        Expanded(
-          child: ReorderableListView.builder(
-            buildDefaultDragHandles: false,
-            itemCount: queue.length,
-            onReorderItem: (from, to) {
-              final moved = [...queue];
-              moved.insert(to, moved.removeAt(from));
-              setState(() {
-                _movedFrom = reported;
-                _moved = moved;
-              });
-              controller.move(from, to);
-            },
-            itemBuilder: (context, i) {
-              final item = queue[i];
-              return ReorderableDelayedDragStartListener(
-                key: ValueKey('${item.id}-$i'),
-                index: i,
-                child: Dismissible(
-                  key: ValueKey('dismiss-${item.id}-$i'),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (_) => controller.removeAt(i),
-                  background: Container(
-                    color: Colors.red.shade900,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete),
-                  ),
-                  child: ListTile(
-                    selected: i == np?.index,
-                    title: Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Row(
-                      children: [
-                        if (downloaded.contains(item.id))
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(
-                              Icons.arrow_circle_down,
-                              size: 14,
-                              color: context.colors.primary,
-                            ),
+    return SliverReorderableList(
+      itemCount: queue.length,
+      onReorderItem: (from, to) {
+        final moved = [...queue];
+        moved.insert(to, moved.removeAt(from));
+        setState(() {
+          _movedFrom = reported;
+          _moved = moved;
+        });
+        controller.move(from, to);
+      },
+      itemBuilder: (context, i) {
+        final item = queue[i];
+        final playing = i == current;
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey('${item.id}-$i'),
+          index: i,
+          child: Dismissible(
+            key: ValueKey('dismiss-${item.id}-$i'),
+            direction: DismissDirection.endToStart,
+            onDismissed: (_) => controller.removeAt(i),
+            background: Container(
+              color: Colors.red.shade900,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 16),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            child: Opacity(
+              // Played tracks are dimmed.
+              opacity: current != null && i < current ? 0.5 : 1,
+              child: ListTile(
+                leading: SizedBox(
+                  width: 24,
+                  child: playing
+                      ? Center(
+                          child: PlayingBars(
+                            playing: np?.playing ?? false,
+                            color: context.colors.primary,
                           ),
-                        Expanded(
-                          child: Text(
-                            item.artist ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        )
+                      : Text(
+                          '${i + 1}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.faint),
                         ),
-                      ],
-                    ),
-                    onTap: () => controller.skipTo(i),
-                  ),
                 ),
-              );
-            },
+                selected: playing,
+                title: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Row(
+                  children: [
+                    if (downloaded.contains(item.id))
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Icon(
+                          Icons.arrow_circle_down,
+                          size: 14,
+                          color: context.colors.primary,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        item.artist ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () => controller.skipTo(i),
+              ),
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
