@@ -1,0 +1,3 @@
+- The queue shows the artwork of each track
+- The Downloaded tab has a Downloading page with the progress of each song and a retry for failed downloads
+- New screenshots in the store listing
