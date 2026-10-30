@@ -1,0 +1,2 @@
+- The player no longer moves while the waveform of a track loads
+- A failed scrobble, star or rating no longer raises an error
