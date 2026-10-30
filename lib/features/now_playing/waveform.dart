@@ -5,14 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 
-/// Loudness of the track [id] for the seek bar, or null when the server reports no `songWaveform` extension, the app is offline or the request fails.
+/// Whether the seek bar shows waveforms: the server reports the `songWaveform` extension and the app is online. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
+final waveformSupportedProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final client = ref.watch(clientProvider);
+  if (client == null || ref.watch(isOfflineProvider)) return false;
+  return client.supports('songWaveform');
+});
+
+/// Loudness of the track [id] for the seek bar, or null when waveforms are not supported or the request fails.
 final waveformProvider = FutureProvider.autoDispose.family<List<int>?, String>((
   ref,
   id,
 ) async {
-  final client = ref.watch(clientProvider);
-  if (client == null || ref.watch(isOfflineProvider)) return null;
-  if (!await client.supports('songWaveform')) return null;
+  if (!await ref.watch(waveformSupportedProvider.future)) return null;
+  final client = ref.read(clientProvider)!;
   try {
     final peaks = await client.getWaveform(id);
     if (peaks.isEmpty) return null;

@@ -241,7 +241,7 @@ class NowPlayingPage extends ConsumerWidget {
         ref.watch(playerRatingProvider) &&
         !ref.watch(isOfflineProvider);
     final showWaveform =
-        track != null && ref.watch(waveformProvider(track.id)).value != null;
+        track != null && (ref.watch(waveformSupportedProvider).value ?? false);
 
     return Scaffold(
       backgroundColor: background,
@@ -485,9 +485,13 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
       fontFeatures: [FontFeature.tabularFigures()],
     );
     final trackId = widget.np.track?.id;
-    final peaks = trackId == null
-        ? null
-        : ref.watch(waveformProvider(trackId)).value;
+    // The seek bar keeps the height of the waveform while it loads, so the layout does not move.
+    final showWaveform =
+        trackId != null &&
+        (ref.watch(waveformSupportedProvider).value ?? false);
+    final peaks = showWaveform
+        ? ref.watch(waveformProvider(trackId)).value
+        : null;
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 3,
@@ -514,7 +518,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     );
     return Column(
       children: [
-        if (peaks == null)
+        if (!showWaveform)
           slider
         else
           SizedBox(
@@ -523,21 +527,22 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
               alignment: Alignment.center,
               children: [
                 // The slider insets its track by the thumb radius, so the bars line up with the thumb.
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: _thumbRadius,
-                    ),
-                    child: CustomPaint(
-                      painter: WaveformPainter(
-                        peaks: peaks,
-                        progress: max == 0 ? 0 : value / max,
-                        played: widget.color,
-                        unplayed: context.subtle,
+                if (peaks != null)
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _thumbRadius,
+                      ),
+                      child: CustomPaint(
+                        painter: WaveformPainter(
+                          peaks: peaks,
+                          progress: max == 0 ? 0 : value / max,
+                          played: widget.color,
+                          unplayed: context.subtle,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 slider,
               ],
             ),

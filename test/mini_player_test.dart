@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,6 +94,7 @@ void main() {
               ),
               maClientProvider.overrideWithValue(null),
               playbackControllerProvider.overrideWithValue(_FakeController()),
+              waveformSupportedProvider.overrideWith((ref) async => waveform),
               waveformProvider.overrideWith(
                 (ref, id) async => waveform ? [0, 128, 255, 64] : null,
               ),
@@ -102,6 +105,8 @@ void main() {
             ),
           ),
         );
+        // One frame for the waveform support, one for the waveform.
+        await tester.pump();
         await tester.pump();
         expect(tester.takeException(), isNull);
         expect(find.text('Next one'), findsOneWidget);
@@ -122,6 +127,59 @@ void main() {
       },
     );
   }
+
+  testWidgets('the layout does not move while the waveform of a track loads', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final loading = Completer<List<int>?>();
+    final np = NowPlaying(
+      track: const Track({'id': 'a', 'title': 'A title'}),
+      title: 'A title',
+      positionAt: DateTime.now(),
+      duration: const Duration(minutes: 3),
+    );
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nowPlayingProvider.overrideWithValue(AsyncData(np)),
+          connectivityProvider.overrideWithValue(
+            const AsyncData([ConnectivityResult.wifi]),
+          ),
+          maClientProvider.overrideWithValue(null),
+          playbackControllerProvider.overrideWithValue(_FakeController()),
+          waveformSupportedProvider.overrideWith((ref) async => true),
+          waveformProvider.overrideWith((ref, id) => loading.future),
+        ],
+        child: MaterialApp(
+          theme: buildTheme(Brightness.dark),
+          home: const NowPlayingPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    final whileLoading = tester.getCenter(find.byType(Slider));
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter is WaveformPainter,
+      ),
+      findsNothing,
+    );
+
+    loading.complete([0, 128, 255, 64]);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter is WaveformPainter,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.getCenter(find.byType(Slider)), whileLoading);
+  });
 
   testWidgets('a long press on the play button stops playback', (tester) async {
     SharedPreferences.setMockInitialValues({});
