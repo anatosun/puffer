@@ -302,7 +302,10 @@ class NowPlayingPage extends ConsumerWidget {
                             const Spacer(),
                             // The bottom padding keeps the shadow of the artwork clear of the title.
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 22),
+                              // The stars sit right below the artwork.
+                              padding: EdgeInsets.only(
+                                bottom: showRating ? 8 : 22,
+                              ),
                               child: GestureDetector(
                                 // Swiping the artwork skips to the next or previous track.
                                 onHorizontalDragEnd: (d) {
@@ -348,6 +351,18 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ),
                             ),
+                            if (showRating)
+                              RatingStars(
+                                key: ValueKey(track.id),
+                                rating: track.rating,
+                                color: highlight,
+                                alignment: MainAxisAlignment.center,
+                                onChanged: (value) async {
+                                  if (await rate(ref, track.id, value)) {
+                                    rememberRating(track.json, value);
+                                  }
+                                },
+                              ),
                             const Spacer(),
                             GestureDetector(
                               onTap: track?.albumId == null
@@ -384,20 +399,7 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            if (showRating)
-                              RatingStars(
-                                key: ValueKey(track.id),
-                                rating: track.rating,
-                                color: highlight,
-                                alignment: MainAxisAlignment.center,
-                                onChanged: (value) async {
-                                  if (await rate(ref, track.id, value)) {
-                                    rememberRating(track.json, value);
-                                  }
-                                },
-                              )
-                            else
-                              const SizedBox(height: 16),
+                            const SizedBox(height: 16),
                             _SeekBar(np: np, color: highlight),
                             _Controls(np: np),
                             if (np.volume != null)
