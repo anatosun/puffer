@@ -1,0 +1,2 @@
+- The seek bar shows the waveform of the song on servers that support it (OpenSubsonic songWaveform extension)
+- The rating stars sit right below the artwork
