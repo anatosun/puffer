@@ -12,6 +12,7 @@ import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/playing_bars.dart';
 import '../cast/output_sheet.dart';
+import 'waveform.dart';
 
 /// The artwork image of what is playing: the Subsonic cover when the track is known, otherwise the Music Assistant image.
 ImageProvider? _image(WidgetRef ref, NowPlaying np, {int size = 300}) {
@@ -239,6 +240,8 @@ class NowPlayingPage extends ConsumerWidget {
         track != null &&
         ref.watch(playerRatingProvider) &&
         !ref.watch(isOfflineProvider);
+    final showWaveform =
+        track != null && ref.watch(waveformProvider(track.id)).value != null;
 
     return Scaffold(
       backgroundColor: background,
@@ -252,8 +255,10 @@ class NowPlayingPage extends ConsumerWidget {
                   builder: (context, constraints) {
                     final artSize = (constraints.maxWidth - 48).clamp(
                       0.0,
-                      // The stars take a row, so the artwork gives up the room.
-                      constraints.maxHeight * (showRating ? 0.38 : 0.42),
+                      // The stars take a row and the waveform makes the seek bar taller, so the artwork gives up the room.
+                      constraints.maxHeight *
+                          ((showRating ? 0.38 : 0.42) -
+                              (showWaveform ? 0.04 : 0)),
                     );
                     return _PlayerScroll(
                       player: Padding(
@@ -457,6 +462,9 @@ class _SeekBar extends ConsumerStatefulWidget {
 }
 
 class _SeekBarState extends ConsumerState<_SeekBar> {
+  static const _thumbRadius = 6.0;
+  static const _waveformHeight = 40.0;
+
   double? _dragValue;
 
   @override
@@ -474,29 +482,64 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
       fontSize: 12,
       fontFeatures: [FontFeature.tabularFigures()],
     );
+    final trackId = widget.np.track?.id;
+    final peaks = trackId == null
+        ? null
+        : ref.watch(waveformProvider(trackId)).value;
+    final slider = SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 3,
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: _thumbRadius,
+        ),
+        overlayShape: SliderComponentShape.noOverlay,
+        // With a waveform, the waveform shows the progress and the track is hidden behind it.
+        activeTrackColor: peaks == null ? widget.color : Colors.transparent,
+        thumbColor: context.colors.onSurface,
+        inactiveTrackColor: peaks == null ? context.subtle : Colors.transparent,
+      ),
+      child: Slider(
+        value: value,
+        max: max == 0 ? 1 : max,
+        onChanged: (v) => setState(() => _dragValue = v),
+        onChangeEnd: (v) {
+          ref
+              .read(playbackControllerProvider)
+              .seek(Duration(milliseconds: v.round()));
+          setState(() => _dragValue = null);
+        },
+      ),
+    );
     return Column(
       children: [
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: SliderComponentShape.noOverlay,
-            activeTrackColor: widget.color,
-            thumbColor: context.colors.onSurface,
-            inactiveTrackColor: context.subtle,
+        if (peaks == null)
+          slider
+        else
+          SizedBox(
+            height: _waveformHeight,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // The slider insets its track by the thumb radius, so the bars line up with the thumb.
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _thumbRadius,
+                    ),
+                    child: CustomPaint(
+                      painter: WaveformPainter(
+                        peaks: peaks,
+                        progress: max == 0 ? 0 : value / max,
+                        played: widget.color,
+                        unplayed: context.subtle,
+                      ),
+                    ),
+                  ),
+                ),
+                slider,
+              ],
+            ),
           ),
-          child: Slider(
-            value: value,
-            max: max == 0 ? 1 : max,
-            onChanged: (v) => setState(() => _dragValue = v),
-            onChangeEnd: (v) {
-              ref
-                  .read(playbackControllerProvider)
-                  .seek(Duration(milliseconds: v.round()));
-              setState(() => _dragValue = null);
-            },
-          ),
-        ),
         const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -95,6 +95,7 @@ class SubsonicClient {
 
   /// OpenSubsonic extension names reported by the server, filled by [loadExtensions].
   Set<String> extensions = const {};
+  Future<Set<String>>? _extensionsLoading;
 
   Uri _uri(String endpoint, [Map<String, Object?> params = const {}]) {
     final query = <String, dynamic>{
@@ -143,7 +144,10 @@ class SubsonicClient {
 
   Future<void> ping() => _get('ping');
 
-  Future<Set<String>> loadExtensions() async {
+  Future<Set<String>> loadExtensions() =>
+      _extensionsLoading = _loadExtensions();
+
+  Future<Set<String>> _loadExtensions() async {
     try {
       final body = await _get('getOpenSubsonicExtensions');
       extensions = jsonList(body['openSubsonicExtensions'])
@@ -302,6 +306,19 @@ class SubsonicClient {
   }
 
   bool get hasSonicSimilarity => extensions.contains('sonicSimilarity');
+
+  /// Whether the server reports the OpenSubsonic extension [name], after the extensions requested by [loadExtensions] have arrived.
+  Future<bool> supports(String name) async {
+    await _extensionsLoading?.catchError((_) => const <String>{});
+    return extensions.contains(name);
+  }
+
+  /// Loudness of [id] in [samples] equal time slices, each from 0 to 255 relative to the loudest slice. Requires the `songWaveform` extension.
+  Future<List<int>> getWaveform(String id, {int samples = 200}) async {
+    final body = await _get('getWaveform', {'id': id, 'samples': samples});
+    final peaks = (body['waveform'] as Json?)?['peaks'] as List?;
+    return [for (final peak in peaks ?? const []) (peak as num).toInt()];
+  }
 
   Future<void> star({String? trackId, String? albumId, String? artistId}) =>
       _get('star', {'id': trackId, 'albumId': albumId, 'artistId': artistId});

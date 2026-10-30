@@ -7,6 +7,7 @@ import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/features/now_playing/now_playing.dart';
+import 'package:puffer/features/now_playing/waveform.dart';
 import 'package:puffer/playback/playback_controller.dart';
 import 'package:puffer/ui/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,12 +55,13 @@ void main() {
     );
   }
 
-  for (final (brightness, rating) in [
-    for (final b in Brightness.values) (b, false),
-    (Brightness.dark, true),
+  for (final (brightness, rating, waveform) in [
+    for (final b in Brightness.values) (b, false, false),
+    (Brightness.dark, true, false),
+    (Brightness.dark, true, true),
   ]) {
     testWidgets(
-      'the now-playing screen lays out on a small screen in ${brightness.name} mode${rating ? ' with the rating' : ''}',
+      'the now-playing screen lays out on a small screen in ${brightness.name} mode${rating ? ' with the rating' : ''}${waveform ? ' and a waveform' : ''}',
       (tester) async {
         SharedPreferences.setMockInitialValues({
           'experience.playerRating': rating,
@@ -90,6 +92,9 @@ void main() {
               ),
               maClientProvider.overrideWithValue(null),
               playbackControllerProvider.overrideWithValue(_FakeController()),
+              waveformProvider.overrideWith(
+                (ref, id) async => waveform ? [0, 128, 255, 64] : null,
+              ),
             ],
             child: MaterialApp(
               theme: buildTheme(brightness),
@@ -101,6 +106,12 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('Next one'), findsOneWidget);
         expect(find.byIcon(Icons.star_rounded), findsNWidgets(rating ? 3 : 0));
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is WaveformPainter,
+          ),
+          findsNWidgets(waveform ? 1 : 0),
+        );
 
         // Scrolling down continues into the queue, past tracks included.
         await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
