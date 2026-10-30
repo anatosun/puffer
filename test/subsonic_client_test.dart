@@ -75,4 +75,33 @@ void main() {
     expect(requests.single.queryParameters['id'], 'al-1');
     expect(requests.single.queryParameters['rating'], '4');
   });
+
+  // A failed scrobble is ignored with catchError((_) {}), which throws when the future is not a Future<void>.
+  test(
+    'actions without a result can be ignored with catchError when they fail',
+    () async {
+      final failing = SubsonicClient(
+        const ServerCredentials(
+          baseUrl: 'http://navidrome',
+          username: 'u',
+          token: 't',
+          salt: 's',
+        ),
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'subsonic-response': {
+                'status': 'failed',
+                'error': {'code': 0, 'message': 'boom'},
+              },
+            }),
+            200,
+          ),
+        ),
+      );
+      await failing.scrobble('a', submission: true).catchError((_) {});
+      await failing.star(trackId: 'a').catchError((_) {});
+      await failing.setRating('a', 3).catchError((_) {});
+    },
+  );
 }

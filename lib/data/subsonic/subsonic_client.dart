@@ -142,7 +142,9 @@ class SubsonicClient {
     return body;
   }
 
-  Future<void> ping() => _get('ping');
+  Future<void> ping() async {
+    await _get('ping');
+  }
 
   Future<Set<String>> loadExtensions() =>
       _extensionsLoading = _loadExtensions();
@@ -226,25 +228,31 @@ class SubsonicClient {
     String? name,
     String? playlistId,
     List<String> songIds = const [],
-  }) => _get('createPlaylist', {
-    'name': name,
-    'playlistId': playlistId,
-    'songId': songIds,
-  });
+  }) async {
+    await _get('createPlaylist', {
+      'name': name,
+      'playlistId': playlistId,
+      'songId': songIds,
+    });
+  }
 
   Future<void> updatePlaylist(
     String id, {
     String? name,
     List<String> songIdsToAdd = const [],
     List<int> songIndexesToRemove = const [],
-  }) => _get('updatePlaylist', {
-    'playlistId': id,
-    'name': name,
-    'songIdToAdd': songIdsToAdd,
-    'songIndexToRemove': songIndexesToRemove,
-  });
+  }) async {
+    await _get('updatePlaylist', {
+      'playlistId': id,
+      'name': name,
+      'songIdToAdd': songIdsToAdd,
+      'songIndexToRemove': songIndexesToRemove,
+    });
+  }
 
-  Future<void> deletePlaylist(String id) => _get('deletePlaylist', {'id': id});
+  Future<void> deletePlaylist(String id) async {
+    await _get('deletePlaylist', {'id': id});
+  }
 
   Future<SearchResult> search(String query, {int count = 20}) async {
     final body = await _get('search3', {
@@ -320,22 +328,42 @@ class SubsonicClient {
     return [for (final peak in peaks ?? const []) (peak as num).toInt()];
   }
 
-  Future<void> star({String? trackId, String? albumId, String? artistId}) =>
-      _get('star', {'id': trackId, 'albumId': albumId, 'artistId': artistId});
+  Future<void> star({
+    String? trackId,
+    String? albumId,
+    String? artistId,
+  }) async {
+    await _get('star', {
+      'id': trackId,
+      'albumId': albumId,
+      'artistId': artistId,
+    });
+  }
 
-  Future<void> unstar({String? trackId, String? albumId, String? artistId}) =>
-      _get('unstar', {'id': trackId, 'albumId': albumId, 'artistId': artistId});
+  Future<void> unstar({
+    String? trackId,
+    String? albumId,
+    String? artistId,
+  }) async {
+    await _get('unstar', {
+      'id': trackId,
+      'albumId': albumId,
+      'artistId': artistId,
+    });
+  }
 
   /// Rates a song, album or artist from 1 to 5 stars; 0 removes the rating.
-  Future<void> setRating(String id, int rating) =>
-      _get('setRating', {'id': id, 'rating': rating});
+  Future<void> setRating(String id, int rating) async {
+    await _get('setRating', {'id': id, 'rating': rating});
+  }
 
-  Future<void> scrobble(String id, {required bool submission}) =>
-      _get('scrobble', {
-        'id': id,
-        'submission': submission,
-        'time': DateTime.now().millisecondsSinceEpoch,
-      });
+  Future<void> scrobble(String id, {required bool submission}) async {
+    await _get('scrobble', {
+      'id': id,
+      'submission': submission,
+      'time': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
 
   /// Streaming URL. [format] and [maxBitRate] request server-side transcoding.
   Uri streamUri(String id, {String? format, int? maxBitRate}) =>
