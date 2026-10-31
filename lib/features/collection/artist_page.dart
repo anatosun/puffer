@@ -68,6 +68,10 @@ class ArtistPage extends ConsumerWidget {
           data: (artist) {
             final albums = [...artist.albums]
               ..sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
+            final groups = <ReleaseKind, List<Album>>{};
+            for (final album in albums) {
+              (groups[album.releaseKind] ??= []).add(album);
+            }
             return Backdrop(
               coverArt: artist.coverArt,
               top: 0.25,
@@ -98,21 +102,42 @@ class ArtistPage extends ConsumerWidget {
                       slivers: [
                         if (info?.biography case final biography?)
                           SliverToBoxAdapter(child: _Biography(biography)),
-                        SliverPadding(
-                          padding: const EdgeInsets.all(16),
-                          sliver: SliverGrid.builder(
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  mainAxisSpacing: 16,
-                                  crossAxisSpacing: 16,
-                                  childAspectRatio: width / (width + 48),
+                        // Albums, EPs, singles, live recordings and compilations each get a section, with a heading when there is more than one.
+                        for (final kind in ReleaseKind.values)
+                          if (groups[kind] case final group?) ...[
+                            if (groups.length > 1)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    0,
+                                  ),
+                                  child: Text(
+                                    kind.label,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge,
+                                  ),
                                 ),
-                            itemCount: albums.length,
-                            itemBuilder: (context, i) =>
-                                AlbumCard(albums[i], width: width),
-                          ),
-                        ),
+                              ),
+                            SliverPadding(
+                              padding: const EdgeInsets.all(16),
+                              sliver: SliverGrid.builder(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      mainAxisSpacing: 16,
+                                      crossAxisSpacing: 16,
+                                      childAspectRatio: width / (width + 48),
+                                    ),
+                                itemCount: group.length,
+                                itemBuilder: (context, i) =>
+                                    AlbumCard(group[i], width: width),
+                              ),
+                            ),
+                          ],
                       ],
                     );
                   },

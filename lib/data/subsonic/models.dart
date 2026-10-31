@@ -51,8 +51,36 @@ class Album {
   bool get starred => json['starred'] != null;
   int get rating => json['userRating'] as int? ?? 0;
 
+  /// The kind of release, from the OpenSubsonic `releaseTypes` and `isCompilation` fields. Albums from servers without them count as albums.
+  ReleaseKind get releaseKind {
+    final types = [
+      for (final t in (json['releaseTypes'] as List?) ?? const [])
+        '$t'.toLowerCase(),
+    ];
+    if (json['isCompilation'] == true || types.contains('compilation')) {
+      return ReleaseKind.compilation;
+    }
+    if (types.contains('live')) return ReleaseKind.live;
+    if (types.contains('ep')) return ReleaseKind.ep;
+    if (types.contains('single')) return ReleaseKind.single;
+    return ReleaseKind.album;
+  }
+
   /// Present only in `getAlbum` responses.
   List<Track> get songs => _list(json['song']).map(Track.new).toList();
+}
+
+/// Release kinds in the order the artist page lists them.
+enum ReleaseKind {
+  album('Albums'),
+  ep('EPs'),
+  single('Singles'),
+  live('Live'),
+  compilation('Compilations');
+
+  const ReleaseKind(this.label);
+
+  final String label;
 }
 
 class Artist {
