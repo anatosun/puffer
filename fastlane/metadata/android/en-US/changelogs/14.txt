@@ -1,0 +1,8 @@
+- Artist pages group albums, EPs, singles, live recordings and compilations
+- Downloads in a transcoded quality show their progress
+- A paused Music Assistant queue stays on screen
+- Waveforms load when a track starts, also on Music Assistant, and the seek bar has no thumb over them
+- The rating stars sit between the artwork and the title
+- The app starts on this device and comes back to it when Music Assistant stays unreachable
+- Switching from a speaker back to this device works reliably
+- The playing track shows its bars while browsing on Music Assistant
