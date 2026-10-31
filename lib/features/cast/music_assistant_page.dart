@@ -217,6 +217,15 @@ class _Connected extends ConsumerWidget {
           ),
         ),
         const Divider(height: 32),
+        SwitchListTile(
+          title: const Text('Take paused music along'),
+          subtitle: const Text(
+            'When you switch speakers, paused music moves to the new speaker and replaces what it has loaded. Off, paused music moves only to a speaker with nothing loaded. Playing music always moves.',
+          ),
+          value: ref.watch(movePausedQueueProvider),
+          onChanged: (v) => ref.read(movePausedQueueProvider.notifier).set(v),
+        ),
+        const Divider(height: 32),
         ListTile(
           leading: const Icon(Icons.logout, color: Colors.redAccent),
           title: const Text(

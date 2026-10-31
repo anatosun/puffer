@@ -68,6 +68,26 @@ void main() {
     },
   );
 
+  test('with the setting on, a paused queue replaces what the target has '
+      'loaded', () async {
+    final (container, controller) = await _onKitchen({
+      'kitchen': _queue('kitchen', state: 'paused'),
+      'living': _queue('living', state: 'playing'),
+    });
+    when(() => controller.transferTo('living')).thenAnswer((_) async {});
+    final switcher = container.read(outputSwitcherProvider);
+
+    await switcher.switchTo('living');
+    verifyNever(() => controller.transferTo(any()));
+
+    container.read(outputProvider.notifier).select('kitchen');
+    await container.read(movePausedQueueProvider.notifier).set(true);
+    await switcher.switchTo('living');
+    verify(() => controller.transferTo('living')).called(1);
+    expect(container.read(outputProvider), 'living');
+    container.dispose();
+  });
+
   test('a failed transfer still switches to the player', () async {
     final (container, controller) = await _onKitchen({
       'kitchen': _queue('kitchen', state: 'playing'),

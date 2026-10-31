@@ -168,6 +168,11 @@ final maSubsonicInstanceProvider = Provider<String?>((ref) {
 
 // ------------------------------------------------------------ output
 
+/// When the output changes, a paused queue moves to the new output even when that output has something loaded. Off, a paused queue moves only to an output with nothing loaded, so it does not replace what someone else is playing. A playing queue always moves.
+final movePausedQueueProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('ma.movePausedQueue', false),
+);
+
 /// How long Music Assistant may stay unreachable before playback falls back to this device.
 const maFallbackDelay = Duration(seconds: 30);
 
@@ -217,21 +222,23 @@ class OutputSwitcher {
 
   /// Switches the output and moves the queue with it: between two Music Assistant players through Music Assistant, and between this device and a player through the Subsonic tracks of the queue.
   ///
-  /// A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing. The output changes even when moving the queue fails; the error still reaches the caller.
+  /// A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded or when [movePausedQueueProvider] is on. The output changes even when moving the queue fails; the error still reaches the caller.
   Future<void> switchTo(String? playerId) async {
     if (playerId == _ref.read(outputProvider)) return;
     final source = _ref.read(playbackControllerProvider);
     final queues = _ref.read(maClientProvider)?.queues ?? const {};
-    final targetEmpty = playerId == null
-        ? _ref.read(playerHandlerProvider).tracks.isEmpty
-        : queues[playerId]?.currentItem == null;
+    final pausedMoves =
+        _ref.read(movePausedQueueProvider) ||
+        (playerId == null
+            ? _ref.read(playerHandlerProvider).tracks.isEmpty
+            : queues[playerId]?.currentItem == null);
 
     if (source is MusicAssistantPlaybackController && playerId != null) {
       // A transfer replaces the queue of the target with that of the source, even an empty one.
       final from = queues[source.playerId];
       final moving =
           from?.currentItem != null &&
-          (from!.state == MaPlaybackState.playing || targetEmpty);
+          (from!.state == MaPlaybackState.playing || pausedMoves);
       try {
         if (moving) await source.transferTo(playerId);
       } finally {
@@ -243,7 +250,7 @@ class OutputSwitcher {
     QueueSnapshot? snapshot;
     try {
       snapshot = await source.snapshot();
-      if (snapshot != null && !(snapshot.playing || targetEmpty)) {
+      if (snapshot != null && !(snapshot.playing || pausedMoves)) {
         snapshot = null;
       }
       if (snapshot != null) await source.stop();
