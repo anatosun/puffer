@@ -70,7 +70,7 @@ class MaCredentialsNotifier extends Notifier<MaCredentials?> {
   }
 
   Future<void> signOut() async {
-    await ref.read(outputProvider.notifier).select(null);
+    ref.read(outputProvider.notifier).select(null);
     await secureStorage.delete(key: _maCredentialsKey);
     state = null;
   }
@@ -157,51 +157,74 @@ final maSubsonicInstanceProvider = Provider<String?>((ref) {
 
 // ------------------------------------------------------------ output
 
-/// The Music Assistant player the app plays on, or null for this device.
-class OutputNotifier extends Notifier<String?> {
-  @override
-  String? build() => ref.read(sharedPreferencesProvider).getString('ma.output');
+/// How long Music Assistant may stay unreachable before playback falls back to this device.
+const maFallbackDelay = Duration(seconds: 30);
 
-  Future<void> select(String? playerId) async {
+/// The Music Assistant player the app plays on, or null for this device. The app starts on this device, and comes back to it when Music Assistant stays unreachable for [maFallbackDelay].
+class OutputNotifier extends Notifier<String?> {
+  Timer? _fallback;
+
+  @override
+  String? build() {
+    // Earlier versions kept the player across restarts.
+    unawaited(ref.read(sharedPreferencesProvider).remove('ma.output'));
+    ref.listen(maStatusProvider, (_, _) => _watchConnection());
+    ref.onDispose(() => _fallback?.cancel());
+    return null;
+  }
+
+  void select(String? playerId) {
     state = playerId;
-    final prefs = ref.read(sharedPreferencesProvider);
-    playerId == null
-        ? await prefs.remove('ma.output')
-        : await prefs.setString('ma.output', playerId);
+    _watchConnection();
+  }
+
+  /// Arms the fallback to this device while a player is selected and Music Assistant is unreachable, and disarms it otherwise.
+  void _watchConnection() {
+    final connected =
+        ref.read(maStatusProvider).value == MaConnectionStatus.connected;
+    if (connected || state == null) {
+      _fallback?.cancel();
+      _fallback = null;
+    } else {
+      _fallback ??= Timer(maFallbackDelay, () {
+        _fallback = null;
+        state = null;
+      });
+    }
+  }
+
+  /// Switches the output and moves the queue with it: between two Music Assistant players through Music Assistant, and between this device and a player through the Subsonic tracks of the queue.
+  Future<void> switchTo(String? playerId) async {
+    if (playerId == state) return;
+    final source = ref.read(playbackControllerProvider);
+
+    if (source is MusicAssistantPlaybackController && playerId != null) {
+      await source.transferTo(playerId);
+      select(playerId);
+      return;
+    }
+
+    // A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing.
+    final snapshot = await source.snapshot();
+    final targetEmpty = playerId == null
+        ? ref.read(playerHandlerProvider).tracks.isEmpty
+        : (ref.read(maClientProvider)?.queues[playerId]?.currentItem == null);
+    final moving = snapshot != null && (snapshot.playing || targetEmpty);
+    if (moving) await source.stop();
+    select(playerId);
+    if (!moving) return;
+    final target = ref.read(playbackControllerProvider);
+    await target.playTracks(snapshot.tracks, index: snapshot.index);
+    if (snapshot.position > const Duration(seconds: 5)) {
+      await target.seek(snapshot.position);
+    }
+    if (!snapshot.playing) await target.pause();
   }
 }
 
 final outputProvider = NotifierProvider<OutputNotifier, String?>(
   OutputNotifier.new,
 );
-
-/// Switches the output and moves the queue with it: between two Music Assistant players through Music Assistant, and between this device and a player through the Subsonic tracks of the queue.
-Future<void> switchOutput(WidgetRef ref, String? playerId) async {
-  if (playerId == ref.read(outputProvider)) return;
-  final source = ref.read(playbackControllerProvider);
-
-  if (source is MusicAssistantPlaybackController && playerId != null) {
-    await source.transferTo(playerId);
-    await ref.read(outputProvider.notifier).select(playerId);
-    return;
-  }
-
-  // A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing.
-  final snapshot = await source.snapshot();
-  final targetEmpty = playerId == null
-      ? ref.read(playerHandlerProvider).tracks.isEmpty
-      : (ref.read(maClientProvider)?.queues[playerId]?.currentItem == null);
-  final moving = snapshot != null && (snapshot.playing || targetEmpty);
-  if (moving) await source.stop();
-  await ref.read(outputProvider.notifier).select(playerId);
-  if (!moving) return;
-  final target = ref.read(playbackControllerProvider);
-  await target.playTracks(snapshot.tracks, index: snapshot.index);
-  if (snapshot.position > const Duration(seconds: 5)) {
-    await target.seek(snapshot.position);
-  }
-  if (!snapshot.playing) await target.pause();
-}
 
 final playbackControllerProvider = Provider<PlaybackController>((ref) {
   final handler = ref.watch(playbackProvider);

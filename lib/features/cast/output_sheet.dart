@@ -76,6 +76,8 @@ class _OutputSheet extends ConsumerWidget {
         current != null && membersOf(current).any((m) => m.id == p.id);
 
     void select(MaPlayer? player) {
+      // The sheet closes before the switch ends, so the switch runs on the notifier rather than on the ref of this widget.
+      final output = ref.read(outputProvider.notifier);
       Navigator.pop(context);
       runPlayback(() async {
         // A player that follows another plays the whole group; picking it alone takes it out first.
@@ -84,7 +86,7 @@ class _OutputSheet extends ConsumerWidget {
             'player_id': player.id,
           });
         }
-        await switchOutput(ref, player?.id);
+        await output.switchTo(player?.id);
       });
     }
 
