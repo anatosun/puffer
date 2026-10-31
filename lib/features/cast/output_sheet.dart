@@ -196,10 +196,26 @@ class _OutputSheet extends ConsumerWidget {
           shrinkWrap: true,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'Play on',
-                style: Theme.of(context).textTheme.titleLarge,
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Play on',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  // Leaves the speaker playing and returns to this device without moving the music, unlike a tap on "This device".
+                  if (output != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.link_off),
+                      label: const Text('Disconnect'),
+                      onPressed: () {
+                        ref.read(outputSwitcherProvider).disconnect();
+                        Navigator.pop(context);
+                      },
+                    ),
+                ],
               ),
             ),
             _OutputTile(

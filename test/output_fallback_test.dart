@@ -88,6 +88,17 @@ void main() {
     container.dispose();
   });
 
+  test('disconnecting returns to this device and leaves the player', () async {
+    final (container, controller) = await _onKitchen({
+      'kitchen': _queue('kitchen', state: 'playing'),
+    });
+    container.read(outputSwitcherProvider).disconnect();
+    expect(container.read(outputProvider), isNull);
+    verifyNever(controller.stop);
+    verifyNever(controller.snapshot);
+    container.dispose();
+  });
+
   test('a failed transfer still switches to the player', () async {
     final (container, controller) = await _onKitchen({
       'kitchen': _queue('kitchen', state: 'playing'),

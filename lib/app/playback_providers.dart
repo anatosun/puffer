@@ -265,6 +265,9 @@ class OutputSwitcher {
     }
     if (!snapshot.playing) await target.pause();
   }
+
+  /// Hands control back to this device and leaves the player as it is: it keeps playing, and the queue of this device stays where it was.
+  void disconnect() => _ref.read(outputProvider.notifier).select(null);
 }
 
 final outputSwitcherProvider = Provider<OutputSwitcher>(OutputSwitcher.new);
