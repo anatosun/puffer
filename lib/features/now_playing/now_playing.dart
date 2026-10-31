@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -247,215 +249,282 @@ class NowPlayingPage extends ConsumerWidget {
     final showWaveform =
         track != null && (ref.watch(waveformSupportedProvider).value ?? false);
 
-    return Scaffold(
-      backgroundColor: background,
-      body: _NowPlayingBackground(
-        np: np,
-        top: top,
-        child: SafeArea(
-          child: np == null
-              ? const Center(child: Text('Nothing playing'))
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final artSize = (constraints.maxWidth - 48).clamp(
-                      0.0,
-                      // The stars take a row and the waveform makes the seek bar taller, so the artwork gives up the room.
-                      constraints.maxHeight *
-                          ((showRating ? 0.38 : 0.42) -
-                              (showWaveform ? 0.04 : 0)),
-                    );
-                    return _PlayerScroll(
-                      player: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    size: 32,
+    return _CloseWhenEmpty(
+      child: Scaffold(
+        backgroundColor: background,
+        body: _NowPlayingBackground(
+          np: np,
+          top: top,
+          child: SafeArea(
+            child: np == null
+                ? const SizedBox.shrink()
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final artSize = (constraints.maxWidth - 48).clamp(
+                        0.0,
+                        // The stars take a row and the waveform makes the seek bar taller, so the artwork gives up the room.
+                        constraints.maxHeight *
+                            ((showRating ? 0.38 : 0.42) -
+                                (showWaveform ? 0.04 : 0)),
+                      );
+                      return _PlayerScroll(
+                        player: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 32,
+                                    ),
+                                    onPressed: () => Navigator.pop(context),
                                   ),
-                                  onPressed: () => Navigator.pop(context),
+                                  Expanded(
+                                    child: Text(
+                                      np.album ?? '',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: context.colors.onSurface
+                                            .withValues(alpha: 0.7),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.more_horiz),
+                                    onPressed: track == null
+                                        ? null
+                                        : () => showTrackActions(
+                                            context,
+                                            ref,
+                                            track,
+                                          ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              // The bottom padding keeps the shadow of the artwork clear of the title. With stars, the spacers around them keep it clear.
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: showRating ? 0 : 22,
                                 ),
-                                Expanded(
-                                  child: Text(
-                                    np.album ?? '',
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: context.colors.onSurface
-                                          .withValues(alpha: 0.7),
-                                      fontWeight: FontWeight.w600,
+                                child: GestureDetector(
+                                  // Swiping the artwork skips to the next or previous track.
+                                  onHorizontalDragEnd: (d) {
+                                    final v = d.primaryVelocity ?? 0;
+                                    if (v < -300) controller.next();
+                                    if (v > 300) controller.previous();
+                                  },
+                                  child: Hero(
+                                    tag: _artworkHeroTag,
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: DecoratedBox(
+                                        key: ValueKey(
+                                          np.title + (np.album ?? ''),
+                                        ),
+                                        // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha:
+                                                    Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? 0.35
+                                                    : 0.15,
+                                              ),
+                                              blurRadius: 20,
+                                              spreadRadius: -4,
+                                              offset: const Offset(0, 8),
+                                            ),
+                                          ],
+                                        ),
+                                        child: _NowPlayingArtwork(
+                                          np.coverArt,
+                                          np.imageUrl,
+                                          size: artSize,
+                                          radius: 10,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.more_horiz),
-                                  onPressed: track == null
-                                      ? null
-                                      : () => showTrackActions(
-                                          context,
-                                          ref,
-                                          track,
-                                        ),
+                              ),
+                              // The stars sit halfway between the artwork and the title.
+                              if (showRating) ...[
+                                const Spacer(),
+                                RatingStars(
+                                  key: ValueKey(track.id),
+                                  rating: track.rating,
+                                  color: highlight,
+                                  alignment: MainAxisAlignment.center,
+                                  onChanged: (value) async {
+                                    if (await rate(ref, track.id, value)) {
+                                      rememberRating(track.json, value);
+                                    }
+                                  },
                                 ),
                               ],
-                            ),
-                            const Spacer(),
-                            // The bottom padding keeps the shadow of the artwork clear of the title. With stars, the spacers around them keep it clear.
-                            Padding(
-                              padding: EdgeInsets.only(
-                                bottom: showRating ? 0 : 22,
-                              ),
-                              child: GestureDetector(
-                                // Swiping the artwork skips to the next or previous track.
-                                onHorizontalDragEnd: (d) {
-                                  final v = d.primaryVelocity ?? 0;
-                                  if (v < -300) controller.next();
-                                  if (v > 300) controller.previous();
-                                },
-                                child: Hero(
-                                  tag: _artworkHeroTag,
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: DecoratedBox(
-                                      key: ValueKey(
-                                        np.title + (np.album ?? ''),
-                                      ),
-                                      // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha:
-                                                  Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? 0.35
-                                                  : 0.15,
-                                            ),
-                                            blurRadius: 20,
-                                            spreadRadius: -4,
-                                            offset: const Offset(0, 8),
-                                          ),
-                                        ],
-                                      ),
-                                      child: _NowPlayingArtwork(
-                                        np.coverArt,
-                                        np.imageUrl,
-                                        size: artSize,
-                                        radius: 10,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // The stars sit halfway between the artwork and the title.
-                            if (showRating) ...[
                               const Spacer(),
-                              RatingStars(
-                                key: ValueKey(track.id),
-                                rating: track.rating,
-                                color: highlight,
-                                alignment: MainAxisAlignment.center,
-                                onChanged: (value) async {
-                                  if (await rate(ref, track.id, value)) {
-                                    rememberRating(track.json, value);
-                                  }
-                                },
-                              ),
-                            ],
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: track?.albumId == null
-                                  ? null
-                                  : () {
-                                      Navigator.pop(context);
-                                      GoRouter.of(context)
-                                          .push('/album/${track!.albumId}');
-                                    },
-                              child: Text(
-                                np.title,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            GestureDetector(
-                              onTap: track?.artistId == null
-                                  ? null
-                                  : () {
-                                      Navigator.pop(context);
-                                      GoRouter.of(context)
-                                          .push('/artist/${track!.artistId}');
-                                    },
-                              child: Text(
-                                np.artist ?? '',
-                                style: TextStyle(
-                                  color: highlight,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
+                              GestureDetector(
+                                onTap: track?.albumId == null
+                                    ? null
+                                    : () {
+                                        Navigator.pop(context);
+                                        GoRouter.of(context)
+                                            .push('/album/${track!.albumId}');
+                                      },
+                                child: Text(
+                                  np.title,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            _SeekBar(np: np, color: highlight),
-                            _Controls(np: np),
-                            if (np.volume != null)
-                              _VolumeSlider(
-                                volume: np.volume!,
-                                color: highlight,
-                              ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(
-                                  tooltip: 'Shuffle',
-                                  color: np.shuffle ? highlight : context.muted,
-                                  icon: const Icon(Icons.shuffle),
-                                  onPressed: () =>
-                                      controller.setShuffle(!np.shuffle),
-                                ),
-                                // The output button takes a slot only once Music Assistant is set up.
-                                if (ref.watch(maCredentialsProvider) != null)
-                                  const OutputButton(showName: true),
-                                IconButton(
-                                  tooltip: 'Repeat',
-                                  color: np.repeat == Repeat.off
-                                      ? context.muted
-                                      : highlight,
-                                  icon: Icon(
-                                    np.repeat == Repeat.one
-                                        ? Icons.repeat_one
-                                        : Icons.repeat,
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: track?.artistId == null
+                                    ? null
+                                    : () {
+                                        Navigator.pop(context);
+                                        GoRouter.of(context)
+                                            .push('/artist/${track!.artistId}');
+                                      },
+                                child: Text(
+                                  np.artist ?? '',
+                                  style: TextStyle(
+                                    color: highlight,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  onPressed: () =>
-                                      controller.setRepeat(switch (np.repeat) {
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _SeekBar(np: np, color: highlight),
+                              _Controls(np: np),
+                              if (np.volume != null)
+                                _VolumeSlider(
+                                  volume: np.volume!,
+                                  color: highlight,
+                                ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Shuffle',
+                                    color: np.shuffle
+                                        ? highlight
+                                        : context.muted,
+                                    icon: const Icon(Icons.shuffle),
+                                    onPressed: () =>
+                                        controller.setShuffle(!np.shuffle),
+                                  ),
+                                  // The output button takes a slot only once Music Assistant is set up.
+                                  if (ref.watch(maCredentialsProvider) != null)
+                                    const OutputButton(showName: true),
+                                  IconButton(
+                                    tooltip: 'Repeat',
+                                    color: np.repeat == Repeat.off
+                                        ? context.muted
+                                        : highlight,
+                                    icon: Icon(
+                                      np.repeat == Repeat.one
+                                          ? Icons.repeat_one
+                                          : Icons.repeat,
+                                    ),
+                                    onPressed: () => controller.setRepeat(
+                                      switch (np.repeat) {
                                         Repeat.off => Repeat.all,
                                         Repeat.all => Repeat.one,
                                         Repeat.one => Repeat.off,
-                                      }),
-                                ),
-                              ],
-                            ),
-                            _UpNext(np: np),
-                          ],
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              _UpNext(np: np),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
+          ),
         ),
       ),
     );
+  }
+}
+
+/// Closes the player as soon as nothing plays, but not while the output is switching, when the new output can report nothing for a moment.
+class _CloseWhenEmpty extends ConsumerStatefulWidget {
+  const _CloseWhenEmpty({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_CloseWhenEmpty> createState() => _CloseWhenEmptyState();
+}
+
+class _CloseWhenEmptyState extends ConsumerState<_CloseWhenEmpty> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _update();
+  }
+
+  void _update() {
+    final empty =
+        ref.read(nowPlayingProvider).value == null &&
+        !ref.read(outputSwitchingProvider);
+    if (!empty) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+    // The next turn of the event loop, since this can run while widgets build.
+    _timer ??= Timer(Duration.zero, () {
+      _timer = null;
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route == null || !route.isActive) return;
+      // A sheet or dialog may lie over the player, so the player route itself goes.
+      route.isCurrent
+          ? Navigator.of(context).pop()
+          : Navigator.of(context).removeRoute(route);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(nowPlayingProvider, (_, _) => _update());
+    ref.listen(outputSwitchingProvider, (_, _) => _update());
+    return widget.child;
   }
 }
 

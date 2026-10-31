@@ -214,6 +214,18 @@ final outputProvider = NotifierProvider<OutputNotifier, String?>(
   OutputNotifier.new,
 );
 
+/// Whether [OutputSwitcher.switchTo] is moving the queue to another output. Meanwhile the new output can report nothing playing, which screens should not take as the end of playback.
+class OutputSwitchingNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool switching) => state = switching;
+}
+
+final outputSwitchingProvider = NotifierProvider<OutputSwitchingNotifier, bool>(
+  OutputSwitchingNotifier.new,
+);
+
 /// Switches the output and moves the queue with it. It is a provider of its own because [playbackControllerProvider] depends on [outputProvider], so [OutputNotifier] cannot read the controller; it lives for the session, so a switch outlives the sheet that started it.
 class OutputSwitcher {
   OutputSwitcher(this._ref);
@@ -225,6 +237,16 @@ class OutputSwitcher {
   /// A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded or when [movePausedQueueProvider] is on. The output changes even when moving the queue fails; the error still reaches the caller.
   Future<void> switchTo(String? playerId) async {
     if (playerId == _ref.read(outputProvider)) return;
+    final switching = _ref.read(outputSwitchingProvider.notifier);
+    switching.set(true);
+    try {
+      await _switchTo(playerId);
+    } finally {
+      switching.set(false);
+    }
+  }
+
+  Future<void> _switchTo(String? playerId) async {
     final source = _ref.read(playbackControllerProvider);
     final queues = _ref.read(maClientProvider)?.queues ?? const {};
     final pausedMoves =

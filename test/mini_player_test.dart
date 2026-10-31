@@ -211,4 +211,61 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     verify(controller.stop).called(1);
   });
+
+  testWidgets('the player closes once nothing plays, but not while the output '
+      'switches', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final playing = StreamController<NowPlaying?>();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        nowPlayingProvider.overrideWith((ref) => playing.stream),
+        connectivityProvider.overrideWithValue(const AsyncData([])),
+        maClientProvider.overrideWithValue(null),
+        playbackControllerProvider.overrideWithValue(_FakeController()),
+      ],
+    );
+    addTearDown(container.dispose);
+    // The mini player always listens in the app.
+    container.listen(nowPlayingProvider, (_, _) {});
+    playing.add(
+      NowPlaying(
+        title: 'Song',
+        positionAt: DateTime.now(),
+        duration: const Duration(minutes: 3),
+      ),
+    );
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => openNowPlaying(context),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(NowPlayingPage), findsOneWidget);
+
+    // While the output switches, the new output may report nothing for a while.
+    container.read(outputSwitchingProvider.notifier).set(true);
+    playing.add(null);
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.byType(NowPlayingPage), findsOneWidget);
+
+    container.read(outputSwitchingProvider.notifier).set(false);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byType(NowPlayingPage), findsNothing);
+    expect(find.text('Nothing playing'), findsNothing);
+  });
 }
