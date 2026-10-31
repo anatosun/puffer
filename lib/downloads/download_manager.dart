@@ -45,6 +45,14 @@ class PinState {
   double get fraction => total == 0 ? 0 : progress / total;
 }
 
+/// The size a download of [track] in [quality] should reach: the file size for the original, and the bit rate times the duration for a transcoded stream.
+int? expectedBytes(Track track, DownloadQuality quality) {
+  final bitRate = quality.maxBitRate;
+  if (bitRate == null) return track.size;
+  final seconds = track.duration.inSeconds;
+  return seconds == 0 ? null : bitRate * 1000 ~/ 8 * seconds;
+}
+
 typedef TrackResolver = Future<List<Track>> Function(PinKind kind, String id);
 typedef UrlBuilder = Uri Function(Track track, DownloadQuality quality);
 typedef ArtworkFetcher = Future<void> Function(String coverArt);
@@ -257,6 +265,7 @@ class DownloadManager {
     url: urlFor(track, s.quality),
     directory: _directory,
     filename: '${track.id}.${s.quality.format ?? track.suffix}',
+    expectedBytes: expectedBytes(track, s.quality),
   );
 
   /// Holds back or releases the transfers, for "Download over cellular". Holding cancels the transfers in progress and keeps their files queued. Releasing hands every queued file to [backend] again, which also replaces transfers queued by an earlier version with a Wi-Fi constraint.

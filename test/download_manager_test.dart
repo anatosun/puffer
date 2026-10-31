@@ -26,6 +26,7 @@ class FakeBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
+    int? expectedBytes,
   }) async => enqueued.add(id);
 
   @override

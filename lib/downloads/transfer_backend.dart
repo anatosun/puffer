@@ -19,11 +19,14 @@ class TransferUpdate {
 abstract class TransferBackend {
   Stream<TransferUpdate> get updates;
   Future<void> start();
+
+  /// [expectedBytes] is the size the file should reach, for progress when the server sends no `Content-Length`, as with transcoded streams.
   Future<void> enqueue({
     required String id,
     required Uri url,
     required String directory,
     required String filename,
+    int? expectedBytes,
   });
   Future<void> cancel(String id);
 
@@ -66,7 +69,10 @@ class BackgroundDownloaderBackend implements TransferBackend {
             : null;
         _updates.add(TransferUpdate(id, status: mapped, path: path));
       case TaskProgressUpdate(:final progress):
-        if (progress >= 0) _updates.add(TransferUpdate(id, progress: progress));
+        // An estimated size can be too small, so the progress stops short of complete until the transfer ends.
+        if (progress >= 0) {
+          _updates.add(TransferUpdate(id, progress: progress.clamp(0, 0.99)));
+        }
     }
   }
 
@@ -76,6 +82,7 @@ class BackgroundDownloaderBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
+    int? expectedBytes,
   }) async {
     await _downloader.cancelTaskWithId(id);
     await _downloader.enqueue(
@@ -86,6 +93,11 @@ class BackgroundDownloaderBackend implements TransferBackend {
         directory: directory,
         baseDirectory: BaseDirectory.applicationSupport,
         group: _group,
+        // background_downloader reports progress only for a known size. It reads this header when the response has no Content-Length.
+        headers: {
+          if (expectedBytes != null && expectedBytes > 0)
+            'Known-Content-Length': '$expectedBytes',
+        },
         updates: Updates.statusAndProgress,
         retries: 3,
         allowPause: true,
