@@ -102,6 +102,22 @@ class MaQueueItem {
     }
     return null;
   }
+
+  /// The Subsonic track ID of an item sent as a Subsonic `stream` URL, read from the `id` parameter of that URL.
+  String? get streamId {
+    final candidates = [
+      mediaItem?['uri'],
+      for (final m in (mediaItem?['provider_mappings'] as List?) ?? const [])
+        (m as MaJson)['item_id'],
+    ];
+    for (final candidate in candidates.whereType<String>()) {
+      final uri = Uri.tryParse(candidate);
+      if (uri == null || !uri.path.contains('/rest/stream')) continue;
+      final id = uri.queryParameters['id'];
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return null;
+  }
 }
 
 class MaQueue {

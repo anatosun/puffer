@@ -43,6 +43,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   late final List<StreamSubscription<Object?>> _subscriptions;
   final _controller = StreamController<NowPlaying?>.broadcast();
   final _known = <String, Track>{};
+
+  /// IDs looked up through [lookupTrack], each once.
+  final _resolving = <String>{};
   List<Track> _sent = const [];
   List<MaQueueItem> _items = const [];
   NowPlaying? _current;
@@ -73,12 +76,20 @@ class MusicAssistantPlaybackController implements PlaybackController {
     _controller.add(_current);
   }
 
-  Track? _trackFor(MaQueueItem item, int? index) {
-    if (providerInstance != null) {
-      final id = item.itemIdAt(providerInstance!);
-      if (id != null) return _known[id];
+  /// The Subsonic ID of [item], from the provider mapping or from the stream URL it was sent as.
+  String? _subsonicId(MaQueueItem item) =>
+      (providerInstance == null ? null : item.itemIdAt(providerInstance!)) ??
+      item.streamId;
+
+  /// The Subsonic track of [item]. With [resolve], an unknown track is looked up and the state rebuilt once it arrives.
+  Track? _trackFor(MaQueueItem item, int? index, {bool resolve = false}) {
+    final id = _subsonicId(item);
+    if (id != null) {
+      final known = _known[id];
+      if (known != null) return known;
+      if (resolve) _resolve(id);
     }
-    // Stream URLs carry no Subsonic ID back; the queue order is the order the tracks were sent in.
+    // Without an ID, the queue order is the order the tracks were sent in.
     if (index != null &&
         index < _sent.length &&
         _items.length == _sent.length) {
@@ -87,13 +98,28 @@ class MusicAssistantPlaybackController implements PlaybackController {
     return null;
   }
 
+  /// Loads a track that another client or an earlier session put in the queue, then rebuilds the state with it.
+  void _resolve(String id) {
+    final lookup = lookupTrack;
+    if (lookup == null || !_resolving.add(id)) return;
+    unawaited(
+      lookup(id).then((track) {
+        if (track == null || _controller.isClosed) return;
+        _known[id] = track;
+        _emit();
+      }),
+    );
+  }
+
   NowPlaying? _build() {
     final queue = _queue;
-    final item = queue?.currentItem;
-    if (queue == null || item == null || queue.state == MaPlaybackState.idle) {
-      return null;
-    }
-    final track = _trackFor(item, queue.currentIndex);
+    final index = queue?.currentIndex;
+    // A paused queue stays on screen. Many players report idle rather than paused, and some events leave out the current item, which the loaded items still have.
+    final item =
+        queue?.currentItem ??
+        (index != null && index < _items.length ? _items[index] : null);
+    if (queue == null || item == null) return null;
+    final track = _trackFor(item, index, resolve: true);
     final now = DateTime.now();
     return NowPlaying(
       track: track,
@@ -246,27 +272,37 @@ class MusicAssistantPlaybackController implements PlaybackController {
     );
   }
 
+  /// Stops the player and clears its queue, since a queue that is not playing stays on screen.
   @override
-  Future<void> stop() => _control(_queueCommand('stop'));
+  Future<void> stop() async {
+    await _control(_queueCommand('stop'));
+    await _control(_queueCommand('clear'));
+  }
 
   @override
   Future<QueueSnapshot?> snapshot() async {
     final queue = _queue;
     if (queue == null || _items.isEmpty) return null;
+    final current = queue.currentIndex ?? 0;
+    // Items without a Subsonic track, such as radio streams, are left out, so the rest of the queue still moves.
     final tracks = <Track>[];
+    var index = 0;
+    var currentMapped = false;
     for (final (i, item) in _items.indexed) {
       var track = _trackFor(item, i);
-      final id = providerInstance == null
-          ? null
-          : item.itemIdAt(providerInstance!);
+      final id = _subsonicId(item);
       if (track == null && id != null) track = await lookupTrack?.call(id);
-      if (track == null) return null;
-      tracks.add(track);
+      if (i == current) {
+        index = tracks.length;
+        currentMapped = track != null;
+      }
+      if (track != null) tracks.add(track);
     }
+    if (tracks.isEmpty) return null;
     return QueueSnapshot(
       tracks,
-      queue.currentIndex ?? 0,
-      queue.position(DateTime.now()),
+      index.clamp(0, tracks.length - 1),
+      currentMapped ? queue.position(DateTime.now()) : Duration.zero,
       playing: queue.state == MaPlaybackState.playing,
     );
   }

@@ -280,6 +280,74 @@ void main() {
     await client.close();
   });
 
+  test('a paused queue that reports idle still shows', () async {
+    final client = await connected();
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+    );
+    final shown = controller.state.firstWhere((np) => np != null);
+    server.send({
+      'event': 'queue_updated',
+      'object_id': 'kitchen',
+      'data': {
+        'queue_id': 'kitchen',
+        'active': true,
+        'state': 'idle',
+        'items': 1,
+        'current_index': 0,
+        'elapsed_time': 42,
+        'current_item': {
+          'queue_id': 'kitchen',
+          'queue_item_id': 'q1',
+          'name': 'One',
+          'media_item': {'name': 'One'},
+        },
+      },
+    });
+    final np = (await shown)!;
+    expect(np.title, 'One');
+    expect(np.playing, isFalse);
+    expect(np.position, const Duration(seconds: 42));
+    controller.dispose();
+    await client.close();
+  });
+
+  test('now playing looks up a track queued by another client', () async {
+    final client = await connected();
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      lookupTrack: (id) async => Track({'id': id, 'title': 'Looked up'}),
+    );
+    final resolved = controller.state.firstWhere((np) => np?.track?.id == 't9');
+    server.send({
+      'event': 'queue_updated',
+      'object_id': 'kitchen',
+      'data': {
+        'queue_id': 'kitchen',
+        'active': true,
+        'state': 'playing',
+        'items': 1,
+        'current_index': 0,
+        'current_item': {
+          'queue_id': 'kitchen',
+          'queue_item_id': 'q1',
+          'name': 'Nine',
+          'media_item': {
+            'name': 'Nine',
+            'uri': 'http://navidrome/rest/stream?u=me&id=t9&v=1.16.1',
+          },
+        },
+      },
+    });
+    expect((await resolved)!.title, 'Looked up');
+    controller.dispose();
+    await client.close();
+  });
+
   test(
     'the controller groups players, transfers the queue and stops',
     () async {
@@ -311,6 +379,10 @@ void main() {
         ],
         [
           'player_queues/stop',
+          {'queue_id': 'kitchen'},
+        ],
+        [
+          'player_queues/clear',
           {'queue_id': 'kitchen'},
         ],
       ]);
