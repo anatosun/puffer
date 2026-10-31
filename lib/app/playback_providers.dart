@@ -203,28 +203,55 @@ class OutputNotifier extends Notifier<String?> {
       });
     }
   }
+}
+
+final outputProvider = NotifierProvider<OutputNotifier, String?>(
+  OutputNotifier.new,
+);
+
+/// Switches the output and moves the queue with it. It is a provider of its own because [playbackControllerProvider] depends on [outputProvider], so [OutputNotifier] cannot read the controller; it lives for the session, so a switch outlives the sheet that started it.
+class OutputSwitcher {
+  OutputSwitcher(this._ref);
+
+  final Ref _ref;
 
   /// Switches the output and moves the queue with it: between two Music Assistant players through Music Assistant, and between this device and a player through the Subsonic tracks of the queue.
+  ///
+  /// A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing. The output changes even when moving the queue fails; the error still reaches the caller.
   Future<void> switchTo(String? playerId) async {
-    if (playerId == state) return;
-    final source = ref.read(playbackControllerProvider);
+    if (playerId == _ref.read(outputProvider)) return;
+    final source = _ref.read(playbackControllerProvider);
+    final queues = _ref.read(maClientProvider)?.queues ?? const {};
+    final targetEmpty = playerId == null
+        ? _ref.read(playerHandlerProvider).tracks.isEmpty
+        : queues[playerId]?.currentItem == null;
 
     if (source is MusicAssistantPlaybackController && playerId != null) {
-      await source.transferTo(playerId);
-      select(playerId);
+      // A transfer replaces the queue of the target with that of the source, even an empty one.
+      final from = queues[source.playerId];
+      final moving =
+          from?.currentItem != null &&
+          (from!.state == MaPlaybackState.playing || targetEmpty);
+      try {
+        if (moving) await source.transferTo(playerId);
+      } finally {
+        _ref.read(outputProvider.notifier).select(playerId);
+      }
       return;
     }
 
-    // A playing queue always moves. A paused one, such as a queue restored after a restart, moves when the target has nothing loaded, so it does not replace what a speaker is playing.
-    final snapshot = await source.snapshot();
-    final targetEmpty = playerId == null
-        ? ref.read(playerHandlerProvider).tracks.isEmpty
-        : (ref.read(maClientProvider)?.queues[playerId]?.currentItem == null);
-    final moving = snapshot != null && (snapshot.playing || targetEmpty);
-    if (moving) await source.stop();
-    select(playerId);
-    if (!moving) return;
-    final target = ref.read(playbackControllerProvider);
+    QueueSnapshot? snapshot;
+    try {
+      snapshot = await source.snapshot();
+      if (snapshot != null && !(snapshot.playing || targetEmpty)) {
+        snapshot = null;
+      }
+      if (snapshot != null) await source.stop();
+    } finally {
+      _ref.read(outputProvider.notifier).select(playerId);
+    }
+    if (snapshot == null) return;
+    final target = _ref.read(playbackControllerProvider);
     await target.playTracks(snapshot.tracks, index: snapshot.index);
     if (snapshot.position > const Duration(seconds: 5)) {
       await target.seek(snapshot.position);
@@ -233,9 +260,7 @@ class OutputNotifier extends Notifier<String?> {
   }
 }
 
-final outputProvider = NotifierProvider<OutputNotifier, String?>(
-  OutputNotifier.new,
-);
+final outputSwitcherProvider = Provider<OutputSwitcher>(OutputSwitcher.new);
 
 final playbackControllerProvider = Provider<PlaybackController>((ref) {
   final handler = ref.watch(playbackProvider);
