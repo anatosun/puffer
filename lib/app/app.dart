@@ -14,6 +14,7 @@ import '../features/library/transfers_page.dart';
 import '../features/login/login_page.dart';
 import '../features/now_playing/now_playing.dart';
 import '../features/now_playing/speaker_bar.dart';
+import '../features/now_playing/waveform.dart';
 import '../features/search/search_page.dart';
 import '../features/settings/downloads_settings_page.dart';
 import '../features/settings/experience_settings_page.dart';
@@ -146,6 +147,7 @@ class App extends ConsumerWidget {
     ref.watch(playbackProvider);
     ref.watch(queuePersistenceProvider);
     ref.watch(sendspinServiceProvider);
+    ref.watch(playingWaveformProvider);
     // Once per session: downloaded playlists pick up changes, and automatic downloads follow the starred items.
     ref.watch(startupSyncProvider);
     final accent = ref.watch(accentProvider);

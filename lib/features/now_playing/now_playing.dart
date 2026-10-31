@@ -300,11 +300,10 @@ class NowPlayingPage extends ConsumerWidget {
                               ],
                             ),
                             const Spacer(),
-                            // The bottom padding keeps the shadow of the artwork clear of the title.
+                            // The bottom padding keeps the shadow of the artwork clear of the title. With stars, the spacers around them keep it clear.
                             Padding(
-                              // The stars sit right below the artwork.
                               padding: EdgeInsets.only(
-                                bottom: showRating ? 8 : 22,
+                                bottom: showRating ? 0 : 22,
                               ),
                               child: GestureDetector(
                                 // Swiping the artwork skips to the next or previous track.
@@ -351,7 +350,9 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            if (showRating)
+                            // The stars sit halfway between the artwork and the title.
+                            if (showRating) ...[
+                              const Spacer(),
                               RatingStars(
                                 key: ValueKey(track.id),
                                 rating: track.rating,
@@ -363,6 +364,7 @@ class NowPlayingPage extends ConsumerWidget {
                                   }
                                 },
                               ),
+                            ],
                             const Spacer(),
                             GestureDetector(
                               onTap: track?.albumId == null
@@ -495,9 +497,10 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 3,
-        thumbShape: const RoundSliderThumbShape(
-          enabledThumbRadius: _thumbRadius,
-        ),
+        // With a waveform, the colour of the bars marks the position, so there is no thumb.
+        thumbShape: peaks == null
+            ? const RoundSliderThumbShape(enabledThumbRadius: _thumbRadius)
+            : SliderComponentShape.noThumb,
         overlayShape: SliderComponentShape.noOverlay,
         // With a waveform, the waveform shows the progress and the track is hidden behind it.
         activeTrackColor: peaks == null ? widget.color : Colors.transparent,
@@ -526,20 +529,15 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // The slider insets its track by the thumb radius, so the bars line up with the thumb.
+                // Without a thumb the slider track spans the full width, as the bars do.
                 if (peaks != null)
                   Positioned.fill(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: _thumbRadius,
-                      ),
-                      child: CustomPaint(
-                        painter: WaveformPainter(
-                          peaks: peaks,
-                          progress: max == 0 ? 0 : value / max,
-                          played: widget.color,
-                          unplayed: context.subtle,
-                        ),
+                    child: CustomPaint(
+                      painter: WaveformPainter(
+                        peaks: peaks,
+                        progress: max == 0 ? 0 : value / max,
+                        played: widget.color,
+                        unplayed: context.subtle,
                       ),
                     ),
                   ),

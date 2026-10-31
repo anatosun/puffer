@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 
 /// Whether the seek bar shows waveforms: the server reports the `songWaveform` extension and the app is online. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
@@ -27,6 +28,12 @@ final waveformProvider = FutureProvider.autoDispose.family<List<int>?, String>((
   } on Exception {
     return null;
   }
+});
+
+/// Loads the waveform of a track as soon as it plays, on this device or on a Music Assistant player, so the player shows it when it opens. The app watches this for the whole session.
+final playingWaveformProvider = Provider<void>((ref) {
+  final id = ref.watch(nowPlayingProvider.select((s) => s.value?.track?.id));
+  if (id != null) ref.watch(waveformProvider(id));
 });
 
 /// Heights from 0 to 1 of [count] bars. Each bar is the quadratic mean of the peaks it covers, because the server sends RMS values, and its height is that value squared relative to the loudest peak, which spreads out the loud range most mastered music sits in.
