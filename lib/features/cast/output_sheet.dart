@@ -7,6 +7,9 @@ import '../../data/music_assistant/ma_client.dart';
 import '../../data/music_assistant/ma_models.dart';
 import '../../playback/ma_playback_controller.dart';
 import '../../ui/messages.dart';
+import '../../ui/player_icons.dart';
+import '../../ui/theme.dart';
+import '../../ui/widgets/playing_bars.dart';
 
 /// Opens the output picker. It shows once Music Assistant is set up, highlighted while a player is the output.
 class OutputButton extends ConsumerWidget {
@@ -59,6 +62,7 @@ class _OutputSheet extends ConsumerWidget {
     final output = ref.watch(outputProvider);
     final status = ref.watch(maStatusProvider).value;
     final players = ref.watch(maPlayersProvider).value ?? const <MaPlayer>[];
+    final queues = ref.watch(maQueuesProvider).value ?? const {};
     final client = ref.watch(maClientProvider);
     final router = GoRouter.maybeOf(context);
     final byId = {for (final p in players) p.id: p};
@@ -135,24 +139,25 @@ class _OutputSheet extends ConsumerWidget {
       final members = membersOf(leader);
       // A group player is a fixed group configured in Music Assistant; its members cannot be released one by one.
       final fixed = leader.type == 'group';
+      final selected = output == leader.id;
+      final active =
+          leader.state == MaPlaybackState.playing ||
+          leader.state == MaPlaybackState.paused;
+      // Volume sliders show for the output and for players that have something loaded, so idle speakers keep the list short.
+      final showVolume = selected || active;
       rows.add(
         _OutputTile(
-          icon: leader.isGroup || members.isNotEmpty
-              ? Icons.speaker_group
-              : Icons.speaker,
+          icon: playerIcon(leader.icon),
           title: leader.name,
-          subtitle: [
-            if (members.isNotEmpty)
-              'With ${members.map((m) => m.name).join(', ')}',
-            switch (leader.state) {
-              MaPlaybackState.playing => 'Playing',
-              MaPlaybackState.paused => 'Paused',
-              _ => null,
-            },
-          ].nonNulls.join(' · '),
-          selected: output == leader.id,
+          detail: members.isEmpty
+              ? null
+              : 'With ${members.map((m) => m.name).join(', ')}',
+          state: leader.state,
+          item: queues[leader.id]?.currentItem,
+          selected: selected,
           onTap: () => select(leader),
-          trailing: output == leader.id
+          volume: showVolume ? leader : null,
+          trailing: selected
               ? null
               : groupControl(leader, following: false) ??
                     (members.isNotEmpty && !fixed
@@ -169,12 +174,13 @@ class _OutputSheet extends ConsumerWidget {
       for (final member in members) {
         rows.add(
           _OutputTile(
-            icon: Icons.subdirectory_arrow_right,
+            icon: playerIcon(member.icon),
             title: member.name,
-            subtitle: 'In group with ${leader.name}',
+            detail: 'In group with ${leader.name}',
             indent: true,
             selected: false,
             onTap: () => select(member),
+            volume: showVolume ? member : null,
             trailing: groupControl(member, following: true),
           ),
         );
@@ -202,6 +208,7 @@ class _OutputSheet extends ConsumerWidget {
               selected: output == null,
               onTap: () => select(null),
             ),
+            const SizedBox(height: 4),
             if (status != MaConnectionStatus.connected)
               ListTile(
                 leading: status == MaConnectionStatus.connecting
@@ -235,22 +242,35 @@ class _OutputSheet extends ConsumerWidget {
   }
 }
 
+/// A player in the sheet: its icon, its name, what it plays and, with [volume], a volume slider.
 class _OutputTile extends StatelessWidget {
   const _OutputTile({
     required this.icon,
     required this.title,
-    this.subtitle,
+    this.detail,
+    this.state,
+    this.item,
     required this.selected,
     required this.onTap,
+    this.volume,
     this.trailing,
     this.indent = false,
   });
 
   final IconData icon;
   final String title;
-  final String? subtitle;
+
+  /// The group the player leads or follows.
+  final String? detail;
+  final MaPlaybackState? state;
+
+  /// What the queue of the player has loaded.
+  final MaQueueItem? item;
   final bool selected;
   final VoidCallback onTap;
+
+  /// The player whose volume the slider sets.
+  final MaPlayer? volume;
   final Widget? trailing;
 
   /// Indents the row under its group leader.
@@ -258,20 +278,182 @@ class _OutputTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Theme.of(context).colorScheme.primary : null;
-    return ListTile(
-      contentPadding: EdgeInsets.only(left: indent ? 40 : 16, right: 16),
-      leading: Icon(icon, color: color),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: color,
-          fontWeight: selected ? FontWeight.w700 : null,
+    final colors = context.colors;
+    final accent = selected ? colors.primary : colors.onSurface;
+    final playing = state == MaPlaybackState.playing;
+    final loaded = item != null && (playing || state == MaPlaybackState.paused);
+    final media = loaded
+        ? [item!.title, item!.artist].nonNulls.join(' · ')
+        : null;
+    final left = indent ? 40.0 : 12.0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(left, 2, 12, 2),
+      child: Material(
+        color: selected
+            ? colors.primary.withValues(alpha: 0.12)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? colors.primary
+                            : colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 22,
+                        color: selected ? colors.onPrimary : colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: accent,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (media != null && media.isNotEmpty)
+                            Row(
+                              children: [
+                                PlayingBars(
+                                  playing: playing,
+                                  color: accent,
+                                  size: 11,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    playing ? media : 'Paused · $media',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: context.muted,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          if (detail != null)
+                            Text(
+                              detail!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.muted,
+                                fontSize: 13,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (selected)
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(Icons.check, color: accent),
+                      )
+                    else
+                      ?trailing,
+                  ],
+                ),
+                if (volume case final player? when player.sliderVolume != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 46),
+                    child: _PlayerVolume(player, color: accent),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
-      subtitle: subtitle == null || subtitle!.isEmpty ? null : Text(subtitle!),
-      trailing: selected ? Icon(Icons.check, color: color) : trailing,
-      onTap: onTap,
+    );
+  }
+}
+
+/// The volume of a Music Assistant player, or of every member while it leads a group. The value goes to Music Assistant when the drag ends.
+class _PlayerVolume extends ConsumerStatefulWidget {
+  const _PlayerVolume(this.player, {required this.color});
+
+  final MaPlayer player;
+  final Color color;
+
+  @override
+  ConsumerState<_PlayerVolume> createState() => _PlayerVolumeState();
+}
+
+class _PlayerVolumeState extends ConsumerState<_PlayerVolume> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = widget.player.sliderVolume ?? 0;
+    return Row(
+      children: [
+        Icon(
+          widget.player.muted ? Icons.volume_off : Icons.volume_down,
+          size: 18,
+          color: context.muted,
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: SliderComponentShape.noOverlay,
+            ),
+            child: Slider(
+              value: (_dragValue ?? volume.toDouble()).clamp(0, 100),
+              max: 100,
+              activeColor: widget.color,
+              inactiveColor: context.subtle,
+              semanticFormatterCallback: (v) =>
+                  '${widget.player.name} volume ${v.round()}',
+              onChanged: (v) => setState(() => _dragValue = v),
+              onChangeEnd: (v) async {
+                final client = ref.read(maClientProvider);
+                if (client != null) {
+                  await runPlayback(
+                    () => client.setVolume(widget.player, v.round()),
+                  );
+                }
+                if (mounted) setState(() => _dragValue = null);
+              },
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(
+            '${(_dragValue ?? volume).round()}',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: context.muted,
+              fontSize: 12,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

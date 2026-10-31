@@ -19,10 +19,22 @@ class MaPlayer {
   bool get available => json['available'] as bool? ?? false;
   bool get enabled => json['enabled'] as bool? ?? true;
   bool get hidden => json['hide_in_ui'] as bool? ?? false;
+
+  /// Belongs to a single client, such as a web browser, and is not offered as a playback target.
+  bool get private => json['private'] as bool? ?? false;
+
+  /// An ID from the shared Music Assistant icon set, such as `speaker`, `sonos` or `kitchen`.
+  String get icon => json['icon'] as String? ?? 'speaker';
   String? get type => json['type'] as String?;
   MaPlaybackState get state => _state(json['playback_state']);
   int? get volume => json['volume_level'] as int?;
   bool get muted => json['volume_muted'] as bool? ?? false;
+
+  /// The average volume of the members of a group, or the volume of a player on its own. Null when no member has volume control.
+  int? get groupVolume => json['group_volume'] as int?;
+
+  /// The volume a slider shows for this player: the group volume while it leads a group.
+  int? get sliderVolume => isGroup ? groupVolume ?? volume : volume;
   String? get syncedTo => json['synced_to'] as String?;
   String? get activeGroup => json['active_group'] as String?;
   List<String> get groupMembers => [
@@ -36,7 +48,7 @@ class MaPlayer {
   };
 
   /// Shown and able to play, whether or not it follows another player.
-  bool get usable => available && enabled && !hidden;
+  bool get usable => available && enabled && !hidden && !private;
 
   /// Players a person can pick as output: available, enabled, shown, and not a member following another player.
   bool get selectable => usable && syncedTo == null;

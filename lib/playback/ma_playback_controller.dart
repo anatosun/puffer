@@ -161,7 +161,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
       ],
       index: queue.currentIndex,
       outputName: _player?.name ?? playerId,
-      volume: _player?.volume,
+      volume: _player?.sliderVolume,
     );
   }
 
@@ -264,14 +264,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   }
 
   @override
-  Future<void> setVolume(int volume) {
-    final group = _player?.isGroup ?? false;
-    return _control(
-      client.command(
-        group ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
-        {'player_id': playerId, 'volume_level': volume},
-      ),
-    );
+  Future<void> setVolume(int volume) async {
+    final player = _player;
+    if (player != null) await _control(client.setVolume(player, volume));
   }
 
   /// Stops the player and clears its queue, since a queue that is not playing stays on screen.

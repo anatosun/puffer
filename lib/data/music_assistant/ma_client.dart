@@ -282,6 +282,12 @@ class MusicAssistantClient {
     _events.add(event);
   }
 
+  /// Sets the volume of [player] from 0 to 100: of every member when it leads a group.
+  Future<void> setVolume(MaPlayer player, int volume) => command(
+    player.isGroup ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
+    {'player_id': player.id, 'volume_level': volume},
+  );
+
   /// Sends a command. Loading media into a queue makes Music Assistant resolve every item first, so it answers late.
   Future<Object?> command(String command, [MaJson args = const {}]) {
     final timeout = command == 'player_queues/play_media'

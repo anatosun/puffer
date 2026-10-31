@@ -114,6 +114,17 @@ final maPlayersProvider = StreamProvider<List<MaPlayer>>((ref) async* {
   yield* client.playersStream.map(selectable);
 });
 
+/// The queues of the Music Assistant players, by queue ID, which is the ID of the player.
+final maQueuesProvider = StreamProvider<Map<String, MaQueue>>((ref) async* {
+  final client = ref.watch(maClientProvider);
+  if (client == null) {
+    yield const {};
+    return;
+  }
+  yield client.queues;
+  yield* client.queuesStream;
+});
+
 /// OpenSubsonic providers configured in Music Assistant.
 final maSubsonicProvidersProvider = FutureProvider<List<MaProvider>>((
   ref,
