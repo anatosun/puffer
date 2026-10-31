@@ -208,9 +208,13 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
+/// The name of the route of the now-playing screen, so keyboard shortcuts can tell whether it is open.
+const nowPlayingRouteName = 'now-playing';
+
 void openNowPlaying(BuildContext context) =>
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
+        settings: const RouteSettings(name: nowPlayingRouteName),
         opaque: false,
         pageBuilder: (_, _, _) => const NowPlayingPage(),
         transitionsBuilder: (_, animation, _, child) => SlideTransition(

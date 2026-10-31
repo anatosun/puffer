@@ -1,5 +1,6 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,6 +25,7 @@ import '../ui/messages.dart';
 import '../ui/theme.dart';
 import 'experience.dart';
 import 'providers.dart';
+import 'shortcuts.dart';
 import 'sendspin_providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -168,6 +170,8 @@ class App extends ConsumerWidget {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: ref.watch(routerProvider),
           scaffoldMessengerKey: messengerKey,
+          builder: (context, child) =>
+              KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
         );
       },
     );
@@ -216,4 +220,119 @@ class _Shell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Binds [keyBindings] for the whole app, the player and dialogs included. It sits above the navigator, so it reaches screens through the navigator of the router.
+class KeyboardShortcuts extends ConsumerWidget {
+  const KeyboardShortcuts({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    BuildContext? navigator() =>
+        ref.read(routerProvider).routerDelegate.navigatorKey.currentContext;
+
+    bool isNowPlayingOpen() {
+      final context = navigator();
+      if (context == null) return false;
+      var open = false;
+      // Reads the top route without popping it.
+      Navigator.of(context).popUntil((route) {
+        open = route.settings.name == nowPlayingRouteName;
+        return true;
+      });
+      return open;
+    }
+
+    void run(KeyAction action) => runPlayback(
+      () => performKeyAction(
+        ref,
+        action,
+        openNowPlaying: () {
+          if (navigator() case final context?) openNowPlaying(context);
+        },
+        isNowPlayingOpen: isNowPlayingOpen,
+        showHelp: () {
+          if (navigator() case final context?) {
+            showDialog<void>(
+              context: context,
+              builder: (_) => const _ShortcutsDialog(),
+            );
+          }
+        },
+      ),
+    );
+
+    return Focus(
+      // Keeps the keyboard focus inside the app, so the shortcuts work before anything is clicked.
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        for (final MapEntry(key: keys, value: action) in keyBindings.entries) {
+          if (!keys.accepts(event, HardwareKeyboard.instance)) continue;
+          // A text field keeps the keys it edits with, which then reach it unhandled.
+          if (isTextEditingKey(keys) && _typing()) {
+            return KeyEventResult.ignored;
+          }
+          run(action);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: child,
+    );
+  }
+
+  /// Whether a text field has the keyboard focus.
+  static bool _typing() =>
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<EditableText>() !=
+      null;
+}
+
+/// Lists the keyboard shortcuts.
+class _ShortcutsDialog extends StatelessWidget {
+  const _ShortcutsDialog();
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Keyboard shortcuts'),
+    content: SizedBox(
+      width: 360,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final action in KeyAction.values)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(action.label)),
+                    Text(
+                      action.keys,
+                      style: TextStyle(
+                        color: context.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'The media keys of the keyboard play, pause and skip while Puffer has focus.',
+              style: TextStyle(color: context.muted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Close'),
+      ),
+    ],
+  );
 }
