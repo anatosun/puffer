@@ -314,6 +314,21 @@ void main() {
     await client.close();
   });
 
+  test(
+    'a controller replaced before its queue items arrive stays quiet',
+    () async {
+      final client = await connected();
+      MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      ).dispose();
+      // The items the controller asked for at its start arrive after it closed.
+      await pumpEventQueue();
+      await client.close();
+    },
+  );
+
   test('now playing looks up a track queued by another client', () async {
     final client = await connected();
     final controller = MusicAssistantPlaybackController(

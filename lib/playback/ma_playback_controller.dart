@@ -72,6 +72,8 @@ class MusicAssistantPlaybackController implements PlaybackController {
   }
 
   void _emit() {
+    // Queue items can arrive after the controller is replaced, as when the output changes.
+    if (_controller.isClosed) return;
     _current = _build();
     _controller.add(_current);
   }
@@ -104,7 +106,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     if (lookup == null || !_resolving.add(id)) return;
     unawaited(
       lookup(id).then((track) {
-        if (track == null || _controller.isClosed) return;
+        if (track == null) return;
         _known[id] = track;
         _emit();
       }),
