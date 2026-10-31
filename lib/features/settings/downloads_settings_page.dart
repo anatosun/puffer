@@ -63,7 +63,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(downloadSettingsProvider);
-    final notifier = ref.read(downloadSettingsProvider.notifier);
+    final updater = ref.read(downloadSettingsUpdaterProvider);
     final usage = ref.watch(_usageProvider).value;
     final failed = ref.watch(_failedCountProvider).value ?? 0;
     final manager = ref.watch(downloadManagerProvider);
@@ -96,7 +96,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
             const SettingsSection('Quality'),
             RadioGroup<DownloadQuality>(
               groupValue: settings.quality,
-              onChanged: (q) => notifier.update(settings.copyWith(quality: q)),
+              onChanged: (q) => updater.update(settings.copyWith(quality: q)),
               child: Column(
                 children: [
                   for (final q in DownloadQuality.values)
@@ -119,7 +119,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
               title: const Text('Download over cellular'),
               value: settings.overCellular,
               onChanged: (v) =>
-                  notifier.update(settings.copyWith(overCellular: v)),
+                  updater.update(settings.copyWith(overCellular: v)),
             ),
             ListTile(
               title: const Text('Simultaneous downloads'),
@@ -133,7 +133,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                     DropdownMenuItem(value: n, child: Text('$n')),
                 ],
                 onChanged: (n) =>
-                    notifier.update(settings.copyWith(simultaneous: n)),
+                    updater.update(settings.copyWith(simultaneous: n)),
               ),
             ),
             SwitchListTile(
@@ -143,7 +143,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
               ),
               value: settings.automaticDownloads,
               onChanged: (v) =>
-                  notifier.update(settings.copyWith(automaticDownloads: v)),
+                  updater.update(settings.copyWith(automaticDownloads: v)),
             ),
             SwitchListTile(
               title: const Text('Optimize storage'),
@@ -152,7 +152,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
               ),
               value: settings.optimizeStorage,
               onChanged: (v) =>
-                  notifier.update(settings.copyWith(optimizeStorage: v)),
+                  updater.update(settings.copyWith(optimizeStorage: v)),
             ),
             if (settings.optimizeStorage)
               ListTile(
@@ -165,7 +165,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                     for (final gb in _limits)
                       DropdownMenuItem(value: gb, child: Text('$gb GB')),
                   ],
-                  onChanged: (gb) => notifier.update(
+                  onChanged: (gb) => updater.update(
                     settings.copyWith(storageLimitBytes: gb! << 30),
                   ),
                 ),

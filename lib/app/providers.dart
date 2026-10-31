@@ -290,13 +290,9 @@ class DownloadSettingsNotifier extends Notifier<DownloadSettings> {
   DownloadSettings build() =>
       DownloadSettings.load(ref.read(sharedPreferencesProvider));
 
-  Future<void> update(DownloadSettings settings) async {
-    final automaticChanged =
-        settings.automaticDownloads != state.automaticDownloads;
+  Future<void> set(DownloadSettings settings) async {
     state = settings;
     await settings.save(ref.read(sharedPreferencesProvider));
-    if (automaticChanged) await ref.read(syncAutomaticDownloadsProvider)();
-    await ref.read(downloadManagerProvider)?.optimizeStorage();
   }
 }
 
@@ -304,6 +300,26 @@ final downloadSettingsProvider =
     NotifierProvider<DownloadSettingsNotifier, DownloadSettings>(
       DownloadSettingsNotifier.new,
     );
+
+/// Saves download settings and applies them to the downloads. It is a provider of its own because [downloadManagerProvider] depends on [downloadSettingsProvider], so [DownloadSettingsNotifier] cannot read the manager.
+class DownloadSettingsUpdater {
+  DownloadSettingsUpdater(this._ref);
+
+  final Ref _ref;
+
+  Future<void> update(DownloadSettings settings) async {
+    final automaticChanged =
+        settings.automaticDownloads !=
+        _ref.read(downloadSettingsProvider).automaticDownloads;
+    await _ref.read(downloadSettingsProvider.notifier).set(settings);
+    if (automaticChanged) await _ref.read(syncAutomaticDownloadsProvider)();
+    await _ref.read(downloadManagerProvider)?.optimizeStorage();
+  }
+}
+
+final downloadSettingsUpdaterProvider = Provider<DownloadSettingsUpdater>(
+  DownloadSettingsUpdater.new,
+);
 
 final _transferBackendProvider = Provider<TransferBackend>(
   (ref) => BackgroundDownloaderBackend(),
