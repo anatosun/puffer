@@ -1,0 +1,8 @@
+- The "Play on" list shows each speaker's icon, what it plays and its volume
+- A tap on a speaker always switches to it, and switching no longer empties the queue of the speaker
+- Disconnect returns to this device and leaves the speaker playing
+- A setting takes paused music along when switching speakers
+- Keyboard shortcuts on desktop, with Ctrl + / to list them
+- The player closes as soon as nothing plays
+- Picking a speaker no longer crashes
+- Saving a download setting no longer crashes
