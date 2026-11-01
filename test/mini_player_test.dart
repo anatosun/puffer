@@ -9,6 +9,8 @@ import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/repositories/library_repository.dart';
 import 'package:puffer/data/subsonic/models.dart';
+import 'package:puffer/features/collection/album_page.dart';
+import 'package:puffer/features/collection/artist_page.dart';
 import 'package:puffer/features/now_playing/now_playing.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
 import 'package:puffer/playback/playback_controller.dart';
@@ -442,11 +444,121 @@ void main() {
       expect(find.text('3:00'), findsOneWidget);
       expect(prefs.getBool('experience.remainingTime'), isFalse);
 
-      // Instant mix sits on the heading of the queue, further down. The drag starts below the artwork, which takes vertical swipes itself.
+      // The tab bar below the player starts on the queue, with instant mix at its end. The drag starts below the artwork, which takes vertical swipes itself.
       await tester.dragFrom(const Offset(200, 720), const Offset(0, -650));
       await tester.pumpAndSettle();
       expect(find.text('Queue'), findsOneWidget);
-      expect(find.text('Instant mix'), findsOneWidget);
+      expect(find.byTooltip('Instant mix'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the tabs below the player show the album, the artist and similar artists',
+    (tester) async {
+      final controller = _FakeController();
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({
+                    'id': 'a',
+                    'title': 'So What',
+                    'albumId': 'al',
+                    'artistId': 'ar',
+                  }),
+                  title: 'So What',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 9),
+                  queue: const [QueueEntry(id: 'a', title: 'So What')],
+                  index: 0,
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(controller),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+            albumProvider.overrideWith(
+              (ref, id) async => Album(const {
+                'id': 'al',
+                'name': 'Kind of Blue',
+                'song': [
+                  {'id': 'a', 'title': 'So What'},
+                  {'id': 'b', 'title': 'Blue in Green'},
+                ],
+              }),
+            ),
+            artistProvider.overrideWith(
+              (ref, id) async => Artist(const {
+                'id': 'ar',
+                'name': 'Miles Davis',
+                'album': [
+                  {'id': 'al', 'name': 'Kind of Blue'},
+                  {'id': 'bb', 'name': 'Bitches Brew', 'year': 1970},
+                ],
+              }),
+            ),
+            artistInfoProvider.overrideWith(
+              (ref, id) async => ArtistInfo(const {
+                'biography': 'A trumpeter.',
+                'similarArtist': [
+                  {'id': 's1', 'name': 'Bill Evans'},
+                ],
+              }),
+            ),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.dragFrom(const Offset(200, 720), const Offset(0, -650));
+      await tester.pumpAndSettle();
+
+      for (final tab in ['Queue', 'Album', 'Artist', 'About', 'Similar']) {
+        expect(find.widgetWithText(Tab, tab), findsOneWidget);
+      }
+      // Each tab shows below the tab bar, so the page scrolls to the tab bar and then to the content.
+      Future<void> open(String tab, String content) async {
+        await tester.ensureVisible(find.widgetWithText(Tab, tab));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(Tab, tab));
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text(content),
+          100,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text(content), findsOneWidget);
+      }
+
+      await open('Album', 'Blue in Green');
+      // "Play album" makes the album the queue, from the song that plays.
+      when(() => controller.playTracks(any(), index: any(named: 'index')))
+          .thenAnswer((_) async {});
+      await tester.tap(find.text('Play album'));
+      await tester.pump();
+      final sent = verify(
+        () => controller.playTracks(
+          captureAny(),
+          index: captureAny(named: 'index'),
+        ),
+      ).captured;
+      expect((sent[0] as List<Track>).map((t) => t.id), ['a', 'b']);
+      expect(sent[1], 0);
+      // The album that plays has a tab of its own, so the artist tab leaves it out.
+      await open('Artist', 'Bitches Brew');
+      await open('About', 'A trumpeter.');
+      await open('Similar', 'Bill Evans');
     },
   );
 }

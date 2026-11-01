@@ -48,10 +48,12 @@ class OutputButton extends ConsumerWidget {
         ? ref.watch(nowPlayingProvider).value?.outputName
         : null;
     if (showName && name != null) {
+      // The icon comes after the name and sits 24 pixels from the end of the button, the centre of an icon button, so it lines up with icon buttons above and below it.
       return TextButton.icon(
         style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.only(left: 8, right: 12),
         ),
+        iconAlignment: IconAlignment.end,
         onPressed: () => showOutputSheet(context),
         icon: icon,
         label: Text(

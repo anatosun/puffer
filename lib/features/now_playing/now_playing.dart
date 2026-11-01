@@ -729,14 +729,7 @@ class _CoverGesturesState extends State<_CoverGestures>
     super.dispose();
   }
 
-  void _toQueue() {
-    final position = Scrollable.maybeOf(context)?.position;
-    position?.animateTo(
-      position.viewportDimension,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-    );
-  }
+  void _toQueue() => showQueue(context, ProviderScope.containerOf(context));
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -828,44 +821,6 @@ class _FormatBadges extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// The heading of the queue, with instant mix on its right: a mix that starts from the current song replaces the queue.
-class _QueueHeader extends ConsumerWidget {
-  const _QueueHeader();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
-    // An instant mix asks the server for similar songs, so it needs the connection.
-    final mix = track != null && !ref.watch(isOfflineProvider);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('Queue', style: Theme.of(context).textTheme.titleLarge),
-          ),
-          if (mix)
-            TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: context.muted),
-              icon: const Icon(Icons.radio),
-              label: const Text('Instant mix'),
-              onPressed: () => runPlayback(() async {
-                final tracks = await ref
-                    .read(repositoryProvider)!
-                    .instantMix(track);
-                if (tracks.length < 2) {
-                  showMessage('The server found no similar songs');
-                  return;
-                }
-                await ref.read(playbackControllerProvider).playTracks(tracks);
-              }),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 /// A small outlined label for the format of what plays.
@@ -1039,9 +994,8 @@ class _PlayerScrollState extends State<_PlayerScroll> {
                   child: widget.player,
                 ),
               ),
-              const SliverToBoxAdapter(child: _QueueHeader()),
-              const _QueueSliver(),
-              const _Discover(),
+              const SliverToBoxAdapter(child: _BelowTabBar()),
+              const _BelowContent(),
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
           ),
@@ -1049,8 +1003,6 @@ class _PlayerScrollState extends State<_PlayerScroll> {
   );
 }
 
-/// The next track at the bottom of the player. A tap scrolls to the queue.
-/// The last row of the player: the speaker button and the next song. Alone, the speaker button keeps to the left and the next song to the centre.
 /// The last row of the player: "Add to playlist" on the far left, the next song in the middle and the speaker button on the far right. The sides have equal widths, so the next song stays centred; the speaker button shrinks to its icon when its name does not fit.
 class _BottomRow extends ConsumerWidget {
   const _BottomRow({
@@ -1111,27 +1063,20 @@ class _BottomRow extends ConsumerWidget {
   }
 }
 
-class _UpNext extends StatelessWidget {
+class _UpNext extends ConsumerWidget {
   const _UpNext({required this.np});
 
   final NowPlaying np;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final index = np.index;
     final next = index != null && index + 1 < np.queue.length
         ? np.queue[index + 1]
         : null;
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        final position = Scrollable.of(context).position;
-        position.animateTo(
-          position.viewportDimension,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-        );
-      },
+      onTap: () => showQueue(context, ProviderScope.containerOf(context)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
@@ -1165,27 +1110,150 @@ class _UpNext extends StatelessWidget {
   }
 }
 
-/// Below the queue: the rest of the album of the current song, the artist's photo and biography, and similar artists in the library. Each part shows once the server has answered, and not at all offline or when it has nothing.
-class _Discover extends ConsumerWidget {
-  const _Discover();
+/// The tabs below the player. Queue always shows; the others show when the server has something for them.
+enum BelowTab {
+  queue('Queue'),
+  album('Album'),
+  artist('Artist'),
+  about('About'),
+  similar('Similar');
+
+  const BelowTab(this.label);
+
+  final String label;
+}
+
+class BelowTabNotifier extends Notifier<BelowTab> {
+  @override
+  BelowTab build() => BelowTab.queue;
+
+  void set(BelowTab tab) => state = tab;
+}
+
+/// The tab below the player that shows.
+final belowTabProvider = NotifierProvider<BelowTabNotifier, BelowTab>(
+  BelowTabNotifier.new,
+);
+
+/// Switches to the queue tab and scrolls down to it, from the "Up next" row or a swipe up on the artwork.
+void showQueue(BuildContext context, ProviderContainer container) {
+  container.read(belowTabProvider.notifier).set(BelowTab.queue);
+  final position = Scrollable.maybeOf(context)?.position;
+  position?.animateTo(
+    position.viewportDimension,
+    duration: const Duration(milliseconds: 400),
+    curve: Curves.easeOutCubic,
+  );
+}
+
+/// What the tabs other than the queue show for the current song, from the server. Offline, or before the server answers, they are empty and their tabs hide.
+typedef _Below = ({
+  Track? track,
+  Album? album,
+  List<Album> artistAlbums,
+  ArtistInfo? info,
+});
+
+_Below _below(WidgetRef ref) {
+  final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
+  if (track == null || ref.watch(isOfflineProvider)) {
+    return (track: track, album: null, artistAlbums: const [], info: null);
+  }
+  final album = track.albumId == null
+      ? null
+      : ref.watch(albumProvider(track.albumId!)).value;
+  final artist = track.artistId == null
+      ? null
+      : ref.watch(artistProvider(track.artistId!)).value;
+  final info = track.artistId == null
+      ? null
+      : ref.watch(artistInfoProvider(track.artistId!)).value;
+  return (
+    track: track,
+    album: album,
+    // The album that plays has its own tab.
+    artistAlbums: [
+      for (final a in artist?.albums ?? const <Album>[])
+        if (a.id != track.albumId) a,
+    ],
+    info: info,
+  );
+}
+
+List<BelowTab> _available(_Below below) => [
+  BelowTab.queue,
+  if ((below.album?.songs.length ?? 0) > 1) BelowTab.album,
+  if (below.artistAlbums.isNotEmpty) BelowTab.artist,
+  if (below.info?.biography != null || below.info?.imageUrl != null)
+    BelowTab.about,
+  if (below.info?.similarArtists.isNotEmpty ?? false) BelowTab.similar,
+];
+
+/// The tab bar below the player, with instant mix at its end.
+class _BelowTabBar extends ConsumerWidget {
+  const _BelowTabBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
-    if (track == null || ref.watch(isOfflineProvider)) {
-      return const SliverToBoxAdapter();
-    }
-    final album = track.albumId == null
-        ? null
-        : ref.watch(albumProvider(track.albumId!)).value;
-    final info = track.artistId == null
-        ? null
-        : ref.watch(artistInfoProvider(track.artistId!)).value;
-    final songs = album?.songs ?? const <Track>[];
-    final similar = info?.similarArtists ?? const <Artist>[];
-    final hasAbout =
-        info != null && (info.biography != null || info.imageUrl != null);
-    final title = Theme.of(context).textTheme.titleLarge;
+    final below = _below(ref);
+    final tabs = _available(below);
+    final selected = ref.watch(belowTabProvider);
+    final index = math.max(0, tabs.indexOf(selected));
+    final track = below.track;
+    // An instant mix asks the server for similar songs, so it needs the connection.
+    final mix = track != null && !ref.watch(isOfflineProvider);
+    return Padding(
+      // The right padding matches the player's, so instant mix sits under the speaker button.
+      padding: const EdgeInsets.only(top: 8, left: 12, right: 24),
+      child: Row(
+        children: [
+          Expanded(
+            child: DefaultTabController(
+              // A new controller when the tabs change with the song, or when another control picks a tab, such as "Up next" picking the queue.
+              key: ValueKey('${tabs.join()}$index'),
+              length: tabs.length,
+              initialIndex: index,
+              // The tabs share the width, so every one shows without scrolling the bar.
+              child: TabBar(
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                dividerColor: Colors.transparent,
+                tabs: [for (final t in tabs) Tab(text: t.label)],
+                onTap: (i) => ref.read(belowTabProvider.notifier).set(tabs[i]),
+              ),
+            ),
+          ),
+          if (mix)
+            IconButton(
+              tooltip: 'Instant mix',
+              color: context.muted,
+              icon: const Icon(Icons.radio),
+              onPressed: () => runPlayback(() async {
+                final tracks = await ref
+                    .read(repositoryProvider)!
+                    .instantMix(track);
+                if (tracks.length < 2) {
+                  showMessage('The server found no similar songs');
+                  return;
+                }
+                await ref.read(playbackControllerProvider).playTracks(tracks);
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The content of the selected tab below the player.
+class _BelowContent extends ConsumerWidget {
+  const _BelowContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final below = _below(ref);
+    final tabs = _available(below);
+    final selected = ref.watch(belowTabProvider);
+    final tab = tabs.contains(selected) ? selected : BelowTab.queue;
 
     // Links leave the player for the page they open.
     void open(String path) {
@@ -1194,173 +1262,156 @@ class _Discover extends ConsumerWidget {
       router.push(path);
     }
 
-    Widget heading(String text, {String? path}) => InkWell(
-      onTap: path == null ? null : () => open(path),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 8, 8),
-        child: Row(
+    switch (tab) {
+      case BelowTab.queue:
+        return const _QueueSliver();
+      case BelowTab.album:
+        final album = below.album!;
+        final songs = album.songs;
+        return SliverList.list(
           children: [
-            Flexible(
-              child: Text(
-                text,
+            ListTile(
+              title: Text(
+                album.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              onTap: () => open('/album/${album.id}'),
+              // The queue becomes the album, carrying on from the song and position that play.
+              trailing: FilledButton.tonalIcon(
+                icon: const Icon(Icons.queue_music),
+                label: const Text('Play album'),
+                onPressed: () => runPlayback(() async {
+                  final np = ref.read(nowPlayingProvider).value;
+                  final at = songs.indexWhere((t) => t.id == np?.track?.id);
+                  final controller = ref.read(playbackControllerProvider);
+                  await controller.playTracks(songs, index: math.max(0, at));
+                  final position = np?.positionNow() ?? Duration.zero;
+                  if (at >= 0 && position > const Duration(seconds: 1)) {
+                    await controller.seek(position);
+                  }
+                }),
               ),
             ),
-            if (path != null) Icon(Icons.chevron_right, color: context.faint),
+            for (var i = 0; i < songs.length; i++)
+              TrackTile(
+                tracks: songs,
+                index: i,
+                showArtwork: false,
+                showNumber: true,
+              ),
           ],
-        ),
-      ),
-    );
-
-    return SliverList.list(
-      children: [
-        if (songs.length > 1) ...[
-          heading('More from ${album!.name}', path: '/album/${album.id}'),
-          for (var i = 0; i < songs.length; i++)
-            TrackTile(
-              tracks: songs,
-              index: i,
-              showArtwork: false,
-              showNumber: true,
-            ),
-        ],
-        // The artist and similar artists share one space, as tabs.
-        if (hasAbout || similar.isNotEmpty)
-          _ArtistTabs(
-            about: hasAbout
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (info.imageUrl case final url?)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => open('/artist/${track.artistId}'),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: AspectRatio(
-                                aspectRatio: 16 / 9,
-                                child: CachedNetworkImage(
-                                  imageUrl: url,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, _, _) =>
-                                      const SizedBox.shrink(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (info.biography case final biography?)
-                        Biography(biography),
-                    ],
-                  )
-                : null,
-            similar: similar.isEmpty
-                ? null
-                : SizedBox(
-                    height: 128,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      itemCount: similar.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 16),
-                      itemBuilder: (context, i) {
-                        final artist = similar[i];
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () => open('/artist/${artist.id}'),
-                          child: SizedBox(
-                            width: 84,
-                            child: Column(
-                              children: [
-                                ClipOval(
-                                  child: Artwork(
-                                    artist.coverArt,
-                                    size: 84,
-                                    radius: 0,
-                                    icon: Icons.person,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  artist.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-          ),
-      ],
-    );
-  }
-}
-
-/// About the artist and similar artists, one at a time under two tabs. With only one of them, it shows without tabs.
-class _ArtistTabs extends StatefulWidget {
-  const _ArtistTabs({this.about, this.similar});
-
-  final Widget? about;
-  final Widget? similar;
-
-  @override
-  State<_ArtistTabs> createState() => _ArtistTabsState();
-}
-
-class _ArtistTabsState extends State<_ArtistTabs> {
-  int _tab = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      if (widget.about case final about?) ('About', about),
-      if (widget.similar case final similar?) ('Similar artists', similar),
-    ];
-    final selected = _tab.clamp(0, tabs.length - 1);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (tabs.length == 1)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-            child: Text(
-              tabs.single.$1,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          )
-        else
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: DefaultTabController(
-              // A new controller when the number of tabs changes with the song.
-              key: ValueKey(tabs.length),
-              length: tabs.length,
-              initialIndex: selected,
-              child: TabBar(
-                tabs: [for (final (label, _) in tabs) Tab(text: label)],
-                onTap: (i) => setState(() => _tab = i),
+        );
+      case BelowTab.artist:
+        final albums = below.artistAlbums;
+        return SliverList.builder(
+          itemCount: albums.length,
+          itemBuilder: (context, i) {
+            final album = albums[i];
+            return ListTile(
+              leading: Artwork(album.coverArt, size: 52, radius: 4),
+              title: Text(
+                album.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
+              subtitle: album.year == null
+                  ? null
+                  : Text(
+                      '${album.year}',
+                      style: TextStyle(color: context.muted),
+                    ),
+              onTap: () => open('/album/${album.id}'),
+            );
+          },
+        );
+      case BelowTab.about:
+        final info = below.info!;
+        final track = below.track!;
+        return SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // A small photo of the artist with the name, which opens the artist page.
+              ListTile(
+                leading: ClipOval(
+                  child: SizedBox.square(
+                    dimension: 56,
+                    child: info.imageUrl == null
+                        ? const Artwork(null, size: 56, icon: Icons.person)
+                        : CachedNetworkImage(
+                            imageUrl: info.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, _, _) => const Artwork(
+                              null,
+                              size: 56,
+                              icon: Icons.person,
+                            ),
+                          ),
+                  ),
+                ),
+                title: Text(
+                  track.artist ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                trailing: Icon(Icons.chevron_right, color: context.faint),
+                onTap: () => open('/artist/${track.artistId}'),
+              ),
+              if (info.biography case final biography?) Biography(biography),
+            ],
+          ),
+        );
+      case BelowTab.similar:
+        final similar = below.info!.similarArtists;
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverGrid.builder(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 96,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.78,
             ),
+            itemCount: similar.length,
+            itemBuilder: (context, i) {
+              final artist = similar[i];
+              return InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => open('/artist/${artist.id}'),
+                child: LayoutBuilder(
+                  builder: (context, box) => Column(
+                    children: [
+                      ClipOval(
+                        // The portrait leaves room for one line of name under it.
+                        child: Artwork(
+                          artist.coverArt,
+                          size: math.max(
+                            0.0,
+                            math.min(box.maxWidth, box.maxHeight - 28),
+                          ),
+                          radius: 0,
+                          icon: Icons.person,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        artist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          alignment: Alignment.topCenter,
-          child: KeyedSubtree(
-            key: ValueKey(selected),
-            child: tabs[selected].$2,
-          ),
-        ),
-      ],
-    );
+        );
+    }
   }
 }
 
