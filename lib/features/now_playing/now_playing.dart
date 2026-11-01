@@ -1112,6 +1112,7 @@ class _UpNext extends ConsumerWidget {
 
 /// The tabs below the player. Queue always shows; the others show when the server has something for them.
 enum BelowTab {
+  played('Played'),
   queue('Queue'),
   album('Album'),
   artist('Artist'),
@@ -1130,10 +1131,11 @@ class BelowTabNotifier extends Notifier<BelowTab> {
   void set(BelowTab tab) => state = tab;
 }
 
-/// The tab below the player that shows.
-final belowTabProvider = NotifierProvider<BelowTabNotifier, BelowTab>(
-  BelowTabNotifier.new,
-);
+/// The tab below the player that shows. It goes back to the queue whenever the player opens, since it lives only while the player shows.
+final belowTabProvider =
+    NotifierProvider.autoDispose<BelowTabNotifier, BelowTab>(
+      BelowTabNotifier.new,
+    );
 
 /// Switches to the queue tab and scrolls down to it, from the "Up next" row or a swipe up on the artwork.
 void showQueue(BuildContext context, ProviderContainer container) {
@@ -1180,7 +1182,8 @@ _Below _below(WidgetRef ref) {
   );
 }
 
-List<BelowTab> _available(_Below below) => [
+List<BelowTab> _available(_Below below, {required bool played}) => [
+  if (played) BelowTab.played,
   BelowTab.queue,
   if ((below.album?.songs.length ?? 0) > 1) BelowTab.album,
   if (below.artistAlbums.isNotEmpty) BelowTab.artist,
@@ -1189,6 +1192,10 @@ List<BelowTab> _available(_Below below) => [
   if (below.info?.similarArtists.isNotEmpty ?? false) BelowTab.similar,
 ];
 
+/// Whether songs before the current one are in the queue, for the "Played" tab.
+bool _hasPlayed(WidgetRef ref) =>
+    (ref.watch(nowPlayingProvider.select((s) => s.value?.index)) ?? 0) > 0;
+
 /// The tab bar below the player, with instant mix at its end.
 class _BelowTabBar extends ConsumerWidget {
   const _BelowTabBar();
@@ -1196,7 +1203,7 @@ class _BelowTabBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final below = _below(ref);
-    final tabs = _available(below);
+    final tabs = _available(below, played: _hasPlayed(ref));
     final selected = ref.watch(belowTabProvider);
     final index = math.max(0, tabs.indexOf(selected));
     final track = below.track;
@@ -1213,9 +1220,11 @@ class _BelowTabBar extends ConsumerWidget {
               key: ValueKey('${tabs.join()}$index'),
               length: tabs.length,
               initialIndex: index,
-              // The tabs share the width, so every one shows without scrolling the bar.
+              // Six tabs do not fit a narrow phone at a readable size, so the bar scrolls sideways; the queue, second, shows from the start.
               child: TabBar(
-                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 12),
                 dividerColor: Colors.transparent,
                 tabs: [for (final t in tabs) Tab(text: t.label)],
                 onTap: (i) => ref.read(belowTabProvider.notifier).set(tabs[i]),
@@ -1251,7 +1260,7 @@ class _BelowContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final below = _below(ref);
-    final tabs = _available(below);
+    final tabs = _available(below, played: _hasPlayed(ref));
     final selected = ref.watch(belowTabProvider);
     final tab = tabs.contains(selected) ? selected : BelowTab.queue;
 
@@ -1263,6 +1272,8 @@ class _BelowContent extends ConsumerWidget {
     }
 
     switch (tab) {
+      case BelowTab.played:
+        return const _QueueSliver(played: true);
       case BelowTab.queue:
         return const _QueueSliver();
       case BelowTab.album:
@@ -1417,7 +1428,10 @@ class _BelowContent extends ConsumerWidget {
 
 /// The queue: played tracks dimmed, the current one marked, upcoming ones below. Pressing and dragging a track moves it; swiping it away removes it.
 class _QueueSliver extends ConsumerStatefulWidget {
-  const _QueueSliver();
+  const _QueueSliver({this.played = false});
+
+  /// The songs played before the current one, most recent first; otherwise the current song and those after it.
+  final bool played;
 
   @override
   ConsumerState<_QueueSliver> createState() => _QueueSliverState();
@@ -1441,96 +1455,112 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
       _movedFrom = null;
     }
     final queue = _moved ?? reported;
-    final current = np?.index;
+    final current = np?.index ?? 0;
     final controller = ref.read(playbackControllerProvider);
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
 
+    Widget tile(int i, {required bool removable}) {
+      final item = queue[i];
+      final playing = i == np?.index;
+      final row = ListTile(
+        leading: Stack(
+          alignment: Alignment.center,
+          children: [
+            _NowPlayingArtwork(
+              item.coverArt,
+              item.imageUrl,
+              size: 44,
+              radius: 4,
+            ),
+            if (playing) ...[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              PlayingBars(playing: np?.playing ?? false, color: Colors.white),
+            ],
+          ],
+        ),
+        selected: playing,
+        title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Row(
+          children: [
+            if (downloaded.contains(item.id))
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.arrow_circle_down,
+                  size: 14,
+                  color: context.colors.primary,
+                ),
+              ),
+            Expanded(
+              child: Text(
+                item.artist ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        onTap: playing ? null : () => controller.skipTo(i),
+      );
+      if (!removable) return row;
+      return Dismissible(
+        key: ValueKey('dismiss-${item.id}-$i'),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => controller.removeAt(i),
+        background: Container(
+          color: Colors.red.shade900,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 16),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        child: row,
+      );
+    }
+
+    if (widget.played) {
+      // Most recent first; a tap plays the song again from the queue.
+      return SliverList.builder(
+        itemCount: math.min(current, queue.length),
+        itemBuilder: (context, j) => tile(current - 1 - j, removable: true),
+      );
+    }
+
+    // The current song comes first and stays there; the songs after it can be moved and removed.
+    final start = math.min(current, queue.length);
+    final count = queue.length - start;
     return SliverReorderableList(
-      itemCount: queue.length,
+      itemCount: count,
       onReorderItem: (from, to) {
+        if (from == 0) return;
+        final target = math.max(1, to);
         final moved = [...queue];
-        moved.insert(to, moved.removeAt(from));
+        moved.insert(start + target, moved.removeAt(start + from));
         setState(() {
           _movedFrom = reported;
           _moved = moved;
         });
-        controller.move(from, to);
+        controller.move(start + from, start + target);
       },
-      itemBuilder: (context, i) {
+      itemBuilder: (context, j) {
+        final i = start + j;
         final item = queue[i];
-        final playing = i == current;
+        if (j == 0) {
+          return KeyedSubtree(
+            key: ValueKey('${item.id}-$i'),
+            child: tile(i, removable: false),
+          );
+        }
         return ReorderableDelayedDragStartListener(
           key: ValueKey('${item.id}-$i'),
-          index: i,
-          child: Dismissible(
-            key: ValueKey('dismiss-${item.id}-$i'),
-            direction: DismissDirection.endToStart,
-            onDismissed: (_) => controller.removeAt(i),
-            background: Container(
-              color: Colors.red.shade900,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 16),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-            child: Opacity(
-              // Played tracks are dimmed.
-              opacity: current != null && i < current ? 0.5 : 1,
-              child: ListTile(
-                leading: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    _NowPlayingArtwork(
-                      item.coverArt,
-                      item.imageUrl,
-                      size: 44,
-                      radius: 4,
-                    ),
-                    if (playing) ...[
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      PlayingBars(
-                        playing: np?.playing ?? false,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ],
-                ),
-                selected: playing,
-                title: Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Row(
-                  children: [
-                    if (downloaded.contains(item.id))
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Icon(
-                          Icons.arrow_circle_down,
-                          size: 14,
-                          color: context.colors.primary,
-                        ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        item.artist ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                onTap: () => controller.skipTo(i),
-              ),
-            ),
-          ),
+          index: j,
+          child: tile(i, removable: true),
         );
       },
     );

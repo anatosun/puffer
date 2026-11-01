@@ -123,12 +123,16 @@ void main() {
           findsNWidgets(waveform ? 1 : 0),
         );
 
-        // Scrolling down continues into the queue, past tracks included.
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+        // Scrolling down continues into the queue, which starts with the current song; played songs have a tab of their own before it.
+        await tester.dragFrom(const Offset(180, 600), const Offset(0, -500));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(find.text('Played before'), findsOneWidget);
         expect(find.text('Next one'), findsWidgets);
+        expect(find.text('Played before'), findsNothing);
+        await tester.tap(find.widgetWithText(Tab, 'Played'));
+        await tester.pumpAndSettle();
+        expect(find.text('Played before'), findsOneWidget);
+        expect(find.text('Next one'), findsOneWidget);
       },
     );
   }
