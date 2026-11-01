@@ -1,0 +1,5 @@
+- Downloads no longer slow down the app: progress is saved less often and off-screen items stop watching it
+- The seek bar keeps its height with and without a waveform
+- The title keeps its place while the format badges of a new song load
+- The speaker button in the player shows only its icon, highlighted while a speaker plays
+- The F-Droid repository page uses the small mark as its favicon

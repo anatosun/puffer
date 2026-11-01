@@ -1,0 +1,3 @@
+- New brand: logo, app icons, splash screen and launch animation
+- The new mark on the sign-in screen, the About page and empty screens
+- Inter Tight for the wordmark; font licences on the licences page
