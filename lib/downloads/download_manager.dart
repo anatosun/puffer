@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 import '../data/db/database.dart';
 import '../data/subsonic/models.dart';
@@ -30,6 +31,28 @@ class PinState {
   final int total;
   final int complete;
   final int failed;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PinState &&
+      other.pinned == pinned &&
+      other.automatic == automatic &&
+      other.total == total &&
+      other.complete == complete &&
+      other.failed == failed &&
+      other.progress == progress &&
+      other.listing == listing;
+
+  @override
+  int get hashCode => Object.hash(
+    pinned,
+    automatic,
+    total,
+    complete,
+    failed,
+    progress,
+    listing,
+  );
 
   /// Sum of the progress of all tracks, between 0 and [total].
   final double progress;
@@ -341,7 +364,31 @@ class DownloadManager {
     }
   }
 
+  /// The last progress written for each file, and when, to write progress at most once a second or per 5 %.
+  final _written = <String, (double, DateTime)>{};
+
+  /// Whether a progress-only update is worth a write. Every write to the track files re-runs every query that watches them, for each album, playlist and song on screen, so progress ticks are thinned out.
+  bool _progressWorthWriting(String id, double progress) {
+    final last = _written[id];
+    final now = DateTime.now();
+    if (last != null &&
+        (progress - last.$1).abs() < 0.05 &&
+        now.difference(last.$2) < const Duration(seconds: 1)) {
+      return false;
+    }
+    _written[id] = (progress, now);
+    return true;
+  }
+
   Future<void> _onUpdate(TransferUpdate update) async {
+    if (update.status == null &&
+        update.progress != null &&
+        !_progressWorthWriting(update.id, update.progress!)) {
+      return;
+    }
+    if (update.status != null && update.status != FileStatus.downloading) {
+      _written.remove(update.id);
+    }
     final row = await (db.select(
       db.trackFiles,
     )..where((t) => t.trackId.equals(update.id))).getSingleOrNull();
@@ -452,7 +499,7 @@ class DownloadManager {
 
   Stream<TrackFile?> watchTrack(String trackId) => (db.select(
     db.trackFiles,
-  )..where((t) => t.trackId.equals(trackId))).watchSingleOrNull();
+  )..where((t) => t.trackId.equals(trackId))).watchSingleOrNull().distinct();
 
   Future<String?> localPath(String trackId) async {
     final f = await (db.select(
@@ -537,7 +584,9 @@ class DownloadManager {
                   failed: row.readNullable<int>('failed') ?? 0,
                   progress: row.readNullable<double>('progress') ?? 0,
                 ),
-        );
+        )
+        // A write to another file re-runs the query; an unchanged state is not passed on.
+        .distinct();
   }
 
   /// IDs of all complete track files, most recently downloaded first.
@@ -546,7 +595,9 @@ class DownloadManager {
             ..where((t) => t.status.equalsValue(FileStatus.complete))
             ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
           .watch()
-          .map((rows) => [for (final r in rows) r.trackId]);
+          .map((rows) => [for (final r in rows) r.trackId])
+          // Progress writes re-run the query; the same downloaded files are not passed on.
+          .distinct(listEquals);
 
   /// Track files not yet on disk: downloading first, then queued, paused and failed, each oldest first.
   Stream<List<TrackFile>> watchTransfers() {

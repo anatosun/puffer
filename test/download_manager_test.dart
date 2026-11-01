@@ -231,6 +231,55 @@ void main() {
     });
   });
 
+  Future<double> progressOf(String id) async => (await (db.select(
+    db.trackFiles,
+  )..where((t) => t.trackId.equals(id))).getSingle()).progress;
+
+  Future<void> tick(String id, double progress) async {
+    backend.controller.add(TransferUpdate(id, progress: progress));
+    await pumpEventQueue();
+    await manager.settled;
+  }
+
+  test('progress ticks are written at most once a second or per 5 %', () async {
+    await manager.pin(PinKind.album, 'album1');
+    // Small steps in quick succession: only the first is written.
+    for (final p in [0.10, 0.11, 0.12, 0.13]) {
+      await tick('t1', p);
+    }
+    expect(await progressOf('t1'), 0.10);
+    // A step of 5 % or more is written at once.
+    await tick('t1', 0.16);
+    expect(await progressOf('t1'), 0.16);
+    // A change of status is always written.
+    backend.controller.add(
+      const TransferUpdate('t1', status: FileStatus.paused, progress: 0.17),
+    );
+    await pumpEventQueue();
+    await manager.settled;
+    expect(await progressOf('t1'), 0.17);
+  });
+
+  test(
+    'the state of a pin is not repeated when another file changes',
+    () async {
+      await manager.pin(PinKind.album, 'album1');
+      await manager.pin(PinKind.playlist, 'pl1');
+      final states = <PinState>[];
+      final sub = manager.watchPin(PinKind.album, 'album1').listen(states.add);
+      await pumpEventQueue();
+      final before = states.length;
+      // t3 belongs to the playlist only.
+      await tick('t3', 0.5);
+      await pumpEventQueue();
+      expect(states.length, before);
+      await tick('t1', 0.5);
+      await pumpEventQueue();
+      expect(states.length, before + 1);
+      await sub.cancel();
+    },
+  );
+
   test(
     'transfers list downloading files first and leave out complete ones',
     () async {
