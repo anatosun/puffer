@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puffer/sendspin/listener.dart';
 import 'package:puffer/sendspin/noise.dart';
+import 'package:puffer/sendspin/pairing.dart';
 import 'package:puffer/sendspin/pcm_output.dart';
 import 'package:puffer/sendspin/sendspin_service.dart';
 import 'package:puffer/sendspin/session.dart';
@@ -55,7 +56,11 @@ void main() {
       output.setVolume(0, muted: true);
       final identity = await StaticKey.generate();
       final listener = SendspinListener(
-        config: SendspinConfig(identity: identity, name: 'Puffer native test'),
+        config: SendspinConfig(
+          identity: identity,
+          name: 'Puffer native test',
+          pairing: PairingStore(pairingPsk: randomKey()),
+        ),
         output: output,
         port: 0,
       );

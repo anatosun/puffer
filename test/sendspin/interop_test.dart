@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puffer/sendspin/listener.dart';
 import 'package:puffer/sendspin/noise.dart';
+import 'package:puffer/sendspin/pairing.dart';
 import 'package:puffer/sendspin/session.dart';
 
 class RecordingOutput implements SendspinAudioOutput {
@@ -33,7 +34,7 @@ class RecordingOutput implements SendspinAudioOutput {
   int get latencyMs => 0;
 }
 
-/// Runs only with SENDSPIN_PYTHON pointing at a Python interpreter that has aiosendspin installed.
+/// Runs only with SENDSPIN_PYTHON pointing at a Python interpreter that has aiosendspin installed, with pillow, numpy and av, which its server imports.
 void main() {
   final python = Platform.environment['SENDSPIN_PYTHON'];
 
@@ -43,7 +44,11 @@ void main() {
       final output = RecordingOutput();
       final identity = await StaticKey.generate();
       final listener = SendspinListener(
-        config: SendspinConfig(identity: identity, name: 'Puffer test'),
+        config: SendspinConfig(
+          identity: identity,
+          name: 'Puffer test',
+          pairing: PairingStore(pairingPsk: randomKey()),
+        ),
         output: output,
         port: 0,
       );

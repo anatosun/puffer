@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
+import 'speaker_settings.dart';
 
 class MusicAssistantPage extends ConsumerWidget {
   const MusicAssistantPage({super.key});
@@ -135,6 +136,9 @@ class _SignInState extends ConsumerState<_SignIn> {
               )
             : const Text('Connect'),
       ),
+      const Divider(height: 48),
+      // Playing as a speaker works without signing in.
+      const SpeakerSettings(),
     ],
   );
 }
@@ -216,6 +220,8 @@ class _Connected extends ConsumerWidget {
             ],
           ),
         ),
+        const Divider(height: 32),
+        const SpeakerSettings(),
         const Divider(height: 32),
         SwitchListTile(
           title: const Text('Take paused music along'),

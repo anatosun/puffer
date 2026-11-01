@@ -26,6 +26,11 @@ class SendspinListener {
   int? get boundPort => _server?.port;
 
   Future<void> start() async {
+    // Records backing an open paired connection are never evicted.
+    config.pairing.inUse = () => {
+      for (final s in _sessions)
+        if (s.paired && s.serverId != null) s.serverId!,
+    };
     _server = await HttpServer.bind(
       InternetAddress.anyIPv4,
       port,

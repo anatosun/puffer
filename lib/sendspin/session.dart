@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'noise.dart';
+import 'pairing.dart';
 import 'time_filter.dart';
 
 /// Microseconds of a monotonic clock, the local time of every Sendspin timestamp.
@@ -62,9 +63,13 @@ class SendspinStatus {
     this.artist,
     this.album,
     this.connected = false,
+    this.paired = false,
   });
 
   final bool connected;
+
+  /// The session runs on a long-term PSK from pairing, rather than unpaired.
+  final bool paired;
   final String? serverName;
   final String? groupName;
   final bool playing;
@@ -80,8 +85,10 @@ class SendspinStatus {
     String? title,
     String? artist,
     String? album,
+    bool? paired,
   }) => SendspinStatus(
     connected: connected ?? this.connected,
+    paired: paired ?? this.paired,
     serverName: serverName ?? this.serverName,
     groupName: groupName ?? this.groupName,
     playing: playing ?? this.playing,
@@ -95,11 +102,15 @@ class SendspinConfig {
   const SendspinConfig({
     required this.identity,
     required this.name,
+    required this.pairing,
     this.softwareVersion = '',
     this.unpairedAccess = true,
   });
 
   final StaticKey identity;
+
+  /// The pairing PSK and the pairing records with servers.
+  final PairingStore pairing;
   final String name;
   final String softwareVersion;
 
@@ -150,6 +161,21 @@ class SendspinSession {
   List<String> activeRoles = const [];
 
   NoiseTransport? _transport;
+
+  /// The category of the PSK that matched in the last handshake: `lt` (long-term, paired), `pr` (pairing) or `sn` (Sentinel).
+  String? matchedCategory;
+
+  /// Pairing activations received since the last handshake.
+  int _pairingIndex = 0;
+
+  /// The long-term PSK sent in `client/pair-finalize`, kept once the server confirms it stored it.
+  Uint8List? _pendingPsk;
+  Timer? _pairingTimeout;
+
+  /// Between the server's re-handshake message and its next `server/activate`, only the handshake may be sent.
+  bool _rehandshaking = false;
+
+  bool get paired => matchedCategory == 'lt';
   final _pending = <Object>[];
   Completer<void>? _wake;
   Completer<(int, int, int, int)>? _timeReply;
@@ -252,21 +278,14 @@ class SendspinSession {
     if (message1['type'] != 'noise/handshake') {
       throw const SendspinProtocolException('expected noise/handshake');
     }
-    final payload1 = jsonDecode(
-      utf8.decode(
-        await responder.readMessage1(
-          base64UrlDecodeNoPad((message1['payload'] as Map)['data'] as String),
-        ),
-      ),
+    final payload1 = await responder.readMessage1(
+      base64UrlDecodeNoPad((message1['payload'] as Map)['data'] as String),
     );
-    final category = (payload1 as Map<String, dynamic>)['psk_category'];
-    if (category != 'lt' && category != 'pr' && category != 'sn') {
-      throw const SendspinProtocolException('unknown psk category');
-    }
-
-    // Without pairing records, every lookup misses and falls back to the Sentinel PSK (spec: "Sentinel Fallback").
+    // A lookup miss in the initial handshake falls back to the Sentinel PSK (spec: "Sentinel Fallback").
+    final (psk, category) =
+        await _selectPsk(payload1) ?? (await sentinelPsk(), 'sn');
     final (message2, transport) = await responder.writeMessage2(
-      await sentinelPsk(),
+      psk,
       utf8.encode('{}'),
     );
     _socket.add(
@@ -276,12 +295,79 @@ class SendspinSession {
       }),
     );
     _transport = transport;
+    _matched(category);
   }
 
-  Future<void> send(String type, Map<String, dynamic> payload) => _sendBinary([
-    0,
-    ...utf8.encode(jsonEncode({'type': type, 'payload': payload})),
-  ]);
+  /// Finds the PSK that the `psk_id` of message 1 names, among the candidates of its `psk_category`. Null on a lookup miss; a long-term PSK stored for another server fails the handshake (spec: "Pre-Shared Key").
+  Future<(Uint8List, String)?> _selectPsk(Uint8List payload) async {
+    final json = jsonDecode(utf8.decode(payload));
+    if (json is! Map<String, dynamic> || json['psk_id'] is! String) {
+      throw const SendspinProtocolException('malformed handshake payload');
+    }
+    final id = json['psk_id'] as String;
+    final category = json['psk_category'];
+    switch (category) {
+      case 'sn':
+        final sentinel = await sentinelPsk();
+        return id == await pskId(sentinel) ? (sentinel, 'sn') : null;
+      case 'pr':
+        final psk = config.pairing.pairingPsk;
+        return id == await pskId(psk) ? (psk, 'pr') : null;
+      case 'lt':
+        for (final record in config.pairing.records) {
+          if (id != await pskId(record.longTermPsk)) continue;
+          if (record.serverId != serverId) {
+            throw const SendspinProtocolException('PSK of another server');
+          }
+          return (record.longTermPsk, 'lt');
+        }
+        return null;
+      default:
+        throw const SendspinProtocolException('unknown psk category');
+    }
+  }
+
+  void _matched(String category) {
+    matchedCategory = category;
+    _pairingIndex = 0;
+    if (category == 'lt') config.pairing.touch(serverId!);
+    if (status.connected) {
+      status = status.copyWith(paired: paired);
+      onStatus?.call(status);
+    }
+  }
+
+  /// The in-band re-handshake the server starts in transport mode, typically to switch to the pairing PSK or, after pairing, to the new long-term PSK. Message 2 still travels under the old keys; a lookup miss fails it (spec: "Re-handshake").
+  Future<void> _rehandshake(Map<String, dynamic> payload) async {
+    final responder = await NoiseResponder.start(
+      local: config.identity,
+      remoteStatic: base64UrlDecodeNoPad(serverId!),
+      prologue: _transport!.handshakeHash,
+    );
+    final payload1 = await responder.readMessage1(
+      base64UrlDecodeNoPad(payload['data'] as String),
+    );
+    final selected = await _selectPsk(payload1);
+    if (selected == null) {
+      throw const SendspinProtocolException('unknown PSK in re-handshake');
+    }
+    _rehandshaking = true;
+    final (message2, transport) = await responder.writeMessage2(
+      selected.$1,
+      utf8.encode('{}'),
+    );
+    await send('noise/handshake', {'data': base64UrlNoPad(message2)});
+    _transport = transport;
+    _matched(selected.$2);
+  }
+
+  Future<void> send(String type, Map<String, dynamic> payload) async {
+    if (_rehandshaking && type != 'noise/handshake') return;
+    await _sendBinary([
+      0,
+      ...utf8.encode(jsonEncode({'type': type, 'payload': payload})),
+    ]);
+  }
 
   Future<void> _sendBinary(List<int> plaintext) async {
     final transport = _transport;
@@ -375,6 +461,7 @@ class SendspinSession {
       case 'server/hello':
         status = status.copyWith(
           connected: true,
+          paired: paired,
           serverName: payload['name'] as String?,
         );
         onStatus?.call(status);
@@ -390,15 +477,25 @@ class SendspinSession {
             'supported_formats': [for (final f in supportedFormats) f.toJson()],
             'buffer_capacity': bufferCapacity,
           },
+          // The pairing token shows in the speaker settings of the app.
           'supported_pair_methods': {
             'pairing_psk': {
-              'locations': ['operator'],
+              'locations': ['device'],
             },
           },
           'unpaired_access': {'enabled': config.unpairedAccess},
         });
       case 'server/activate':
         await _onActivate(payload);
+      case 'noise/handshake':
+        await _rehandshake(payload);
+      case 'server/pair-finalize':
+        final psk = _pendingPsk;
+        if (psk == null) break;
+        _endPairing();
+        config.pairing.save(serverId!, psk);
+      case 'pair/abort':
+        _endPairing();
       case 'server/time':
         _timeReply?.complete((
           payload['client_transmitted'] as int,
@@ -438,6 +535,7 @@ class SendspinSession {
             serverName: status.serverName,
             groupName: status.groupName,
             playing: status.playing,
+            paired: status.paired,
             title: metadata['title'] as String?,
             artist: metadata['artist'] as String?,
             album: metadata['album'] as String?,
@@ -446,34 +544,93 @@ class SendspinSession {
         }
       case 'server/unpair':
         // Unpaired sessions ignore it.
-        break;
+        if (!paired) break;
+        config.pairing.remove(serverId!);
+        await goodbye('unpaired');
     }
   }
 
+  void _endPairing() {
+    _pendingPsk = null;
+    _pairingTimeout?.cancel();
+    _pairingTimeout = null;
+  }
+
+  /// Whether [requested] is an allowed activity set for the matched PSK (spec: `server/activate`).
+  bool _allowed(Set<String> requested, {required bool unpairedAccess}) => paired
+      ? requested.every((a) => a == 'playback')
+      : requested.every((a) => a == 'playback' || a == 'pairing') &&
+            (!requested.contains('playback') || unpairedAccess);
+
+  bool _admissible(
+    Set<String> requested,
+    List<String>? roles, {
+    required bool unpairedAccess,
+  }) {
+    if (!_allowed(requested, unpairedAccess: unpairedAccess)) return false;
+    final capable = _allowed({
+      ...requested,
+      'playback',
+    }, unpairedAccess: unpairedAccess);
+    return capable || roles == null || roles.isEmpty;
+  }
+
   Future<void> _onActivate(Map<String, dynamic> payload) async {
+    _rehandshaking = false;
+    // An activation during a pairing attempt ends it without a record.
+    _endPairing();
     final requested =
         (payload['activities'] as List?)?.cast<String>() ?? const [];
     final roles = (payload['active_roles'] as List?)?.cast<String>();
-    // A Sentinel-keyed (unpaired) session admits playback only with unpaired access.
-    final wantsPlayback =
-        requested.contains('playback') || (roles != null && roles.isNotEmpty);
-    if (wantsPlayback && !config.unpairedAccess) {
+    final set = requested.toSet();
+    final pairing = set.contains('pairing');
+    if (pairing) _pairingIndex++;
+    final unpairedAccess = config.unpairedAccess;
+    if (!paired &&
+        !unpairedAccess &&
+        !_admissible(set, roles, unpairedAccess: false) &&
+        _admissible(set, roles, unpairedAccess: true)) {
       await goodbye('pairing_required');
       return;
     }
-    if (requested.contains('pairing')) {
-      // Pairing flows are not implemented yet.
+    if (!_admissible(set, roles, unpairedAccess: unpairedAccess)) {
+      await goodbye('unauthorized');
+      return;
+    }
+    // Only the Pairing PSK method is offered, and it runs only on a session keyed by the pairing PSK.
+    if (pairing &&
+        ((payload['pairing'] as Map?)?['method'] != 'pairing_psk' ||
+            matchedCategory != 'pr')) {
       await send('pair/abort', {'reason': 'method_not_supported'});
+      return;
     }
     final hadPlayer = playerActive;
     activities = requested;
     if (roles != null) activeRoles = roles;
+    // Roles kept from an earlier activation lapse once the connection cannot play.
+    if (!_allowed({...set, 'playback'}, unpairedAccess: unpairedAccess)) {
+      activeRoles = const [];
+    }
     onActivated?.call(this, activities);
+    if (pairing) await _startPairing();
     if (hadPlayer && !playerActive) output.stop();
     if (activeRoles.isNotEmpty) {
       await _sendState();
       _startClockSync();
     }
+  }
+
+  /// The Pairing PSK flow: `client/pair-init`, then at once `client/pair-finalize` with a new long-term PSK, which is kept when the server confirms (spec: "Pairing PSK Flow").
+  Future<void> _startPairing() async {
+    final psk = randomKey();
+    _pendingPsk = psk;
+    _pairingTimeout = Timer(const Duration(minutes: 2), () {
+      if (_pendingPsk == null) return;
+      _endPairing();
+      unawaited(send('pair/abort', {'reason': 'attempt_timeout'}));
+    });
+    await send('client/pair-init', {'pairing_index': _pairingIndex});
+    await send('client/pair-finalize', {'long_term_psk': base64UrlNoPad(psk)});
   }
 
   Future<void> _onCommand(Map<String, dynamic>? player) async {
@@ -572,6 +729,7 @@ class SendspinSession {
     if (_closed && _transport == null) return;
     _closed = true;
     _syncTimer?.cancel();
+    _endPairing();
     _transport = null;
     if (playerActive) output.stop();
     status = const SendspinStatus();

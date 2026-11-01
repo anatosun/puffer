@@ -6,6 +6,7 @@ import 'package:pcm_player/pcm_player.dart';
 
 import 'listener.dart';
 import 'noise.dart';
+import 'pairing.dart';
 import 'pcm_output.dart';
 import 'session.dart';
 
@@ -48,6 +49,7 @@ class SendspinService {
   SendspinService({
     required this.name,
     required this.identity,
+    required this.pairing,
     this.onPlaybackStarted,
   });
 
@@ -56,7 +58,12 @@ class SendspinService {
 
   final String name;
   final StaticKey identity;
+  final PairingStore pairing;
   final void Function()? onPlaybackStarted;
+
+  /// The token the operator pastes into Music Assistant to pair with this speaker.
+  String get pairingToken =>
+      encodePairingToken(identity.publicKey, pairing.pairingPsk);
 
   final _status = StreamController<SendspinStatus>.broadcast();
   SendspinStatus status = const SendspinStatus();
@@ -71,7 +78,7 @@ class SendspinService {
       onPlaybackStarted: onPlaybackStarted,
     );
     _listener = SendspinListener(
-      config: SendspinConfig(identity: identity, name: name),
+      config: SendspinConfig(identity: identity, name: name, pairing: pairing),
       output: output,
       port: port,
       path: path,
