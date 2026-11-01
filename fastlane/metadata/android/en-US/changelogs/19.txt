@@ -1,0 +1,4 @@
+- About page in Settings: version, source code, releases, issue tracker and licences
+- Sliding the volume of a speaker no longer makes the waveform disappear
+- The artwork fade no longer fails when the song changes back and forth quickly
+- Downloads that finish together no longer trim the storage twice
