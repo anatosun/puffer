@@ -33,8 +33,8 @@ dependencies:
     path: packages/pcm_player
   audio_service: ^0.18.19
   audio_session: ^0.2.4
-  background_downloader: ^9.6.4
-  cached_network_image: ^4.0.5
+  background_downloader: ^9.6.5
+  cached_network_image: ^4.0.6
   collection: ^1.19.1
   connectivity_plus: ^7.3.2
   crypto: ^3.0.8
@@ -71,7 +71,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  build_runner: ^2.16.2
+  build_runner: ^2.17.1
   drift_dev: ^2.35.2
   mocktail: ^1.0.5
   flutter_native_splash: ^2.4.8
