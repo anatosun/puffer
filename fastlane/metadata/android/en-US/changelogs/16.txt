@@ -1,0 +1,8 @@
+- Pair the phone speaker with Music Assistant through a pairing token
+- Music Assistant playing on the phone shows in the player
+- Sync speakers with this device, and play or pause speakers from "Play on"
+- Pick and order the tabs and library sections
+- Search in every library list
+- Played playlists count as recent
+- Player: larger artwork, format badges, instant mix, add to playlist, smoother waveform and new settings
+- Tap the format badges to change the streaming quality
