@@ -60,6 +60,25 @@ class PlaybackSettingsPage extends ConsumerWidget {
                 onChanged: (m) => ref.read(replayGainProvider.notifier).set(m!),
               ),
             ),
+            const SettingsSection('Transitions'),
+            ListTile(
+              title: const Text('Crossfade'),
+              subtitle: const Text(
+                'One song fades into the next. Songs of the same album always follow each other without a fade.',
+              ),
+              trailing: DropdownButton<int>(
+                value: ref.watch(crossfadeProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final s in CrossfadeNotifier.choices)
+                    DropdownMenuItem(
+                      value: s,
+                      child: Text(s == 0 ? 'Off' : '$s s'),
+                    ),
+                ],
+                onChanged: (s) => ref.read(crossfadeProvider.notifier).set(s!),
+              ),
+            ),
             const SettingsSection('Listening history'),
             SwitchListTile(
               title: const Text('Report plays to the server'),

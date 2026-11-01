@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../data/subsonic/models.dart';
+import 'crossfade.dart';
 
 /// What the handler needs from the session: where each track's audio and artwork are, and where to report plays.
 abstract class PlaybackSource {
@@ -16,6 +17,9 @@ abstract class PlaybackSource {
 
   /// The volume from 0 to 1 at which [track] plays, for loudness normalisation.
   double volumeFor(Track track);
+
+  /// How long one song fades into the next; zero plays them back to back.
+  Duration get crossfade;
 }
 
 /// Plays on the phone through just_audio and reports to the system media controls through audio_service.
@@ -29,6 +33,19 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   List<Track> _tracks = const [];
   String? _scrobbled;
+
+  /// The player of the incoming song during a crossfade, made on the first fade.
+  AudioPlayer? _incoming;
+  Timer? _fadeTimer;
+
+  /// Completes when the volumes have crossed, or when the fade is cancelled.
+  Completer<void>? _faded;
+
+  /// A crossfade runs, from the start of the incoming song until the main player has taken it over.
+  bool _fading = false;
+
+  /// The main player is taking over the incoming song, so its volume stays down until then.
+  bool _handingOver = false;
 
   /// The last index the player reported. While it seeks, some backends report no index for a moment, which must not make the current track unknown.
   int? _lastIndex;
@@ -55,12 +72,13 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _lastIndex = index;
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
-      player.setVolume(source?.volumeFor(track) ?? 1);
+      if (!_handingOver) player.setVolume(source?.volumeFor(track) ?? 1);
       source?.nowPlaying(track);
       _scrobbled = null;
     });
     // A play counts once half of the track, or four minutes, has played.
     player.positionStream.listen((position) {
+      _maybeCrossfade(position);
       final track = currentTrack;
       if (track == null || _scrobbled == track.id) return;
       final duration = player.duration ?? track.duration;
@@ -88,12 +106,105 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     artUri: source?.artUri(track.coverArt),
   );
 
+  /// Starts a crossfade once the current song is within the crossfade of its end, when the next song may fade in: not the same album, not repeating one song.
+  void _maybeCrossfade(Duration position) {
+    final fade = source?.crossfade ?? Duration.zero;
+    if (fade == Duration.zero || _fading || !player.playing) return;
+    if (player.loopMode == LoopMode.one) return;
+    final index = player.currentIndex, next = player.nextIndex;
+    final duration = player.duration;
+    if (index == null || next == null || duration == null) return;
+    if (index >= _tracks.length || next >= _tracks.length) return;
+    final remaining = duration - position;
+    // Too close to the end, a fade could not finish before the song does.
+    if (remaining > fade || remaining < const Duration(seconds: 1)) return;
+    if (!crossfades(_tracks[index], _tracks[next])) return;
+    unawaited(_crossfade(index, next, remaining));
+  }
+
+  Future<void> _crossfade(int index, int next, Duration remaining) async {
+    _fading = true;
+    final from = _tracks[index], to = _tracks[next];
+    final fromVolume = source?.volumeFor(from) ?? 1;
+    final toVolume = source?.volumeFor(to) ?? 1;
+    final incoming = _incoming ??= AudioPlayer();
+    try {
+      await incoming.setVolume(0);
+      await incoming.setAudioSource(await _audioSource(to));
+      if (!_fading) return;
+      unawaited(incoming.play());
+      // The fade ends a little before the outgoing song does, so the main player never runs into the next song by itself.
+      final span = remaining - const Duration(milliseconds: 400);
+      final start = DateTime.now();
+      final faded = _faded = Completer<void>();
+      _fadeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+        final t =
+            DateTime.now().difference(start).inMilliseconds /
+            span.inMilliseconds;
+        final (out, into) = crossfadeVolumes(t);
+        player.setVolume(fromVolume * out);
+        incoming.setVolume(toVolume * into);
+        if (t >= 1) {
+          timer.cancel();
+          if (!faded.isCompleted) faded.complete();
+        }
+      });
+      await faded.future;
+      if (!_fading) return;
+      // The main player takes over the incoming song where it is, silently, then the two swap.
+      _handingOver = true;
+      await player.setVolume(0);
+      await player.seek(incoming.position, index: next);
+      await _ready();
+      await player.seek(incoming.position);
+      await _ready();
+      if (!_fading) return;
+      await player.setVolume(toVolume);
+      await incoming.stop();
+    } on Exception {
+      // A failed fade leaves the songs to follow each other without one.
+    } finally {
+      _endCrossfade();
+    }
+  }
+
+  Future<void> _ready() async {
+    try {
+      await player.processingStateStream
+          .firstWhere((s) => s == ProcessingState.ready)
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      // The player stays where it is.
+    }
+  }
+
+  void _endCrossfade() {
+    _fading = false;
+    _handingOver = false;
+    _fadeTimer?.cancel();
+    _fadeTimer = null;
+    if (_faded case final faded? when !faded.isCompleted) faded.complete();
+    _faded = null;
+  }
+
+  /// Stops a running crossfade, for a pause, a seek or a skip: the incoming song stops and the current one plays at its own volume.
+  void _cancelCrossfade() {
+    if (!_fading) return;
+    _endCrossfade();
+    unawaited(_incoming?.stop());
+    final track = currentTrack;
+    unawaited(
+      player.setVolume(track == null ? 1 : source?.volumeFor(track) ?? 1),
+    );
+  }
+
   Future<void> playTracks(
     List<Track> tracks, {
     int index = 0,
     bool shuffle = false,
   }) async {
     if (tracks.isEmpty || source == null) return;
+    _cancelCrossfade();
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
@@ -110,6 +221,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Loads a saved queue paused at [position] of track [index].
   Future<void> restore(List<Track> tracks, int index, Duration position) async {
     if (tracks.isEmpty || source == null) return;
+    _cancelCrossfade();
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
@@ -124,6 +236,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> reloadSources() async {
     final index = player.currentIndex;
     if (_tracks.isEmpty || source == null || index == null) return;
+    _cancelCrossfade();
     final position = player.position;
     final playing = player.playing;
     final sources = await Future.wait(_tracks.map(_audioSource));
@@ -172,16 +285,26 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> play() => player.play();
 
   @override
-  Future<void> pause() => player.pause();
+  Future<void> pause() {
+    _cancelCrossfade();
+    return player.pause();
+  }
 
   @override
-  Future<void> seek(Duration position) => player.seek(position);
+  Future<void> seek(Duration position) {
+    _cancelCrossfade();
+    return player.seek(position);
+  }
 
   @override
-  Future<void> skipToNext() => player.seekToNext();
+  Future<void> skipToNext() {
+    _cancelCrossfade();
+    return player.seekToNext();
+  }
 
   @override
   Future<void> skipToPrevious() async {
+    _cancelCrossfade();
     if (player.position > const Duration(seconds: 3)) {
       return player.seek(Duration.zero);
     }
@@ -189,8 +312,10 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> skipToQueueItem(int index) =>
-      player.seek(Duration.zero, index: index);
+  Future<void> skipToQueueItem(int index) {
+    _cancelCrossfade();
+    return player.seek(Duration.zero, index: index);
+  }
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
@@ -210,6 +335,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> stop() async {
+    _cancelCrossfade();
     await player.stop();
     await player.clearAudioSources();
     _tracks = const [];

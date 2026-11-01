@@ -185,6 +185,24 @@ final cellularQualityProvider =
       () => StreamingQualityNotifier('playback.qualityCellular'),
     );
 
+/// Seconds over which one song fades into the next, 0 for none. Songs of the same album never fade.
+class CrossfadeNotifier extends Notifier<int> {
+  static const _key = 'playback.crossfade';
+  static const choices = [0, 2, 4, 6, 8, 12];
+
+  @override
+  int build() => ref.read(sharedPreferencesProvider).getInt(_key) ?? 0;
+
+  Future<void> set(int seconds) async {
+    state = seconds;
+    await ref.read(sharedPreferencesProvider).setInt(_key, seconds);
+  }
+}
+
+final crossfadeProvider = NotifierProvider<CrossfadeNotifier, int>(
+  CrossfadeNotifier.new,
+);
+
 final replayGainProvider = NotifierProvider<ReplayGainNotifier, ReplayGainMode>(
   ReplayGainNotifier.new,
 );
@@ -492,6 +510,9 @@ class SessionPlaybackSource implements PlaybackSource {
   @override
   double volumeFor(Track track) =>
       replayGainVolume(track, ref.read(replayGainProvider));
+
+  @override
+  Duration get crossfade => Duration(seconds: ref.read(crossfadeProvider));
 
   @override
   Future<void> nowPlaying(Track track) async {

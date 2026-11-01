@@ -427,6 +427,26 @@ final playingFormatProvider = Provider.autoDispose<PlayingFormat?>((ref) {
   );
 });
 
+/// Turns crossfade on or off for the queue of the Music Assistant player in use, following the crossfade setting. Music Assistant sets the length of the fade per player, and never fades between songs of the same album.
+final maCrossfadeProvider = Provider<void>((ref) {
+  final output = ref.watch(outputProvider);
+  final client = ref.watch(maClientProvider);
+  final on = ref.watch(crossfadeProvider) > 0;
+  final connected =
+      ref.watch(maStatusProvider).value == MaConnectionStatus.connected;
+  if (output == null || client == null || !connected) return;
+  unawaited(() async {
+    try {
+      await client.command('player_queues/crossfade', {
+        'queue_id': output,
+        'crossfade_enabled': on,
+      });
+    } on Exception {
+      // An older server without the command keeps its own setting.
+    }
+  }());
+});
+
 final nowPlayingProvider = StreamProvider<NowPlaying?>(
   (ref) => ref.watch(playbackControllerProvider).state,
 );
