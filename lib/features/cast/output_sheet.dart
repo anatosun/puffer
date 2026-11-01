@@ -13,9 +13,20 @@ import '../../ui/widgets/playing_bars.dart';
 
 /// Opens the output picker. It shows once Music Assistant is set up, highlighted while a player is the output.
 class OutputButton extends ConsumerWidget {
-  const OutputButton({super.key, this.showName = false});
+  const OutputButton({
+    super.key,
+    this.showName = false,
+    this.activeColor,
+    this.idleColor,
+  });
 
   final bool showName;
+
+  /// The colour while a speaker plays, the theme's primary colour when null; the player passes the colour of the artwork.
+  final Color? activeColor;
+
+  /// The colour while this device plays, the theme's icon colour when null.
+  final Color? idleColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,7 +37,9 @@ class OutputButton extends ConsumerWidget {
     final output = ref.watch(outputProvider);
     final remote =
         output != null && !ref.watch(ownPlayerIdsProvider).contains(output);
-    final color = remote ? Theme.of(context).colorScheme.primary : null;
+    final color = remote
+        ? activeColor ?? Theme.of(context).colorScheme.primary
+        : idleColor;
     final icon = Icon(
       remote ? Icons.speaker_group : Icons.speaker_group_outlined,
       color: color,

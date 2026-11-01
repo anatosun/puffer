@@ -324,12 +324,7 @@ final librarySectionsProvider =
 
 // ------------------------------------------------------------ player
 
-/// The heart in the player, which adds the current song to the library.
-final playerFavouriteProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.playerFavourite', true),
-);
-
-/// The codec and quality badges around the rating in the player.
+/// The codec and quality badges above the title in the player.
 final playerFormatProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.playerFormat', true),
 );

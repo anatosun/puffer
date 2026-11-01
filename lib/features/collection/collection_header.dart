@@ -276,6 +276,7 @@ class StarButton extends ConsumerStatefulWidget {
     this.artistId,
     this.json,
     this.color,
+    this.offColor,
     this.dense = false,
   });
 
@@ -289,6 +290,9 @@ class StarButton extends ConsumerStatefulWidget {
 
   /// The colour of the filled heart.
   final Color? color;
+
+  /// The colour of the empty heart; the theme's icon colour when null.
+  final Color? offColor;
 
   /// A narrower button, for rows that hold more than the heart.
   final bool dense;
@@ -324,7 +328,7 @@ class _StarButtonState extends ConsumerState<StarButton> {
           : () => saveStar(ref, _target, !starred, json: widget.json),
       icon: Icon(
         starred ? Icons.favorite : Icons.favorite_border,
-        color: starred ? widget.color : null,
+        color: starred ? widget.color : widget.offColor,
       ),
     );
   }

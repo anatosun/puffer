@@ -106,16 +106,10 @@ class ExperienceSettingsPage extends ConsumerWidget {
               subtitle: 'The stars of the current song, which a tap changes',
             ),
             _Switch(
-              provider: playerFavouriteProvider,
-              title: 'Favourite button',
-              subtitle:
-                  'A heart next to the stars adds the song to your library',
-            ),
-            _Switch(
               provider: playerFormatProvider,
               title: 'Format badges',
               subtitle:
-                  'The codec and the quality of what plays, around the stars',
+                  'The codec and the quality of what plays, above the title',
             ),
             ListTile(
               title: const Text('Waveform'),

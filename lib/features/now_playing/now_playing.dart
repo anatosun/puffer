@@ -257,16 +257,12 @@ class NowPlayingPage extends ConsumerWidget {
     final online = !ref.watch(isOfflineProvider);
     final showRating =
         track != null && ref.watch(playerRatingProvider) && online;
-    // The format badges, the stars and the heart share a row between the artwork and the title. Offline, only the badges show.
+    // The format badges sit centred above the title.
     final format = ref.watch(playerFormatProvider)
         ? ref.watch(playingFormatProvider)
         : null;
-    final showFavourite = online && ref.watch(playerFavouriteProvider);
-    // An instant mix asks the server for similar songs, so it needs the connection.
-    final showMix = online;
-    final showTrackRow =
-        track != null &&
-        (showRating || showFavourite || showMix || format != null);
+    // Under the artwork, only the stars.
+    final showTrackRow = showRating;
     return _CloseWhenEmpty(
       child: Scaffold(
         backgroundColor: background,
@@ -286,6 +282,7 @@ class NowPlayingPage extends ConsumerWidget {
                               Row(
                                 children: [
                                   IconButton(
+                                    color: context.muted,
                                     icon: const Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       size: 32,
@@ -306,6 +303,7 @@ class NowPlayingPage extends ConsumerWidget {
                                     ),
                                   ),
                                   IconButton(
+                                    color: context.muted,
                                     icon: const Icon(Icons.more_horiz),
                                     onPressed: track == null
                                         ? null
@@ -322,8 +320,11 @@ class NowPlayingPage extends ConsumerWidget {
                               Expanded(
                                 child: LayoutBuilder(
                                   builder: (context, box) {
-                                    // Under the artwork, the row of badges, stars and heart takes 14 + 40 pixels; without it, the padding keeps the shadow of the artwork clear of the title.
-                                    final below = showTrackRow ? 54.0 : 22.0;
+                                    // Under the artwork, the stars take 14 pixels and the 48 of their row; without them, the padding keeps the shadow of the artwork clear of the title.
+                                    const rowsHeight = 48.0;
+                                    final below = showTrackRow
+                                        ? 14 + rowsHeight
+                                        : 22.0;
                                     final artSize = math.max(
                                       0.0,
                                       math.min(
@@ -331,7 +332,7 @@ class NowPlayingPage extends ConsumerWidget {
                                         box.maxHeight - below,
                                       ),
                                     );
-                                    // The row spans the artwork, or 300 pixels when the artwork is narrower, so its badges still fit.
+                                    // The stars span the artwork, or 300 pixels when the artwork is narrower, so they keep full-size touch targets.
                                     final rowWidth = math.max(
                                       artSize,
                                       math.min(box.maxWidth, 300.0),
@@ -410,14 +411,26 @@ class NowPlayingPage extends ConsumerWidget {
                                           SizedBox(height: 14 + slack / 4),
                                           SizedBox(
                                             width: rowWidth,
-                                            height: 40,
-                                            child: _TrackRow(
-                                              track: track,
-                                              format: format,
-                                              rating: showRating,
-                                              favourite: showFavourite,
-                                              mix: showMix,
-                                              color: highlight,
+                                            height: rowsHeight,
+                                            child: Center(
+                                              child: RatingStars(
+                                                key: ValueKey(track.id),
+                                                rating: track.rating,
+                                                color: highlight,
+                                                large: true,
+                                                onChanged: (value) async {
+                                                  if (await rate(
+                                                    ref,
+                                                    track.id,
+                                                    value,
+                                                  )) {
+                                                    rememberRating(
+                                                      track.json,
+                                                      value,
+                                                    );
+                                                  }
+                                                },
+                                              ),
                                             ),
                                           ),
                                         ] else
@@ -428,6 +441,15 @@ class NowPlayingPage extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(height: 18),
+                              // The codec and quality, centred above the title; a tap opens the song info.
+                              if (format != null && track != null) ...[
+                                _FormatBadges(
+                                  format: format,
+                                  track: track,
+                                  color: highlight,
+                                ),
+                                const SizedBox(height: 6),
+                              ],
                               GestureDetector(
                                 onTap: track?.albumId == null
                                     ? null
@@ -477,6 +499,7 @@ class NowPlayingPage extends ConsumerWidget {
                               // "Add to playlist", the next song and the speaker button. The speaker button shows once Music Assistant is set up.
                               _BottomRow(
                                 np: np,
+                                color: highlight,
                                 speaker:
                                     ref.watch(maCredentialsProvider) != null,
                                 upNext: ref.watch(upNextProvider),
@@ -771,91 +794,63 @@ class _CoverGesturesState extends State<_CoverGestures>
   );
 }
 
-/// The row under the artwork: the codec and quality badges at its left edge, the stars in the middle and the heart at its right edge. The sides have equal widths, so the stars stay centred, and a side shrinks its content rather than overflow.
-class _TrackRow extends ConsumerWidget {
-  const _TrackRow({
-    required this.track,
+/// The codec and quality badges of what plays. A tap opens the song info, with the streaming quality on top.
+class _FormatBadges extends StatelessWidget {
+  const _FormatBadges({
     required this.format,
-    required this.rating,
-    required this.favourite,
-    required this.mix,
+    required this.track,
     required this.color,
   });
 
+  final PlayingFormat format;
   final Track track;
-  final PlayingFormat? format;
-  final bool rating;
-  final bool favourite;
-
-  /// The instant mix button, left of the heart.
-  final bool mix;
   final Color color;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final format = this.format;
-    Widget side(Alignment alignment, List<Widget> children) => Expanded(
-      child: Align(
-        alignment: alignment,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(mainAxisSize: MainAxisSize.min, children: children),
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Song info',
+    child: InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: () => showSongInfo(context, track),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Badge(format.codec, color: color),
+            if (format.quality case final quality?) ...[
+              const SizedBox(width: 6),
+              _Badge(quality, color: color),
+            ],
+          ],
         ),
       ),
-    );
-    return Row(
-      children: [
-        // A tap on the badges opens the song info, with the streaming quality on top.
-        side(Alignment.centerLeft, [
-          if (format != null)
-            Semantics(
-              button: true,
-              label: 'Song info',
-              child: InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: () => showSongInfo(context, track),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Badge(format.codec, color: color),
-                      if (format.quality case final quality?) ...[
-                        const SizedBox(width: 6),
-                        _Badge(quality, color: color),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(width: 8),
-        ]),
-        if (rating)
-          RatingStars(
-            key: ValueKey(track.id),
-            rating: track.rating,
-            color: color,
-            dense: true,
-            onChanged: (value) async {
-              if (await rate(ref, track.id, value)) {
-                rememberRating(track.json, value);
-              }
-            },
+    ),
+  );
+}
+
+/// The heading of the queue, with instant mix on its right: a mix that starts from the current song replaces the queue.
+class _QueueHeader extends ConsumerWidget {
+  const _QueueHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
+    // An instant mix asks the server for similar songs, so it needs the connection.
+    final mix = track != null && !ref.watch(isOfflineProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text('Queue', style: Theme.of(context).textTheme.titleLarge),
           ),
-        side(Alignment.centerRight, [
-          const SizedBox(width: 8),
           if (mix)
-            IconButton(
-              tooltip: 'Instant mix',
-              icon: Icon(Icons.radio, color: context.muted),
-              iconSize: 22,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(32, 40),
-                fixedSize: const Size(32, 40),
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: context.muted),
+              icon: const Icon(Icons.radio),
+              label: const Text('Instant mix'),
               onPressed: () => runPlayback(() async {
                 final tracks = await ref
                     .read(repositoryProvider)!
@@ -867,18 +862,8 @@ class _TrackRow extends ConsumerWidget {
                 await ref.read(playbackControllerProvider).playTracks(tracks);
               }),
             ),
-          if (mix && favourite) const SizedBox(width: 4),
-          if (favourite)
-            StarButton(
-              key: ValueKey('heart-${track.id}'),
-              starred: track.starred,
-              trackId: track.id,
-              json: track.json,
-              color: color,
-              dense: true,
-            ),
-        ]),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -933,6 +918,7 @@ class _Controls extends ConsumerWidget {
         ),
         IconButton(
           iconSize: 44,
+          color: context.colors.onSurface,
           icon: const Icon(Icons.skip_previous_rounded),
           onPressed: controller.previous,
         ),
@@ -964,6 +950,7 @@ class _Controls extends ConsumerWidget {
         ),
         IconButton(
           iconSize: 44,
+          color: context.colors.onSurface,
           icon: const Icon(Icons.skip_next_rounded),
           onPressed: controller.next,
         ),
@@ -1052,15 +1039,7 @@ class _PlayerScrollState extends State<_PlayerScroll> {
                   child: widget.player,
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: Text(
-                    'Queue',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-              ),
+              const SliverToBoxAdapter(child: _QueueHeader()),
               const _QueueSliver(),
               const _Discover(),
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -1078,11 +1057,15 @@ class _BottomRow extends ConsumerWidget {
     required this.np,
     required this.speaker,
     required this.upNext,
+    required this.color,
   });
 
   final NowPlaying np;
   final bool speaker;
   final bool upNext;
+
+  /// The colour of the speaker button while a speaker plays.
+  final Color color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1101,6 +1084,7 @@ class _BottomRow extends ConsumerWidget {
             child: addToPlaylist
                 ? IconButton(
                     tooltip: 'Add to playlist',
+                    color: context.muted,
                     icon: const Icon(Icons.playlist_add),
                     onPressed: () =>
                         showAddToPlaylist(context, ref, () async => [track]),
@@ -1113,7 +1097,13 @@ class _BottomRow extends ConsumerWidget {
           flex: 5,
           child: Align(
             alignment: Alignment.centerRight,
-            child: speaker ? const OutputButton(showName: true) : null,
+            child: speaker
+                ? OutputButton(
+                    showName: true,
+                    activeColor: color,
+                    idleColor: context.muted,
+                  )
+                : null,
           ),
         ),
       ],
@@ -1193,6 +1183,8 @@ class _Discover extends ConsumerWidget {
         : ref.watch(artistInfoProvider(track.artistId!)).value;
     final songs = album?.songs ?? const <Track>[];
     final similar = info?.similarArtists ?? const <Artist>[];
+    final hasAbout =
+        info != null && (info.biography != null || info.imageUrl != null);
     final title = Theme.of(context).textTheme.titleLarge;
 
     // Links leave the player for the page they open.
@@ -1234,71 +1226,139 @@ class _Discover extends ConsumerWidget {
               showNumber: true,
             ),
         ],
-        if (info != null &&
-            (info.biography != null || info.imageUrl != null)) ...[
-          heading(
-            'About ${track.artist ?? 'the artist'}',
-            path: '/artist/${track.artistId}',
-          ),
-          if (info.imageUrl case final url?)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: CachedNetworkImage(
-                    imageUrl: url,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-            ),
-          if (info.biography case final biography?) Biography(biography),
-        ],
-        if (similar.isNotEmpty) ...[
-          heading('Similar artists'),
-          SizedBox(
-            height: 120,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: similar.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 16),
-              itemBuilder: (context, i) {
-                final artist = similar[i];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => open('/artist/${artist.id}'),
-                  child: SizedBox(
-                    width: 84,
-                    child: Column(
-                      children: [
-                        ClipOval(
-                          child: Artwork(
-                            artist.coverArt,
-                            size: 84,
-                            radius: 0,
-                            icon: Icons.person,
+        // The artist and similar artists share one space, as tabs.
+        if (hasAbout || similar.isNotEmpty)
+          _ArtistTabs(
+            about: hasAbout
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (info.imageUrl case final url?)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => open('/artist/${track.artistId}'),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: AspectRatio(
+                                aspectRatio: 16 / 9,
+                                child: CachedNetworkImage(
+                                  imageUrl: url,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) =>
+                                      const SizedBox.shrink(),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          artist.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ],
+                      if (info.biography case final biography?)
+                        Biography(biography),
+                    ],
+                  )
+                : null,
+            similar: similar.isEmpty
+                ? null
+                : SizedBox(
+                    height: 128,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      itemCount: similar.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 16),
+                      itemBuilder: (context, i) {
+                        final artist = similar[i];
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => open('/artist/${artist.id}'),
+                          child: SizedBox(
+                            width: 84,
+                            child: Column(
+                              children: [
+                                ClipOval(
+                                  child: Artwork(
+                                    artist.coverArt,
+                                    size: 84,
+                                    radius: 0,
+                                    icon: Icons.person,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  artist.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                );
-              },
+          ),
+      ],
+    );
+  }
+}
+
+/// About the artist and similar artists, one at a time under two tabs. With only one of them, it shows without tabs.
+class _ArtistTabs extends StatefulWidget {
+  const _ArtistTabs({this.about, this.similar});
+
+  final Widget? about;
+  final Widget? similar;
+
+  @override
+  State<_ArtistTabs> createState() => _ArtistTabsState();
+}
+
+class _ArtistTabsState extends State<_ArtistTabs> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = [
+      if (widget.about case final about?) ('About', about),
+      if (widget.similar case final similar?) ('Similar artists', similar),
+    ];
+    final selected = _tab.clamp(0, tabs.length - 1);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (tabs.length == 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+            child: Text(
+              tabs.single.$1,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: DefaultTabController(
+              // A new controller when the number of tabs changes with the song.
+              key: ValueKey(tabs.length),
+              length: tabs.length,
+              initialIndex: selected,
+              child: TabBar(
+                tabs: [for (final (label, _) in tabs) Tab(text: label)],
+                onTap: (i) => setState(() => _tab = i),
+              ),
             ),
           ),
-        ],
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.topCenter,
+          child: KeyedSubtree(
+            key: ValueKey(selected),
+            child: tabs[selected].$2,
+          ),
+        ),
       ],
     );
   }

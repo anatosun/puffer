@@ -316,18 +316,15 @@ void main() {
     await pumpPlayer({});
     expect(find.text('FLAC'), findsOneWidget);
     expect(find.text('16/44.1 kHz'), findsOneWidget);
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
     expect(find.text('-3:00'), findsOneWidget);
     expect(find.text('Next one'), findsWidgets);
 
     await pumpPlayer({
       'experience.playerFormat': false,
-      'experience.playerFavourite': false,
       'experience.remainingTime': false,
       'experience.upNext': false,
     });
     expect(find.text('FLAC'), findsNothing);
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
     // The length of the song instead of the time that remains.
     expect(find.text('3:00'), findsOneWidget);
     // The queue further down is not built yet, so the next song shows nowhere on screen.
@@ -429,7 +426,8 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      // The player has no heart button; a double tap on the artwork adds the song.
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
 
       final cover = find.byType(Hero);
       await tester.tap(cover);
@@ -438,13 +436,17 @@ void main() {
       await tester.pumpAndSettle();
       verify(() => repository.setStarred(starred: true, trackId: 'a'))
           .called(1);
-      // The heart under the artwork follows the double tap.
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
 
       await tester.tap(find.text('-3:00'));
       await tester.pump();
       expect(find.text('3:00'), findsOneWidget);
       expect(prefs.getBool('experience.remainingTime'), isFalse);
+
+      // Instant mix sits on the heading of the queue, further down. The drag starts below the artwork, which takes vertical swipes itself.
+      await tester.dragFrom(const Offset(200, 720), const Offset(0, -650));
+      await tester.pumpAndSettle();
+      expect(find.text('Queue'), findsOneWidget);
+      expect(find.text('Instant mix'), findsOneWidget);
     },
   );
 }
