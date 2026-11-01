@@ -126,6 +126,16 @@ jobs:
         working-directory: work
         run: fdroid update --use-date-from-apk --pretty
 
+      - name: Use the small mark as the favicon
+        run: |
+          # fdroid update writes index.html with the 512 px repository icon as its favicon. Favicons show at 16 to 32 px, where the brand uses the small mark, so the page links the icons in distribution/fdroid/site instead.
+          cp src/distribution/fdroid/site/favicon.svg src/distribution/fdroid/site/favicon-32.png src/distribution/fdroid/site/apple-touch-icon.png work/repo/icons/
+          sed -i \
+            -e 's|<link href="icons/icon.png" rel="icon" type="image/png">|<link href="icons/favicon.svg" rel="icon" type="image/svg+xml"><link href="icons/favicon-32.png" rel="icon" type="image/png" sizes="32x32"><link href="icons/apple-touch-icon.png" rel="apple-touch-icon">|' \
+            -e 's|<link href="icons/icon.png" rel="shortcut icon" type="image/png">||' \
+            work/repo/index.html
+          grep -q 'icons/favicon.svg' work/repo/index.html
+
       - name: Publish to gh-pages
         run: |
           rm -rf site/fdroid && mkdir -p site/fdroid
