@@ -49,6 +49,10 @@ ColorScheme? artworkScheme(
   return ref.watch(artworkSchemeProvider((coverArt, image, brightness))).value;
 }
 
+/// A cross-fade for [AnimatedSwitcher] that leaves the key of the child out of the transition. The default transition takes the child's key, so switching back and forth faster than the fade leaves two fading copies with one key; without it, the switcher numbers each copy.
+Widget fadeWithoutKey(Widget child, Animation<double> animation) =>
+    FadeTransition(opacity: animation, child: child);
+
 /// [image] blurred to fill its parent, fading to the background towards the bottom, as in Plexamp. A change of [id] cross-fades to the new image.
 class BlurredArtwork extends StatelessWidget {
   const BlurredArtwork({
@@ -78,6 +82,7 @@ class BlurredArtwork extends StatelessWidget {
       children: [
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
+          transitionBuilder: fadeWithoutKey,
           // The default layout gives the child loose constraints, which leaves the image at its own size; the backdrop fills its parent.
           layoutBuilder: (current, previous) =>
               Stack(fit: StackFit.expand, children: [...previous, ?current]),

@@ -362,6 +362,7 @@ class NowPlayingPage extends ConsumerWidget {
                                           duration: const Duration(
                                             milliseconds: 300,
                                           ),
+                                          transitionBuilder: fadeWithoutKey,
                                           child: DecoratedBox(
                                             key: ValueKey(
                                               np.title + (np.album ?? ''),

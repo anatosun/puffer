@@ -307,7 +307,10 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
     controller = MusicAssistantPlaybackController(
       client,
       output,
-      thisDevice: ref.watch(ownPlayerIdsProvider).contains(output),
+      // Only whether the output is this phone counts: the player list changes with every volume step, and a new controller would lose the Subsonic track until it looks it up again.
+      thisDevice: ref.watch(
+        ownPlayerIdsProvider.select((ids) => ids.contains(output)),
+      ),
       providerInstance: ref.watch(maSubsonicInstanceProvider),
       streamUri: (track) => ref.read(clientProvider)!.streamUri(track.id),
       onError: (e) => showMessage('$e'),

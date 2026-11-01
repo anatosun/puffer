@@ -8,6 +8,8 @@ import 'package:puffer/app/sendspin_providers.dart';
 import 'package:puffer/data/music_assistant/ma_client.dart';
 import 'package:puffer/data/music_assistant/ma_models.dart';
 import 'package:puffer/sendspin/session.dart';
+import 'package:puffer/playback/player_handler.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 MaPlayer player(
@@ -61,6 +63,7 @@ Future<(ProviderContainer, StreamController<SendspinStatus>)> setUp(
 Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
 
 void main() {
+  controllerTests();
   test(
     'music starting on the phone as a speaker shows in the player',
     () async {
@@ -107,4 +110,42 @@ void main() {
       expect(c.read(outputProvider), 'up_puffer');
     },
   );
+}
+
+class _Handler extends Mock implements PlayerHandler {}
+
+class _Kitchen extends OutputNotifier {
+  @override
+  String? build() => 'kitchen';
+}
+
+void controllerTests() {
+  test('a change in the players, such as a volume step, keeps the playback controller', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final players = StreamController<List<MaPlayer>>();
+    final client = MusicAssistantClient(Uri.parse('http://ma:8095'), 't');
+    final c = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        playbackProvider.overrideWithValue(_Handler()),
+        outputProvider.overrideWith(_Kitchen.new),
+        maClientProvider.overrideWithValue(client),
+        maSubsonicInstanceProvider.overrideWithValue(null),
+        ownSpeakerIdProvider.overrideWithValue('phone'),
+        maAllPlayersProvider.overrideWith((ref) => players.stream),
+      ],
+    );
+    addTearDown(c.dispose);
+    c.listen(playbackControllerProvider, (_, _) {});
+    players.add([player('kitchen'), player('phone')]);
+    await settle();
+    final before = c.read(playbackControllerProvider);
+    players.add([
+      MaPlayer({'player_id': 'kitchen', 'name': 'kitchen', 'volume_level': 40}),
+      player('phone'),
+    ]);
+    await settle();
+    expect(identical(c.read(playbackControllerProvider), before), isTrue);
+  });
 }
