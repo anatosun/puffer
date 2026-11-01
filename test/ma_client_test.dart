@@ -235,6 +235,54 @@ void main() {
     await client.close();
   });
 
+  test('a queue item keeps its track when an update leaves out its provider mappings', () async {
+    final client = await connected();
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      providerInstance: 'opensubsonic--abc',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+    );
+    // Three tracks sent against the two items the fake server lists, so the queue order cannot stand in for the mappings.
+    await controller.playTracks([
+      Track({'id': 't1', 'title': 'One'}),
+      Track({'id': 't2', 'title': 'Two'}),
+      Track({'id': 't3', 'title': 'Three'}),
+    ]);
+    Map<String, dynamic> update(Map<String, dynamic> media) => {
+      'event': 'queue_updated',
+      'object_id': 'kitchen',
+      'data': {
+        'queue_id': 'kitchen',
+        'state': 'playing',
+        'items': 2,
+        'current_index': 0,
+        'current_item': {
+          'queue_item_id': 'q1',
+          'name': 'One',
+          'media_item': media,
+        },
+      },
+    };
+    final mapped = controller.state.firstWhere((np) => np?.track != null);
+    server.send(
+      update({
+        'name': 'One',
+        'provider_mappings': [
+          {'item_id': 't1', 'provider_instance': 'opensubsonic--abc'},
+        ],
+      }),
+    );
+    expect((await mapped)!.track?.id, 't1');
+
+    // As after a seek: the same item, described without its mappings.
+    final after = controller.state.skip(1).first;
+    server.send(update({'name': 'One'}));
+    expect((await after)!.track?.id, 't1');
+    controller.dispose();
+    await client.close();
+  });
+
   test('now playing maps the queue item back to the Subsonic track', () async {
     final client = await connected();
     final controller = MusicAssistantPlaybackController(

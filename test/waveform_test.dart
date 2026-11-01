@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/subsonic/subsonic_client.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _credentials = ServerCredentials(
   baseUrl: 'http://navidrome',
@@ -72,9 +73,16 @@ SubsonicClient _client(
   }),
 );
 
-ProviderContainer _container(SubsonicClient client, {bool offline = false}) {
+Future<ProviderContainer> _container(
+  SubsonicClient client, {
+  bool offline = false,
+  Map<String, Object> settings = const {},
+}) async {
+  SharedPreferences.setMockInitialValues(settings);
+  final prefs = await SharedPreferences.getInstance();
   final c = ProviderContainer(
     overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
       clientProvider.overrideWithValue(client),
       isOfflineProvider.overrideWithValue(offline),
     ],
@@ -121,7 +129,7 @@ void main() {
         'getWaveform': _ok(_waveform),
       });
       client.loadExtensions();
-      final c = _container(client);
+      final c = await _container(client);
       expect(await c.read(waveformProvider('song-1').future), [
         0,
         64,
@@ -138,7 +146,7 @@ void main() {
           'getOpenSubsonicExtensions': _ok({'openSubsonicExtensions': []}),
         }, requests: requests);
         client.loadExtensions();
-        final c = _container(client);
+        final c = await _container(client);
         expect(await c.read(waveformProvider('song-1').future), isNull);
         expect(
           requests.map((u) => u.pathSegments.last),
@@ -153,8 +161,26 @@ void main() {
         'getWaveform': _disabled,
       });
       client.loadExtensions();
-      final c = _container(client);
+      final c = await _container(client);
       expect(await c.read(waveformProvider('song-1').future), isNull);
+    });
+
+    test('returns null without a request when waveforms are off', () async {
+      final requests = <Uri>[];
+      final client = _client({
+        'getOpenSubsonicExtensions': _ok(_extensions),
+        'getWaveform': _ok(_waveform),
+      }, requests: requests);
+      client.loadExtensions();
+      final c = await _container(
+        client,
+        settings: {'experience.waveformStyle': 'off'},
+      );
+      expect(await c.read(waveformProvider('song-1').future), isNull);
+      expect(
+        requests.map((u) => u.pathSegments.last),
+        isNot(contains('getWaveform')),
+      );
     });
 
     test('returns null offline without any request', () async {
@@ -162,7 +188,7 @@ void main() {
       final client = _client({
         'getWaveform': _ok(_waveform),
       }, requests: requests);
-      final c = _container(client, offline: true);
+      final c = await _container(client, offline: true);
       expect(await c.read(waveformProvider('song-1').future), isNull);
       expect(requests, isEmpty);
     });
@@ -187,6 +213,20 @@ void main() {
     test('returns no bars without peaks', () {
       expect(waveformBars([], 10), isEmpty);
       expect(waveformBars([1, 2], 0), isEmpty);
+    });
+  });
+
+  group('smoothBars', () {
+    test('a lone peak spreads to its neighbours, nearest most', () {
+      final smoothed = smoothBars([0, 0, 1, 0, 0]);
+      expect(smoothed[2], closeTo(6 / 16, 1e-9));
+      expect(smoothed[1], greaterThan(smoothed[0]));
+      expect(smoothed[1], closeTo(smoothed[3], 1e-9));
+    });
+
+    test('even levels stay even, ends included', () {
+      expect(smoothBars([0.5, 0.5, 0.5]), [0.5, 0.5, 0.5]);
+      expect(smoothBars([]), isEmpty);
     });
   });
 }

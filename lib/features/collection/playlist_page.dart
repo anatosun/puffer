@@ -119,7 +119,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     ).then((_) async {
       // The playlist is gone after "Delete playlist".
       if (!mounted) return;
-      final exists = (await ref.read(recentPlaylistsProvider.future))
+      final exists = (await ref.read(playlistsProvider.future))
           .any((x) => x.id == p.id);
       if (!exists && mounted) context.pop();
     });
@@ -146,7 +146,8 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
         if (!editable)
           SliverList.builder(
             itemCount: _entries.length,
-            itemBuilder: (context, i) => TrackTile(tracks: _entries, index: i),
+            itemBuilder: (context, i) =>
+                TrackTile(tracks: _entries, index: i, playlistId: playlist.id),
           )
         else
           SliverReorderableList(
@@ -165,6 +166,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
               child: TrackTile(
                 tracks: _entries,
                 index: i,
+                playlistId: playlist.id,
                 handle: ReorderableDragStartListener(
                   index: i,
                   child: Padding(

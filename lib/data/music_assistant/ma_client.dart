@@ -288,6 +288,11 @@ class MusicAssistantClient {
     {'player_id': player.id, 'volume_level': volume},
   );
 
+  /// Pauses [player] while it plays and resumes it otherwise, whichever device chose what it plays. With its [queue], the queue toggles, which also resumes a player that went idle with the queue loaded.
+  Future<void> playPause(MaPlayer player, [MaQueue? queue]) => queue == null
+      ? command('players/cmd/play_pause', {'player_id': player.id})
+      : command('player_queues/play_pause', {'queue_id': queue.id});
+
   /// Sends a command. Loading media into a queue makes Music Assistant resolve every item first, so it answers late.
   Future<Object?> command(String command, [MaJson args = const {}]) {
     final timeout = command == 'player_queues/play_media'

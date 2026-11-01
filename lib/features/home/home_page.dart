@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
+import '../../data/repositories/library_repository.dart';
 import '../../data/subsonic/models.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
@@ -15,20 +17,6 @@ import '../cast/output_sheet.dart';
 import '../library/album_lists.dart';
 import '../library/downloaded.dart';
 
-/// Yields [cached] first when there is one, then [fresh]. A failure of [fresh] after a cached value keeps the cached value.
-Stream<T> _cachedThenFresh<T>(
-  Future<T?> cached,
-  Future<T> Function() fresh,
-) async* {
-  final first = await cached;
-  if (first != null) yield first;
-  try {
-    yield await fresh();
-  } on Exception {
-    if (first == null) rethrow;
-  }
-}
-
 /// The albums of a Home shelf. They stay in memory for the session and show from the cache at start-up while the server answers; pull to refresh reloads them.
 final albumListProvider = StreamProvider.family<List<Album>, String>((
   ref,
@@ -37,24 +25,24 @@ final albumListProvider = StreamProvider.family<List<Album>, String>((
   final repository = ref.watch(repositoryProvider);
   ref.watch(isOfflineProvider);
   if (repository == null) return Stream.value(const []);
-  return _cachedThenFresh(
+  return cachedThenFresh(
     repository.cachedAlbumList(type, size: 20),
     () => repository.albumList(type, size: 20),
   );
 });
 
-/// Playlists, most recently changed first, cached like [albumListProvider].
-final recentPlaylistsProvider = StreamProvider<List<Playlist>>((ref) {
+/// Every playlist on the server, cached like [albumListProvider].
+final playlistsProvider = StreamProvider<List<Playlist>>((ref) {
   final repository = ref.watch(repositoryProvider);
   ref.watch(isOfflineProvider);
   if (repository == null) return Stream.value(const []);
-  List<Playlist> sorted(List<Playlist> playlists) =>
-      [...playlists]
-        ..sort((a, b) => (b.changed ?? '').compareTo(a.changed ?? ''));
-  return _cachedThenFresh(
-    repository.cachedPlaylists().then((p) => p == null ? null : sorted(p)),
-    () async => sorted(await repository.playlists()),
-  );
+  return cachedThenFresh(repository.cachedPlaylists(), repository.playlists);
+});
+
+/// Playlists, most recently played on this device or changed on the server first.
+final recentPlaylistsProvider = Provider<AsyncValue<List<Playlist>>>((ref) {
+  final played = ref.watch(playlistHistoryProvider);
+  return ref.watch(playlistsProvider).whenData((p) => byRecency(p, played));
 });
 
 String _greeting(DateTime now) => switch (now.hour) {
@@ -197,7 +185,7 @@ class HomePage extends ConsumerWidget {
         body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(albumListProvider);
-            ref.invalidate(recentPlaylistsProvider);
+            ref.invalidate(playlistsProvider);
           },
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
@@ -206,16 +194,16 @@ class HomePage extends ConsumerWidget {
               // Offline, only downloaded albums can play.
               for (final setting in ref.watch(homeShelvesProvider))
                 if (setting.visible &&
-                    (!offline || setting.shelf == HomeShelf.downloaded))
-                  switch (setting.shelf) {
+                    (!offline || setting.item == HomeShelf.downloaded))
+                  switch (setting.item) {
                     HomeShelf.downloaded => _Shelf(
-                      shelf: setting.shelf,
+                      shelf: setting.item,
                       items: ref.watch(downloadedAlbumsProvider),
                       builder: (albums, loading) =>
                           AlbumShelf(albums, loading: loading),
                     ),
                     HomeShelf.playlists => _Shelf(
-                      shelf: setting.shelf,
+                      shelf: setting.item,
                       items: ref.watch(recentPlaylistsProvider),
                       builder: (playlists, loading) => PlaylistShelf(
                         playlists.take(20).toList(),
@@ -223,9 +211,9 @@ class HomePage extends ConsumerWidget {
                       ),
                     ),
                     _ => _Shelf(
-                      shelf: setting.shelf,
+                      shelf: setting.item,
                       items: ref.watch(
-                        albumListProvider(setting.shelf.albumList!),
+                        albumListProvider(setting.item.albumList!),
                       ),
                       builder: (albums, loading) =>
                           AlbumShelf(albums, loading: loading),
@@ -306,7 +294,7 @@ class ShelfPage extends ConsumerWidget {
               itemCount: playlists.length,
               itemBuilder: (_, i) => PlaylistTile(playlists[i]),
             ),
-            onRetry: () => ref.invalidate(recentPlaylistsProvider),
+            onRetry: () => ref.invalidate(playlistsProvider),
           ),
           _ => PagedAlbumGrid(albumQuery(shelf.albumList!)),
         },

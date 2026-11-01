@@ -210,15 +210,26 @@ class ReplayGainNotifier extends Notifier<ReplayGainMode> {
   }
 }
 
-/// The streaming quality for the current network.
-final streamingQualityProvider = Provider<DownloadQuality>((ref) {
+/// Whether the phone streams over cellular: a mobile connection without Wi-Fi or a wired one.
+final onCellularProvider = Provider<bool>((ref) {
   final networks = ref.watch(connectivityProvider).value ?? const [];
-  final cellular =
-      networks.contains(ConnectivityResult.mobile) &&
+  return networks.contains(ConnectivityResult.mobile) &&
       !networks.contains(ConnectivityResult.wifi) &&
       !networks.contains(ConnectivityResult.ethernet);
-  return ref.watch(cellular ? cellularQualityProvider : wifiQualityProvider);
 });
+
+/// The streaming quality setting of the current network.
+final currentQualitySettingProvider =
+    Provider<NotifierProvider<StreamingQualityNotifier, DownloadQuality>>(
+      (ref) => ref.watch(onCellularProvider)
+          ? cellularQualityProvider
+          : wifiQualityProvider,
+    );
+
+/// The streaming quality for the current network.
+final streamingQualityProvider = Provider<DownloadQuality>(
+  (ref) => ref.watch(ref.watch(currentQualitySettingProvider)),
+);
 
 // ------------------------------------------------------------ offline
 

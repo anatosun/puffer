@@ -24,6 +24,7 @@ import '../features/settings/settings_page.dart';
 import '../ui/messages.dart';
 import '../ui/theme.dart';
 import 'experience.dart';
+import 'playback_providers.dart';
 import 'providers.dart';
 import 'shortcuts.dart';
 import 'sendspin_providers.dart';
@@ -34,7 +35,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(signedIn.dispose);
 
   return GoRouter(
-    initialLocation: ref.read(startTabProvider).path,
+    initialLocation: ref.read(effectiveStartTabProvider).path,
     refreshListenable: signedIn,
     redirect: (context, state) {
       final atLogin = state.matchedLocation == '/login';
@@ -149,6 +150,7 @@ class App extends ConsumerWidget {
     ref.watch(playbackProvider);
     ref.watch(queuePersistenceProvider);
     ref.watch(sendspinServiceProvider);
+    ref.watch(followSpeakerProvider);
     ref.watch(playingWaveformProvider);
     // Once per session: downloaded playlists pick up changes, and automatic downloads follow the starred items.
     ref.watch(startupSyncProvider);
@@ -178,42 +180,43 @@ class App extends ConsumerWidget {
   }
 }
 
-class _Shell extends StatelessWidget {
+/// The navigation bar with the tabs the person chose. Pages outside every tab, such as an album, keep the tab they were opened from selected.
+class _Shell extends ConsumerStatefulWidget {
   const _Shell({required this.location, required this.child});
 
   final String location;
   final Widget child;
 
-  static const _tabs = ['/home', '/library', '/search'];
+  @override
+  ConsumerState<_Shell> createState() => _ShellState();
+}
+
+class _ShellState extends ConsumerState<_Shell> {
+  MainTab? _last;
 
   @override
   Widget build(BuildContext context) {
-    // Settings open from the library, so the library tab stays selected.
-    final index = location.startsWith('/settings')
-        ? 1
-        : _tabs.indexWhere(location.startsWith);
+    final tabs = ref.watch(visibleTabsProvider);
+    final tab = tabFor(widget.location, tabs) ?? _last;
+    _last = tab;
+    final index = tab == null ? 0 : tabs.indexOf(tab).clamp(0, tabs.length);
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SpeakerBar(),
           const MiniPlayer(),
           NavigationBar(
-            selectedIndex: index < 0 ? 0 : index,
-            onDestinationSelected: (i) => context.go(_tabs[i]),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music),
-                label: 'Library',
-              ),
-              NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+            selectedIndex: index,
+            onDestinationSelected: (i) => context.go(tabs[i].path),
+            destinations: [
+              for (final t in tabs)
+                NavigationDestination(
+                  icon: Icon(t.icon),
+                  selectedIcon: Icon(t.selectedIcon),
+                  label: t.label,
+                ),
             ],
           ),
         ],

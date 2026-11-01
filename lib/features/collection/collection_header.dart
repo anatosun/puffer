@@ -45,6 +45,9 @@ class CollectionView extends ConsumerWidget {
   final List<Widget>? actions;
   final List<Widget> slivers;
 
+  /// The playlist this view shows, which counts as played when played from here.
+  String? get _playlistId => pinKind == PinKind.playlist ? pinId : null;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = artworkScheme(ref, coverArt, Theme.of(context).brightness);
@@ -213,7 +216,13 @@ class CollectionView extends ConsumerWidget {
                       tooltip: 'Shuffle',
                       onPressed: tracks.isEmpty
                           ? null
-                          : () => playFrom(ref, tracks, 0, shuffle: true),
+                          : () => playFrom(
+                              ref,
+                              tracks,
+                              0,
+                              shuffle: true,
+                              playlistId: _playlistId,
+                            ),
                       icon: const Icon(Icons.shuffle),
                     ),
                     const SizedBox(width: 12),
@@ -226,7 +235,12 @@ class CollectionView extends ConsumerWidget {
                       ),
                       onPressed: tracks.isEmpty
                           ? null
-                          : () => playFrom(ref, tracks, 0),
+                          : () => playFrom(
+                              ref,
+                              tracks,
+                              0,
+                              playlistId: _playlistId,
+                            ),
                       icon: const Icon(Icons.play_arrow_rounded),
                     ),
                   ],
@@ -252,18 +266,32 @@ class CollectionPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(appBar: AppBar(), body: body);
 }
 
-/// A star button for albums and artists. Adding to the library also pins the item when automatic downloads are on.
+/// A heart button for tracks, albums and artists. Adding to the library also pins the item when automatic downloads are on.
 class StarButton extends ConsumerStatefulWidget {
   const StarButton({
     super.key,
     required this.starred,
+    this.trackId,
     this.albumId,
     this.artistId,
+    this.json,
+    this.color,
+    this.dense = false,
   });
 
   final bool starred;
+  final String? trackId;
   final String? albumId;
   final String? artistId;
+
+  /// The JSON of the item, updated once the server accepts the change, so the item shows the new state until it reloads.
+  final Map<String, dynamic>? json;
+
+  /// The colour of the filled heart.
+  final Color? color;
+
+  /// A narrower button, for rows that hold more than the heart.
+  final bool dense;
 
   @override
   ConsumerState<StarButton> createState() => _StarButtonState();
@@ -276,7 +304,15 @@ class _StarButtonState extends ConsumerState<StarButton> {
   Widget build(BuildContext context) {
     final offline = ref.watch(isOfflineProvider);
     return IconButton(
-      iconSize: 26,
+      iconSize: widget.dense ? 24 : 26,
+      style: widget.dense
+          ? IconButton.styleFrom(
+              minimumSize: const Size(28, 40),
+              fixedSize: const Size(28, 40),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            )
+          : null,
       tooltip: _starred ? 'Remove from library' : 'Add to library',
       onPressed: offline
           ? null
@@ -288,15 +324,34 @@ class _StarButtonState extends ConsumerState<StarButton> {
                     .read(repositoryProvider)!
                     .setStarred(
                       starred: value,
+                      trackId: widget.trackId,
                       albumId: widget.albumId,
                       artistId: widget.artistId,
                     );
+                rememberStar(widget.json, value);
                 await ref.read(syncAutomaticDownloadsProvider)();
               } on Exception {
                 if (mounted) setState(() => _starred = !value);
               }
             },
-      icon: Icon(_starred ? Icons.favorite : Icons.favorite_border),
+      icon: Icon(
+        _starred ? Icons.favorite : Icons.favorite_border,
+        color: _starred ? widget.color : null,
+      ),
     );
+  }
+}
+
+/// Records a heart in the JSON of an item, which may be a constant map.
+void rememberStar(Map<String, dynamic>? json, bool starred) {
+  if (json == null) return;
+  try {
+    if (starred) {
+      json['starred'] = DateTime.now().toUtc().toIso8601String();
+    } else {
+      json.remove('starred');
+    }
+  } on UnsupportedError {
+    // A constant map.
   }
 }

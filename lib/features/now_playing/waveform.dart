@@ -3,13 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/experience.dart';
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 
-/// Whether the seek bar shows waveforms: the server reports the `songWaveform` extension and the app is online. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
+/// Whether the seek bar shows waveforms: the person has not turned them off, the server reports the `songWaveform` extension and the app is online. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
 final waveformSupportedProvider = FutureProvider.autoDispose<bool>((ref) async {
   final client = ref.watch(clientProvider);
   if (client == null || ref.watch(isOfflineProvider)) return false;
+  if (ref.watch(waveformStyleProvider) == WaveformStyle.off) return false;
   return client.supports('songWaveform');
 });
 
@@ -52,13 +54,29 @@ List<double> waveformBars(List<int> peaks, int count) {
   });
 }
 
-/// Draws [peaks] as vertically centred bars, in [played] up to [progress] (0 to 1) and in [unplayed] after it.
+/// Smooths [bars] with a small Gaussian kernel, so neighbouring bars rise and fall together and the outline reads as a curve. Each bar averages itself and the two bars on either side, the nearest weighing most; at the ends, the weights of the missing neighbours are left out.
+List<double> smoothBars(List<double> bars) {
+  const weights = [1.0, 4.0, 6.0, 4.0, 1.0];
+  return List.generate(bars.length, (i) {
+    var sum = 0.0, total = 0.0;
+    for (var k = -2; k <= 2; k++) {
+      final j = i + k;
+      if (j < 0 || j >= bars.length) continue;
+      sum += bars[j] * weights[k + 2];
+      total += weights[k + 2];
+    }
+    return sum / total;
+  });
+}
+
+/// Draws [peaks] as vertically centred bars, smoothed by [smoothBars],, in [played] up to [progress] (0 to 1) and in [unplayed] after it.
 class WaveformPainter extends CustomPainter {
   const WaveformPainter({
     required this.peaks,
     required this.progress,
     required this.played,
     required this.unplayed,
+    this.smooth = true,
   });
 
   static const barWidth = 2.0;
@@ -69,11 +87,15 @@ class WaveformPainter extends CustomPainter {
   final Color played;
   final Color unplayed;
 
+  /// Smooths the bars with [smoothBars]; otherwise each bar shows its own loudness.
+  final bool smooth;
+
   @override
   void paint(Canvas canvas, Size size) {
     const step = barWidth + barGap;
     final count = ((size.width + barGap) / step).floor();
-    final bars = waveformBars(peaks, count);
+    final raw = waveformBars(peaks, count);
+    final bars = smooth ? smoothBars(raw) : raw;
     final playedX = progress * size.width;
     final playedPaint = Paint()..color = played;
     final unplayedPaint = Paint()..color = unplayed;
@@ -96,5 +118,6 @@ class WaveformPainter extends CustomPainter {
       !identical(peaks, oldDelegate.peaks) ||
       progress != oldDelegate.progress ||
       played != oldDelegate.played ||
-      unplayed != oldDelegate.unplayed;
+      unplayed != oldDelegate.unplayed ||
+      smooth != oldDelegate.smooth;
 }

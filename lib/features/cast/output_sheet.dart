@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
+import '../../app/sendspin_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
 import '../../data/music_assistant/ma_models.dart';
-import '../../playback/ma_playback_controller.dart';
 import '../../ui/messages.dart';
 import '../../ui/player_icons.dart';
 import '../../ui/theme.dart';
@@ -22,18 +22,31 @@ class OutputButton extends ConsumerWidget {
     if (ref.watch(maCredentialsProvider) == null) {
       return const SizedBox.shrink();
     }
+    // The phone as a speaker counts as this device.
     final output = ref.watch(outputProvider);
-    final color = output == null ? null : Theme.of(context).colorScheme.primary;
+    final remote =
+        output != null && !ref.watch(ownPlayerIdsProvider).contains(output);
+    final color = remote ? Theme.of(context).colorScheme.primary : null;
     final icon = Icon(
-      output == null ? Icons.speaker_group_outlined : Icons.speaker_group,
+      remote ? Icons.speaker_group : Icons.speaker_group_outlined,
       color: color,
     );
-    final name = ref.watch(nowPlayingProvider).value?.outputName;
+    final name = remote
+        ? ref.watch(nowPlayingProvider).value?.outputName
+        : null;
     if (showName && name != null) {
       return TextButton.icon(
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
         onPressed: () => showOutputSheet(context),
         icon: icon,
-        label: Text(name, style: TextStyle(color: color)),
+        label: Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: color),
+        ),
       );
     }
     return IconButton(
@@ -43,6 +56,22 @@ class OutputButton extends ConsumerWidget {
     );
   }
 }
+
+/// The state a player shows in the sheet. Many players report idle rather than paused, so a player with a current item in its queue counts as paused.
+MaPlaybackState sheetState(MaPlayer player, MaQueue? queue) {
+  if (player.state == MaPlaybackState.playing) return MaPlaybackState.playing;
+  if (player.state == MaPlaybackState.paused || queue?.currentItem != null) {
+    return MaPlaybackState.paused;
+  }
+  return player.state;
+}
+
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
+}
+
+String? _describe(MaQueueItem? item) =>
+    item == null ? null : [item.title, item.artist].nonNulls.join(' · ');
 
 Future<void> showOutputSheet(BuildContext context) =>
     showModalBottomSheet<void>(
@@ -61,7 +90,15 @@ class _OutputSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final output = ref.watch(outputProvider);
     final status = ref.watch(maStatusProvider).value;
-    final players = ref.watch(maPlayersProvider).value ?? const <MaPlayer>[];
+    // This phone as a speaker is the "This device" row rather than a player of its own.
+    final own = ref.watch(ownPlayerIdsProvider);
+    final onThisDevice = output == null || own.contains(output);
+    // What plays or is paused on this phone, itself or as a speaker.
+    final here = onThisDevice ? ref.watch(nowPlayingProvider).value : null;
+    final players = [
+      for (final p in ref.watch(maPlayersProvider).value ?? const <MaPlayer>[])
+        if (!own.contains(p.id)) p,
+    ];
     final queues = ref.watch(maQueuesProvider).value ?? const {};
     final client = ref.watch(maClientProvider);
     final router = GoRouter.maybeOf(context);
@@ -75,14 +112,39 @@ class _OutputSheet extends ConsumerWidget {
         if (id != leader.id && byId[id] != null) id: byId[id]!,
     }.values.toList();
 
-    final current = byId[output];
+    // The Music Assistant player of this phone as a speaker: the one in use, or else a shown one before the hidden protocol player under it.
+    final ownPlayers =
+        [
+          for (final p
+              in ref.watch(maAllPlayersProvider).value ?? const <MaPlayer>[])
+            if (own.contains(p.id)) p,
+        ]..sort(
+          (a, b) =>
+              (a.id == output
+                      ? 0
+                      : a.usable
+                      ? 1
+                      : 2)
+                  .compareTo(
+                    b.id == output
+                        ? 0
+                        : b.usable
+                        ? 1
+                        : 2,
+                  ),
+        );
+    final ownPlayer = ownPlayers.firstOrNull;
+    // On this device, other speakers sync with the phone's own player, provided Music Assistant knows it.
+    final current = onThisDevice ? ownPlayer : byId[output];
     bool inCurrentGroup(MaPlayer p) =>
         current != null && membersOf(current).any((m) => m.id == p.id);
 
     void select(MaPlayer? player) {
       // The sheet closes before the switch ends, so the switch runs on a provider rather than on the ref of this widget.
-      final output = ref.read(outputSwitcherProvider);
+      final switcher = ref.read(outputSwitcherProvider);
       Navigator.pop(context);
+      // Music Assistant already plays on this phone.
+      if (player == null && own.contains(output)) return;
       runPlayback(() async {
         // A player that follows another plays the whole group; picking it alone takes it out first.
         if (player != null && player.syncedTo != null) {
@@ -90,19 +152,25 @@ class _OutputSheet extends ConsumerWidget {
             'player_id': player.id,
           });
         }
-        await output.switchTo(player?.id);
+        await switcher.switchTo(player?.id);
       });
     }
 
-    Future<void> toggleMember(MaPlayer p, bool add) async {
-      final controller = ref.read(playbackControllerProvider);
-      if (controller is MusicAssistantPlaybackController) {
-        await controller.setMembers(
-          add: add ? [p.id] : const [],
-          remove: add ? const [] : [p.id],
-        );
+    /// Syncs [p] with the current output, or stops syncing it. Music playing on the phone itself moves to the phone's Music Assistant player first, since only that player plays in sync with others.
+    Future<void> toggleMember(MaPlayer p, bool add) => runPlayback(() async {
+      final leader = current;
+      if (leader == null || client == null) return;
+      if (add && output == null) {
+        await ref.read(outputSwitcherProvider).switchTo(leader.id);
       }
-    }
+      await client.command('players/cmd/set_members', {
+        'target_player': leader.id,
+        if (add)
+          'player_ids_to_add': [p.id]
+        else
+          'player_ids_to_remove': [p.id],
+      });
+    });
 
     Future<void> ungroup(List<String> ids) => runPlayback(() async {
       await client?.command('players/cmd/ungroup_many', {'player_ids': ids});
@@ -113,9 +181,14 @@ class _OutputSheet extends ConsumerWidget {
           player.id != current.id &&
           (inCurrentGroup(player) ||
               current.canGroupWith.contains(player.id))) {
-        return Checkbox(
-          value: inCurrentGroup(player),
-          onChanged: (v) => toggleMember(player, v ?? false),
+        final member = inCurrentGroup(player);
+        final leaderName = onThisDevice ? 'this device' : current.name;
+        return IconButton(
+          tooltip: member
+              ? 'Stop syncing ${player.name}'
+              : 'Sync ${player.name} with $leaderName',
+          icon: Icon(member ? Icons.link_off : Icons.link),
+          onPressed: () => toggleMember(player, !member),
         );
       }
       if (following) {
@@ -132,6 +205,8 @@ class _OutputSheet extends ConsumerWidget {
     final followers = {
       for (final p in players)
         if (p.selectable && p.type != 'group') ...membersOf(p).map((m) => m.id),
+      // The speakers synced with this phone show under This device.
+      if (ownPlayer != null) ...membersOf(ownPlayer).map((m) => m.id),
     };
     for (final leader in players.where(
       (p) => p.selectable && !followers.contains(p.id),
@@ -140,9 +215,10 @@ class _OutputSheet extends ConsumerWidget {
       // A group player is a fixed group configured in Music Assistant; its members cannot be released one by one.
       final fixed = leader.type == 'group';
       final selected = output == leader.id;
+      final queue = queues[leader.id];
+      final state = sheetState(leader, queue);
       final active =
-          leader.state == MaPlaybackState.playing ||
-          leader.state == MaPlaybackState.paused;
+          state == MaPlaybackState.playing || state == MaPlaybackState.paused;
       // Volume sliders show for the output and for players that have something loaded, so idle speakers keep the list short.
       final showVolume = selected || active;
       rows.add(
@@ -152,10 +228,13 @@ class _OutputSheet extends ConsumerWidget {
           detail: members.isEmpty
               ? null
               : 'With ${members.map((m) => m.name).join(', ')}',
-          state: leader.state,
-          item: queues[leader.id]?.currentItem,
+          state: state,
+          media: active ? _describe(queue?.currentItem) : null,
           selected: selected,
           onTap: () => select(leader),
+          onPlayPause: active && client != null
+              ? () => runPlayback(() => client.playPause(leader, queue))
+              : null,
           volume: showVolume ? leader : null,
           trailing: selected
               ? null
@@ -206,7 +285,7 @@ class _OutputSheet extends ConsumerWidget {
                     ),
                   ),
                   // Leaves the speaker playing and returns to this device without moving the music, unlike a tap on "This device".
-                  if (output != null)
+                  if (output != null && !own.contains(output))
                     TextButton.icon(
                       icon: const Icon(Icons.link_off),
                       label: const Text('Disconnect'),
@@ -221,9 +300,47 @@ class _OutputSheet extends ConsumerWidget {
             _OutputTile(
               icon: Icons.smartphone,
               title: 'This device',
-              selected: output == null,
+              // While the phone is a speaker, the name Music Assistant shows for it.
+              detail: [
+                if (ref.watch(sendspinEnabledProvider))
+                  '"${ref.watch(sendspinNameProvider)}" in Music Assistant',
+                if (onThisDevice && ownPlayer != null)
+                  if (membersOf(ownPlayer) case final members
+                      when members.isNotEmpty)
+                    'with ${members.map((m) => m.name).join(', ')}',
+              ].join(' · ').nullIfEmpty,
+              state: here == null
+                  ? null
+                  : here.playing
+                  ? MaPlaybackState.playing
+                  : MaPlaybackState.paused,
+              media: here == null
+                  ? null
+                  : [here.title, here.artist].nonNulls.join(' · '),
+              selected: onThisDevice,
               onTap: () => select(null),
+              onPlayPause: here == null
+                  ? null
+                  : () => runPlayback(() {
+                      final controller = ref.read(playbackControllerProvider);
+                      return here.playing
+                          ? controller.pause()
+                          : controller.play();
+                    }),
             ),
+            // The speakers synced with this phone, under it as under any group leader.
+            if (ownPlayer != null && status == MaConnectionStatus.connected)
+              for (final member in membersOf(ownPlayer))
+                _OutputTile(
+                  icon: playerIcon(member.icon),
+                  title: member.name,
+                  detail: 'In group with this device',
+                  indent: true,
+                  selected: false,
+                  onTap: () => select(member),
+                  volume: onThisDevice ? member : null,
+                  trailing: groupControl(member, following: true),
+                ),
             const SizedBox(height: 4),
             if (status != MaConnectionStatus.connected)
               ListTile(
@@ -265,9 +382,10 @@ class _OutputTile extends StatelessWidget {
     required this.title,
     this.detail,
     this.state,
-    this.item,
+    this.media,
     required this.selected,
     required this.onTap,
+    this.onPlayPause,
     this.volume,
     this.trailing,
     this.indent = false,
@@ -280,10 +398,13 @@ class _OutputTile extends StatelessWidget {
   final String? detail;
   final MaPlaybackState? state;
 
-  /// What the queue of the player has loaded.
-  final MaQueueItem? item;
+  /// What the player has loaded, playing or paused, as title and artist.
+  final String? media;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Pauses or resumes the player, without making it the output.
+  final VoidCallback? onPlayPause;
 
   /// The player whose volume the slider sets.
   final MaPlayer? volume;
@@ -297,10 +418,6 @@ class _OutputTile extends StatelessWidget {
     final colors = context.colors;
     final accent = selected ? colors.primary : colors.onSurface;
     final playing = state == MaPlaybackState.playing;
-    final loaded = item != null && (playing || state == MaPlaybackState.paused);
-    final media = loaded
-        ? [item!.title, item!.artist].nonNulls.join(' · ')
-        : null;
     final left = indent ? 40.0 : 12.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(left, 2, 12, 2),
@@ -348,7 +465,7 @@ class _OutputTile extends StatelessWidget {
                               fontSize: 15,
                             ),
                           ),
-                          if (media != null && media.isNotEmpty)
+                          if (media case final media? when media.isNotEmpty)
                             Row(
                               children: [
                                 PlayingBars(
@@ -359,7 +476,7 @@ class _OutputTile extends StatelessWidget {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    playing ? media : 'Paused · $media',
+                                    media,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -383,13 +500,19 @@ class _OutputTile extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (selected)
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Icon(Icons.check, color: accent),
-                      )
-                    else
-                      ?trailing,
+                    if (onPlayPause != null)
+                      IconButton(
+                        tooltip: playing ? 'Pause $title' : 'Play $title',
+                        icon: Icon(
+                          playing
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_filled,
+                          color: accent,
+                        ),
+                        onPressed: onPlayPause,
+                      ),
+                    // The highlight marks the selected output.
+                    if (!selected) ?trailing,
                   ],
                 ),
                 if (volume case final player? when player.sliderVolume != null)

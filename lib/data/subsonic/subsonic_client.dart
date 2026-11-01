@@ -254,12 +254,19 @@ class SubsonicClient {
     await _get('deletePlaylist', {'id': id});
   }
 
-  Future<SearchResult> search(String query, {int count = 20}) async {
+  /// Searches artists, albums and songs, [count] of each unless a count of its own is given.
+  Future<SearchResult> search(
+    String query, {
+    int count = 20,
+    int? artistCount,
+    int? albumCount,
+    int? songCount,
+  }) async {
     final body = await _get('search3', {
       'query': query,
-      'artistCount': count,
-      'albumCount': count,
-      'songCount': count,
+      'artistCount': artistCount ?? count,
+      'albumCount': albumCount ?? count,
+      'songCount': songCount ?? count,
     });
     final result = body['searchResult3'] as Json? ?? const {};
     return SearchResult(

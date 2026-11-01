@@ -5,10 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/music_assistant/ma_client.dart';
 import '../data/music_assistant/ma_models.dart';
+import '../data/db/database.dart';
+import '../downloads/download_settings.dart';
+import '../playback/audio_format.dart';
 import '../playback/ma_playback_controller.dart';
 import '../playback/playback_controller.dart';
 import '../ui/messages.dart';
 import 'providers.dart';
+import 'sendspin_providers.dart';
 
 // ------------------------------------------------------------ Music Assistant session
 
@@ -303,6 +307,7 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
     controller = MusicAssistantPlaybackController(
       client,
       output,
+      thisDevice: ref.watch(ownPlayerIdsProvider).contains(output),
       providerInstance: ref.watch(maSubsonicInstanceProvider),
       streamUri: (track) => ref.read(clientProvider)!.streamUri(track.id),
       onError: (e) => showMessage('$e'),
@@ -319,6 +324,107 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
   }
   ref.onDispose(controller.dispose);
   return controller;
+});
+
+/// Every Music Assistant player, hidden ones included.
+final maAllPlayersProvider = StreamProvider<List<MaPlayer>>((ref) async* {
+  final client = ref.watch(maClientProvider);
+  if (client == null) {
+    yield const [];
+    return;
+  }
+  yield client.players.values.toList();
+  yield* client.playersStream.map((p) => p.values.toList());
+});
+
+/// The players that stand for this phone as a speaker: its own Sendspin player, which Music Assistant names by the client id, and any player that plays through it. The Play on sheet shows them as "This device".
+final ownPlayerIdsProvider = Provider<Set<String>>((ref) {
+  final own = ref.watch(ownSpeakerIdProvider);
+  if (own == null) return const {};
+  return {
+    own,
+    for (final p in ref.watch(maAllPlayersProvider).value ?? const <MaPlayer>[])
+      if (p.isBackedBy(own)) p.id,
+  };
+});
+
+/// The Music Assistant player whose queue plays on this phone as a speaker: the leader of the group the phone follows, or the phone itself. Null while the speaker is off or Music Assistant does not list it.
+final speakerSourceProvider = Provider<String?>((ref) {
+  final ids = ref.watch(ownPlayerIdsProvider);
+  if (ids.isEmpty) return null;
+  final players = ref.watch(maAllPlayersProvider).value ?? const <MaPlayer>[];
+  // A shown player that plays through the phone comes before the hidden protocol player under it.
+  final own = [
+    for (final p in players)
+      if (ids.contains(p.id)) p,
+  ]..sort((a, b) => (a.usable ? 0 : 1).compareTo(b.usable ? 0 : 1));
+  if (own.isEmpty) return null;
+  final p = own.first;
+  return p.syncedTo ?? p.activeGroup ?? p.id;
+});
+
+/// The player whose queue plays on this phone right now, or null while the speaker is silent.
+final _playingSpeakerSourceProvider = Provider<String?>((ref) {
+  final playing = ref.watch(sendspinStatusProvider).value?.playing ?? false;
+  return playing ? ref.watch(speakerSourceProvider) : null;
+});
+
+/// When Music Assistant starts playing on this phone as a speaker while the app plays on this device, the app follows that player, so the mini player and the player show what plays with every control, as for local playback. A player the person picked is left alone.
+final followSpeakerProvider = Provider<void>((ref) {
+  ref.listen(_playingSpeakerSourceProvider, (previous, source) {
+    if (source == null || source == previous) return;
+    if (ref.read(outputProvider) == null) {
+      ref.read(outputProvider.notifier).select(source);
+    }
+  });
+});
+
+/// Where the audio of the current song comes from, which decides what the streaming quality changes.
+enum PlayingSource { stream, download, musicAssistant }
+
+final playingSourceProvider = Provider.autoDispose<PlayingSource?>((ref) {
+  final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
+  if (track == null) return null;
+  if (ref.watch(outputProvider) != null) return PlayingSource.musicAssistant;
+  final file = ref.watch(trackFileProvider(track.id)).value;
+  return file?.status == FileStatus.complete && file?.path != null
+      ? PlayingSource.download
+      : PlayingSource.stream;
+});
+
+/// Sets the streaming quality of the current network. A song streaming on this device reloads at the new quality from where it was.
+final setStreamingQualityProvider =
+    Provider<Future<void> Function(DownloadQuality)>(
+      (ref) => (quality) async {
+        await ref
+            .read(ref.read(currentQualitySettingProvider).notifier)
+            .set(quality);
+        if (ref.read(playingSourceProvider) == PlayingSource.stream) {
+          await ref.read(playerHandlerProvider).reloadSources();
+        }
+      },
+    );
+
+/// The format of the track that plays, as [describeFormat] puts it. Music Assistant fetches the original file. This device plays the downloaded file, whose extension tells whether it was transcoded, or else streams at the streaming quality.
+final playingFormatProvider = Provider.autoDispose<PlayingFormat?>((ref) {
+  final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
+  if (track == null) return null;
+  if (ref.watch(outputProvider) != null) return describeFormat(track);
+  final file = ref.watch(trackFileProvider(track.id)).value;
+  final path = file?.path;
+  if (file?.status == FileStatus.complete && path != null) {
+    final dot = path.lastIndexOf('.');
+    return describeFormat(
+      track,
+      format: dot < 0 ? null : path.substring(dot + 1),
+    );
+  }
+  final quality = ref.watch(streamingQualityProvider);
+  return describeFormat(
+    track,
+    format: quality.format,
+    maxBitRate: quality.maxBitRate,
+  );
 });
 
 final nowPlayingProvider = StreamProvider<NowPlaying?>(

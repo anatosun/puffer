@@ -282,6 +282,7 @@ class RatingStars extends StatefulWidget {
     required this.onChanged,
     this.color,
     this.alignment = MainAxisAlignment.start,
+    this.dense = false,
   });
 
   final int rating;
@@ -290,6 +291,9 @@ class RatingStars extends StatefulWidget {
   /// The colour of the filled stars; the primary colour of the theme when null.
   final Color? color;
   final MainAxisAlignment alignment;
+
+  /// Narrower buttons, for rows that hold more than the stars.
+  final bool dense;
 
   @override
   State<RatingStars> createState() => _RatingStarsState();
@@ -307,11 +311,16 @@ class _RatingStarsState extends State<RatingStars> {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: widget.alignment,
+    mainAxisSize: widget.dense ? MainAxisSize.min : MainAxisSize.max,
     children: [
       for (var star = 1; star <= 5; star++)
         IconButton(
           tooltip: '$star stars',
           visualDensity: VisualDensity.compact,
+          padding: widget.dense ? EdgeInsets.zero : null,
+          constraints: widget.dense
+              ? const BoxConstraints.tightFor(width: 30, height: 40)
+              : null,
           icon: Icon(
             star <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
             color: star <= _rating

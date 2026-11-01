@@ -8,6 +8,30 @@ import '../db/database.dart';
 import '../subsonic/models.dart';
 import '../subsonic/subsonic_client.dart';
 
+/// Yields [cached] first when there is one, then [fresh]. A failure of [fresh] after a cached value keeps the cached value.
+Stream<T> cachedThenFresh<T>(
+  Future<T?> cached,
+  Future<T> Function() fresh,
+) async* {
+  final first = await cached;
+  if (first != null) yield first;
+  try {
+    yield await fresh();
+  } on Exception {
+    if (first == null) rethrow;
+  }
+}
+
+/// Whether every word of [query] appears in one of [fields], ignoring case.
+bool matchesQuery(String query, Iterable<String?> fields) {
+  final haystack = fields.nonNulls.join('\n').toLowerCase();
+  return query
+      .toLowerCase()
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .every(haystack.contains);
+}
+
 class OfflineException implements Exception {
   const OfflineException(this.what);
 
@@ -166,9 +190,36 @@ class LibraryRepository {
       'albums:$type:$size:$offset:${genre ?? ''}:${fromYear ?? ''}:${toYear ?? ''}';
 
   /// The cached first page of an album list, without asking the server.
-  Future<List<Album>?> cachedAlbumList(String type, {int size = 50}) async {
-    final json = await _cached('list', _albumListKey(type, size, 0));
+  Future<List<Album>?> cachedAlbumList(
+    String type, {
+    int size = 50,
+    String? genre,
+    int? fromYear,
+    int? toYear,
+  }) async {
+    final json = await _cached(
+      'list',
+      _albumListKey(type, size, 0, genre, fromYear, toYear),
+    );
     return json == null ? null : jsonList(json).map(Album.new).toList();
+  }
+
+  /// The cached artists, without asking the server.
+  Future<List<Artist>?> cachedArtists() async {
+    final json = await _cached('list', 'artists');
+    return json == null ? null : jsonList(json).map(Artist.new).toList();
+  }
+
+  /// Albums whose name or artist matches [query]: from the server, or from the cache offline.
+  Future<List<Album>> searchAlbums(String query, {int count = 200}) async {
+    if (isOffline()) return (await searchOffline(query)).albums;
+    final result = await client.search(
+      query,
+      artistCount: 0,
+      albumCount: count,
+      songCount: 0,
+    );
+    return result.albums;
   }
 
   /// The cached playlists, without asking the server.

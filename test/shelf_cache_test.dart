@@ -49,4 +49,96 @@ void main() {
       await db.close();
     },
   );
+
+  test('every word of a list search must match a field', () {
+    expect(matchesQuery('dark side', ['The Dark Side of the Moon']), isTrue);
+    expect(
+      matchesQuery('floyd moon', ['The Dark Side of the Moon', 'Pink Floyd']),
+      isTrue,
+    );
+    expect(
+      matchesQuery('floyd wall', ['The Dark Side of the Moon', 'Pink Floyd']),
+      isFalse,
+    );
+    expect(matchesQuery('  ', ['Anything']), isTrue);
+    expect(matchesQuery('x', [null]), isFalse);
+  });
+
+  test('an album search asks the server for albums only', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    late Uri asked;
+    final client = SubsonicClient(
+      const ServerCredentials(
+        baseUrl: 'http://navidrome',
+        username: 'u',
+        token: 't',
+        salt: 's',
+      ),
+      httpClient: MockClient((request) async {
+        asked = request.url;
+        return http.Response(
+          jsonEncode({
+            'subsonic-response': {
+              'status': 'ok',
+              'searchResult3': {
+                'album': [
+                  {'id': 'a1', 'name': 'Moon'},
+                ],
+              },
+            },
+          }),
+          200,
+        );
+      }),
+    );
+    final repository = LibraryRepository(client, db, isOffline: () => false);
+    final albums = await repository.searchAlbums('moon');
+    expect(albums.single.name, 'Moon');
+    expect(asked.queryParameters['albumCount'], '200');
+    expect(asked.queryParameters['artistCount'], '0');
+    expect(asked.queryParameters['songCount'], '0');
+    await db.close();
+  });
+
+  test('the artists show from the cache before the server answers', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    final client = SubsonicClient(
+      const ServerCredentials(
+        baseUrl: 'http://navidrome',
+        username: 'u',
+        token: 't',
+        salt: 's',
+      ),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'subsonic-response': {
+              'status': 'ok',
+              'artists': {
+                'index': [
+                  {
+                    'name': 'A',
+                    'artist': [
+                      {'id': 'r1', 'name': 'Abba'},
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+          200,
+        ),
+      ),
+    );
+    final repository = LibraryRepository(client, db, isOffline: () => false);
+    expect(await repository.cachedArtists(), isNull);
+    await repository.artists();
+    final emitted = await cachedThenFresh(
+      repository.cachedArtists(),
+      repository.artists,
+    ).toList();
+    expect(emitted, hasLength(2));
+    expect(emitted.first.single.name, 'Abba');
+    await db.close();
+  });
 }

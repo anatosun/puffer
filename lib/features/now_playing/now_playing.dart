@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,14 +8,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/experience.dart';
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
+import '../../data/subsonic/models.dart';
+import '../../playback/audio_format.dart';
 import '../../playback/playback_controller.dart';
+import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/playing_bars.dart';
 import '../cast/output_sheet.dart';
+import '../collection/collection_header.dart';
+import '../collection/playlist_edit.dart';
+import 'quality_sheet.dart';
 import 'waveform.dart';
 
 /// The artwork image of what is playing: the Subsonic cover when the track is known, otherwise the Music Assistant image.
@@ -242,13 +251,19 @@ class NowPlayingPage extends ConsumerWidget {
     final background = context.background;
     final highlight = scheme?.primary ?? context.colors.primary;
     final track = np?.track;
+    final online = !ref.watch(isOfflineProvider);
     final showRating =
+        track != null && ref.watch(playerRatingProvider) && online;
+    // The format badges, the stars and the heart share a row between the artwork and the title. Offline, only the badges show.
+    final format = ref.watch(playerFormatProvider)
+        ? ref.watch(playingFormatProvider)
+        : null;
+    final showFavourite = online && ref.watch(playerFavouriteProvider);
+    // An instant mix asks the server for similar songs, so it needs the connection.
+    final showMix = online;
+    final showTrackRow =
         track != null &&
-        ref.watch(playerRatingProvider) &&
-        !ref.watch(isOfflineProvider);
-    final showWaveform =
-        track != null && (ref.watch(waveformSupportedProvider).value ?? false);
-
+        (showRating || showFavourite || showMix || format != null);
     return _CloseWhenEmpty(
       child: Scaffold(
         backgroundColor: background,
@@ -260,13 +275,6 @@ class NowPlayingPage extends ConsumerWidget {
                 ? const SizedBox.shrink()
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      final artSize = (constraints.maxWidth - 48).clamp(
-                        0.0,
-                        // The stars take a row and the waveform makes the seek bar taller, so the artwork gives up the room.
-                        constraints.maxHeight *
-                            ((showRating ? 0.38 : 0.42) -
-                                (showWaveform ? 0.04 : 0)),
-                      );
                       return _PlayerScroll(
                         player: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -306,77 +314,112 @@ class NowPlayingPage extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-                              const Spacer(),
-                              // The bottom padding keeps the shadow of the artwork clear of the title. With stars, the spacers around them keep it clear.
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: showRating ? 0 : 22,
-                                ),
-                                child: GestureDetector(
-                                  // Swiping the artwork skips to the next or previous track.
-                                  onHorizontalDragEnd: (d) {
-                                    final v = d.primaryVelocity ?? 0;
-                                    if (v < -300) controller.next();
-                                    if (v > 300) controller.previous();
-                                  },
-                                  child: Hero(
-                                    tag: _artworkHeroTag,
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(
-                                        milliseconds: 300,
+                              const SizedBox(height: 8),
+                              // The artwork takes the height the rest leaves, up to the width of the page. The bottom padding keeps its shadow clear of what follows.
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, box) {
+                                    // Under the artwork, the row of badges, stars and heart takes 14 + 40 pixels; without it, the padding keeps the shadow of the artwork clear of the title.
+                                    final below = showTrackRow ? 54.0 : 22.0;
+                                    final artSize = math.max(
+                                      0.0,
+                                      math.min(
+                                        box.maxWidth,
+                                        box.maxHeight - below,
                                       ),
-                                      child: DecoratedBox(
-                                        key: ValueKey(
-                                          np.title + (np.album ?? ''),
-                                        ),
-                                        // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                    );
+                                    // The row spans the artwork, or 300 pixels when the artwork is narrower, so its badges still fit.
+                                    final rowWidth = math.max(
+                                      artSize,
+                                      math.min(box.maxWidth, 300.0),
+                                    );
+                                    final artwork = GestureDetector(
+                                      // Swiping the artwork skips to the next or previous track.
+                                      onHorizontalDragEnd:
+                                          ref.watch(swipeToSkipProvider)
+                                          ? (d) {
+                                              final v = d.primaryVelocity ?? 0;
+                                              if (v < -300) {
+                                                controller.next();
+                                              }
+                                              if (v > 300) {
+                                                controller.previous();
+                                              }
+                                            }
+                                          : null,
+                                      child: Hero(
+                                        tag: _artworkHeroTag,
+                                        child: AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 300,
                                           ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha:
-                                                    Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? 0.35
-                                                    : 0.15,
-                                              ),
-                                              blurRadius: 20,
-                                              spreadRadius: -4,
-                                              offset: const Offset(0, 8),
+                                          child: DecoratedBox(
+                                            key: ValueKey(
+                                              np.title + (np.album ?? ''),
                                             ),
-                                          ],
-                                        ),
-                                        child: _NowPlayingArtwork(
-                                          np.coverArt,
-                                          np.imageUrl,
-                                          size: artSize,
-                                          radius: 10,
+                                            // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withValues(
+                                                        alpha:
+                                                            Theme.of(
+                                                                  context,
+                                                                ).brightness ==
+                                                                Brightness.dark
+                                                            ? 0.35
+                                                            : 0.15,
+                                                      ),
+                                                  blurRadius: 20,
+                                                  spreadRadius: -4,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            child: _NowPlayingArtwork(
+                                              np.coverArt,
+                                              np.imageUrl,
+                                              size: artSize,
+                                              radius: 10,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
+                                    );
+                                    // Half the free height goes above the artwork; the rest is shared around the row, so it sits halfway between the artwork and the title.
+                                    final slack = math.max(
+                                      0.0,
+                                      box.maxHeight - artSize - below,
+                                    );
+                                    return Column(
+                                      children: [
+                                        SizedBox(height: slack / 2),
+                                        artwork,
+                                        if (showTrackRow) ...[
+                                          SizedBox(height: 14 + slack / 4),
+                                          SizedBox(
+                                            width: rowWidth,
+                                            height: 40,
+                                            child: _TrackRow(
+                                              track: track,
+                                              format: format,
+                                              rating: showRating,
+                                              favourite: showFavourite,
+                                              mix: showMix,
+                                              color: highlight,
+                                            ),
+                                          ),
+                                        ] else
+                                          const SizedBox(height: 22),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ),
-                              // The stars sit halfway between the artwork and the title.
-                              if (showRating) ...[
-                                const Spacer(),
-                                RatingStars(
-                                  key: ValueKey(track.id),
-                                  rating: track.rating,
-                                  color: highlight,
-                                  alignment: MainAxisAlignment.center,
-                                  onChanged: (value) async {
-                                    if (await rate(ref, track.id, value)) {
-                                      rememberRating(track.json, value);
-                                    }
-                                  },
-                                ),
-                              ],
-                              const Spacer(),
+                              const SizedBox(height: 18),
                               GestureDetector(
                                 onTap: track?.albumId == null
                                     ? null
@@ -416,50 +459,20 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 16),
                               _SeekBar(np: np, color: highlight),
-                              _Controls(np: np),
+                              _Controls(np: np, color: highlight),
                               if (np.volume != null)
                                 _VolumeSlider(
                                   volume: np.volume!,
                                   color: highlight,
                                 ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Shuffle',
-                                    color: np.shuffle
-                                        ? highlight
-                                        : context.muted,
-                                    icon: const Icon(Icons.shuffle),
-                                    onPressed: () =>
-                                        controller.setShuffle(!np.shuffle),
-                                  ),
-                                  // The output button takes a slot only once Music Assistant is set up.
-                                  if (ref.watch(maCredentialsProvider) != null)
-                                    const OutputButton(showName: true),
-                                  IconButton(
-                                    tooltip: 'Repeat',
-                                    color: np.repeat == Repeat.off
-                                        ? context.muted
-                                        : highlight,
-                                    icon: Icon(
-                                      np.repeat == Repeat.one
-                                          ? Icons.repeat_one
-                                          : Icons.repeat,
-                                    ),
-                                    onPressed: () => controller.setRepeat(
-                                      switch (np.repeat) {
-                                        Repeat.off => Repeat.all,
-                                        Repeat.all => Repeat.one,
-                                        Repeat.one => Repeat.off,
-                                      },
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(height: 8),
+                              // "Add to playlist", the next song and the speaker button. The speaker button shows once Music Assistant is set up.
+                              _BottomRow(
+                                np: np,
+                                speaker:
+                                    ref.watch(maCredentialsProvider) != null,
+                                upNext: ref.watch(upNextProvider),
                               ),
-                              _UpNext(np: np),
                             ],
                           ),
                         ),
@@ -610,6 +623,9 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                         peaks: peaks,
                         progress: max == 0 ? 0 : value / max,
                         played: widget.color,
+                        smooth:
+                            ref.watch(waveformStyleProvider) ==
+                            WaveformStyle.smooth,
                         unplayed: context.subtle,
                       ),
                     ),
@@ -620,14 +636,16 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
           ),
         const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               formatDuration(Duration(milliseconds: value.round())),
               style: style,
             ),
+            const Spacer(),
             Text(
-              '-${formatDuration(duration - Duration(milliseconds: value.round()))}',
+              ref.watch(remainingTimeProvider)
+                  ? '-${formatDuration(duration - Duration(milliseconds: value.round()))}'
+                  : formatDuration(duration),
               style: style,
             ),
           ],
@@ -637,17 +655,166 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
   }
 }
 
+/// The row under the artwork: the codec and quality badges at its left edge, the stars in the middle and the heart at its right edge. The sides have equal widths, so the stars stay centred, and a side shrinks its content rather than overflow.
+class _TrackRow extends ConsumerWidget {
+  const _TrackRow({
+    required this.track,
+    required this.format,
+    required this.rating,
+    required this.favourite,
+    required this.mix,
+    required this.color,
+  });
+
+  final Track track;
+  final PlayingFormat? format;
+  final bool rating;
+  final bool favourite;
+
+  /// The instant mix button, left of the heart.
+  final bool mix;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final format = this.format;
+    Widget side(Alignment alignment, List<Widget> children) => Expanded(
+      child: Align(
+        alignment: alignment,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(mainAxisSize: MainAxisSize.min, children: children),
+        ),
+      ),
+    );
+    return Row(
+      children: [
+        // A tap on the badges opens the streaming quality, to transcode or not.
+        side(Alignment.centerLeft, [
+          if (format != null)
+            Semantics(
+              button: true,
+              label: 'Streaming quality',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () => showQualitySheet(context),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Badge(format.codec, color: color),
+                      if (format.quality case final quality?) ...[
+                        const SizedBox(width: 6),
+                        _Badge(quality, color: color),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+        ]),
+        if (rating)
+          RatingStars(
+            key: ValueKey(track.id),
+            rating: track.rating,
+            color: color,
+            dense: true,
+            onChanged: (value) async {
+              if (await rate(ref, track.id, value)) {
+                rememberRating(track.json, value);
+              }
+            },
+          ),
+        side(Alignment.centerRight, [
+          const SizedBox(width: 8),
+          if (mix)
+            IconButton(
+              tooltip: 'Instant mix',
+              icon: Icon(Icons.radio, color: context.muted),
+              iconSize: 22,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(32, 40),
+                fixedSize: const Size(32, 40),
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => runPlayback(() async {
+                final tracks = await ref
+                    .read(repositoryProvider)!
+                    .instantMix(track);
+                if (tracks.length < 2) {
+                  showMessage('The server found no similar songs');
+                  return;
+                }
+                await ref.read(playbackControllerProvider).playTracks(tracks);
+              }),
+            ),
+          if (mix && favourite) const SizedBox(width: 4),
+          if (favourite)
+            StarButton(
+              key: ValueKey('heart-${track.id}'),
+              starred: track.starred,
+              trackId: track.id,
+              json: track.json,
+              color: color,
+              dense: true,
+            ),
+        ]),
+      ],
+    );
+  }
+}
+
+/// A small outlined label for the format of what plays.
+class _Badge extends StatelessWidget {
+  const _Badge(this.text, {required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      border: Border.all(color: color.withValues(alpha: 0.6)),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.5,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    ),
+  );
+}
+
+/// Shuffle, previous, play, next and repeat.
 class _Controls extends ConsumerWidget {
-  const _Controls({required this.np});
+  const _Controls({required this.np, required this.color});
 
   final NowPlaying np;
+
+  /// The colour of shuffle and repeat while they are on.
+  final Color color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(playbackControllerProvider);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        IconButton(
+          tooltip: 'Shuffle',
+          color: np.shuffle ? color : context.muted,
+          icon: const Icon(Icons.shuffle),
+          onPressed: () => controller.setShuffle(!np.shuffle),
+        ),
         IconButton(
           iconSize: 44,
           icon: const Icon(Icons.skip_previous_rounded),
@@ -683,6 +850,16 @@ class _Controls extends ConsumerWidget {
           iconSize: 44,
           icon: const Icon(Icons.skip_next_rounded),
           onPressed: controller.next,
+        ),
+        IconButton(
+          tooltip: 'Repeat',
+          color: np.repeat == Repeat.off ? context.muted : color,
+          icon: Icon(np.repeat == Repeat.one ? Icons.repeat_one : Icons.repeat),
+          onPressed: () => controller.setRepeat(switch (np.repeat) {
+            Repeat.off => Repeat.all,
+            Repeat.all => Repeat.one,
+            Repeat.one => Repeat.off,
+          }),
         ),
       ],
     );
@@ -777,6 +954,56 @@ class _PlayerScrollState extends State<_PlayerScroll> {
 }
 
 /// The next track at the bottom of the player. A tap scrolls to the queue.
+/// The last row of the player: the speaker button and the next song. Alone, the speaker button keeps to the left and the next song to the centre.
+/// The last row of the player: "Add to playlist" on the far left, the next song in the middle and the speaker button on the far right. The sides have equal widths, so the next song stays centred; the speaker button shrinks to its icon when its name does not fit.
+class _BottomRow extends ConsumerWidget {
+  const _BottomRow({
+    required this.np,
+    required this.speaker,
+    required this.upNext,
+  });
+
+  final NowPlaying np;
+  final bool speaker;
+  final bool upNext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = np.track;
+    // Playlists live on the server, so adding to one needs the connection.
+    final addToPlaylist = track != null && !ref.watch(isOfflineProvider);
+    if (!speaker && !upNext && !addToPlaylist) {
+      return const SizedBox(height: 8);
+    }
+    return Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: addToPlaylist
+                ? IconButton(
+                    tooltip: 'Add to playlist',
+                    icon: const Icon(Icons.playlist_add),
+                    onPressed: () =>
+                        showAddToPlaylist(context, ref, () async => [track]),
+                  )
+                : null,
+          ),
+        ),
+        Expanded(flex: 6, child: upNext ? _UpNext(np: np) : const SizedBox()),
+        Expanded(
+          flex: 5,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: speaker ? const OutputButton(showName: true) : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _UpNext extends StatelessWidget {
   const _UpNext({required this.np});
 

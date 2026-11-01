@@ -30,11 +30,14 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<Track> _tracks = const [];
   String? _scrobbled;
 
+  /// The last index the player reported. While it seeks, some backends report no index for a moment, which must not make the current track unknown.
+  int? _lastIndex;
+
   /// The tracks of the queue, in queue order.
   List<Track> get tracks => _tracks;
 
   Track? get currentTrack {
-    final index = player.currentIndex;
+    final index = player.currentIndex ?? _lastIndex;
     return index == null || index >= _tracks.length ? null : _tracks[index];
   }
 
@@ -49,6 +52,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     player.playingStream.listen((_) => _broadcastState(player.playbackEvent));
     player.currentIndexStream.listen((index) {
       if (index == null || index >= _tracks.length) return;
+      _lastIndex = index;
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
       player.setVolume(source?.volumeFor(track) ?? 1);
@@ -114,6 +118,21 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       initialIndex: index,
       initialPosition: position,
     );
+  }
+
+  /// Builds the audio sources of the queue again, for example after the streaming quality changed, and carries on from the same song and position. A song that was playing keeps playing.
+  Future<void> reloadSources() async {
+    final index = player.currentIndex;
+    if (_tracks.isEmpty || source == null || index == null) return;
+    final position = player.position;
+    final playing = player.playing;
+    final sources = await Future.wait(_tracks.map(_audioSource));
+    await player.setAudioSources(
+      sources,
+      initialIndex: index,
+      initialPosition: position,
+    );
+    if (playing) await player.play();
   }
 
   Future<void> playNext(List<Track> tracks) async {

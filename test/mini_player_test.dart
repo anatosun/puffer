@@ -268,4 +268,115 @@ void main() {
     expect(find.byType(NowPlayingPage), findsNothing);
     expect(find.text('Nothing playing'), findsNothing);
   });
+
+  testWidgets('the player leaves out what the Experience settings turn off', (
+    tester,
+  ) async {
+    Future<void> pumpPlayer(Map<String, Object> settings) async {
+      SharedPreferences.setMockInitialValues(settings);
+      final prefs = await SharedPreferences.getInstance();
+      final np = NowPlaying(
+        track: const Track({'id': 'a', 'title': 'A title'}),
+        title: 'A title',
+        positionAt: DateTime.now(),
+        duration: const Duration(minutes: 3),
+        queue: const [
+          QueueEntry(id: 'a', title: 'A title'),
+          QueueEntry(id: 'n', title: 'Next one'),
+        ],
+        index: 0,
+      );
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(AsyncData(np)),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue((
+              codec: 'FLAC',
+              quality: '16/44.1 kHz',
+            )),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pumpPlayer({});
+    expect(find.text('FLAC'), findsOneWidget);
+    expect(find.text('16/44.1 kHz'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+    expect(find.text('-3:00'), findsOneWidget);
+    expect(find.text('Next one'), findsWidgets);
+
+    await pumpPlayer({
+      'experience.playerFormat': false,
+      'experience.playerFavourite': false,
+      'experience.remainingTime': false,
+      'experience.upNext': false,
+    });
+    expect(find.text('FLAC'), findsNothing);
+    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    // The length of the song instead of the time that remains.
+    expect(find.text('3:00'), findsOneWidget);
+    // The queue further down is not built yet, so the next song shows nowhere on screen.
+    expect(find.text('Next one'), findsNothing);
+  });
+
+  testWidgets('a tap on the format badges sets the streaming quality', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nowPlayingProvider.overrideWithValue(
+            AsyncData(
+              NowPlaying(
+                track: const Track({'id': 'a', 'title': 'A title'}),
+                title: 'A title',
+                positionAt: DateTime.now(),
+                duration: const Duration(minutes: 3),
+              ),
+            ),
+          ),
+          connectivityProvider.overrideWithValue(
+            const AsyncData([ConnectivityResult.wifi]),
+          ),
+          maClientProvider.overrideWithValue(null),
+          playbackControllerProvider.overrideWithValue(_FakeController()),
+          playingFormatProvider.overrideWithValue((
+            codec: 'FLAC',
+            quality: '16/44.1',
+          )),
+          // A downloaded song, which keeps playing its file.
+          playingSourceProvider.overrideWithValue(PlayingSource.download),
+          waveformSupportedProvider.overrideWith((ref) async => false),
+        ],
+        child: const MaterialApp(home: NowPlayingPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('FLAC'));
+    await tester.pumpAndSettle();
+    expect(find.text('Streaming quality on Wi-Fi'), findsOneWidget);
+    expect(find.textContaining('plays from its download'), findsOneWidget);
+
+    await tester.tap(find.text('Opus 128 kbit/s'));
+    await tester.pumpAndSettle();
+    expect(prefs.getString('playback.qualityWifi'), 'opus128');
+    expect(find.text('Streaming quality on Wi-Fi'), findsNothing);
+  });
 }

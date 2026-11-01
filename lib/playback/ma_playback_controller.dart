@@ -16,6 +16,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     required this.streamUri,
     this.onError,
     this.lookupTrack,
+    this.thisDevice = false,
   }) {
     _subscriptions = [
       client.queuesStream.listen((_) => _emit()),
@@ -34,6 +35,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   final String? providerInstance;
   final Uri Function(Track) streamUri;
 
+  /// The player is this phone as a Sendspin speaker, so the player shows as it does for local playback: without a speaker name or a volume slider.
+  final bool thisDevice;
+
   /// Receives failures of transport commands (play, pause, seek, …), which buttons call without awaiting.
   final void Function(Object error)? onError;
 
@@ -43,6 +47,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
   late final List<StreamSubscription<Object?>> _subscriptions;
   final _controller = StreamController<NowPlaying?>.broadcast();
   final _known = <String, Track>{};
+
+  /// The Subsonic track found for each queue item. Music Assistant sometimes describes the current item without its provider mappings, for example while it restarts the stream after a seek, and the item keeps its track meanwhile.
+  final _byQueueItem = <String, Track>{};
 
   /// IDs looked up through [lookupTrack], each once.
   final _resolving = <String>{};
@@ -85,6 +92,12 @@ class MusicAssistantPlaybackController implements PlaybackController {
 
   /// The Subsonic track of [item]. With [resolve], an unknown track is looked up and the state rebuilt once it arrives.
   Track? _trackFor(MaQueueItem item, int? index, {bool resolve = false}) {
+    final track = _findTrack(item, index, resolve: resolve);
+    if (track != null) return _byQueueItem[item.id] = track;
+    return _byQueueItem[item.id];
+  }
+
+  Track? _findTrack(MaQueueItem item, int? index, {required bool resolve}) {
     final id = _subsonicId(item);
     if (id != null) {
       final known = _known[id];
@@ -160,8 +173,8 @@ class MusicAssistantPlaybackController implements PlaybackController {
           ),
       ],
       index: queue.currentIndex,
-      outputName: _player?.name ?? playerId,
-      volume: _player?.sliderVolume,
+      outputName: thisDevice ? null : _player?.name ?? playerId,
+      volume: thisDevice ? null : _player?.sliderVolume,
     );
   }
 

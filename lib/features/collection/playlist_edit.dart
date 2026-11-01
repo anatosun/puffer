@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
 import '../../ui/messages.dart';
+import '../../ui/widgets/artwork.dart';
 import '../home/home_page.dart';
 import 'playlist_page.dart';
 
@@ -16,7 +18,7 @@ bool ownsPlaylist(WidgetRef ref, Playlist playlist) {
 
 /// Reloads the playlist lists and, when [id] is downloaded, its downloaded tracks.
 Future<void> playlistsChanged(WidgetRef ref, [String? id]) async {
-  ref.invalidate(recentPlaylistsProvider);
+  ref.invalidate(playlistsProvider);
   if (id == null) return;
   ref.invalidate(playlistProvider(id));
   final manager = ref.read(downloadManagerProvider);
@@ -62,9 +64,12 @@ Future<void> showAddToPlaylist(
   Future<List<Track>> Function() tracks,
 ) async {
   final client = ref.read(clientProvider)!;
-  final playlists = (await ref.read(recentPlaylistsProvider.future))
-      .where((p) => ownsPlaylist(ref, p))
-      .toList();
+  final playlists = byRecency(
+    (await ref.read(playlistsProvider.future))
+        .where((p) => ownsPlaylist(ref, p))
+        .toList(),
+    ref.read(playlistHistoryProvider),
+  );
   if (!context.mounted) return;
   final choice = await showModalBottomSheet<Object>(
     context: context,
@@ -86,13 +91,27 @@ Future<void> showAddToPlaylist(
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.add),
+              // A square the size of the covers below, so the titles line up.
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(Icons.add),
+              ),
               title: const Text('New playlist'),
               onTap: () => Navigator.pop(context, 'new'),
             ),
             for (final p in playlists)
               ListTile(
-                leading: const Icon(Icons.queue_music),
+                leading: Artwork(
+                  p.coverArt,
+                  size: 48,
+                  radius: 4,
+                  icon: Icons.queue_music,
+                ),
                 title: Text(p.name),
                 subtitle: Text('${p.songCount} songs'),
                 onTap: () => Navigator.pop(context, p),
@@ -118,6 +137,19 @@ Future<void> showAddToPlaylist(
       await playlistsChanged(ref);
       showMessage('Created $name');
     }
+  } on Exception catch (e) {
+    showMessage('$e');
+  }
+}
+
+/// Asks for a name and creates an empty playlist.
+Future<void> createPlaylist(BuildContext context, WidgetRef ref) async {
+  final name = await _askName(context, title: 'New playlist');
+  if (name == null || name.isEmpty) return;
+  try {
+    await ref.read(clientProvider)!.createPlaylist(name: name);
+    await playlistsChanged(ref);
+    showMessage('Created $name');
   } on Exception catch (e) {
     showMessage('$e');
   }

@@ -50,6 +50,15 @@ class MaPlayer {
   /// Shown and able to play, whether or not it follows another player.
   bool get usable => available && enabled && !hidden && !private;
 
+  /// Whether this player plays through the Sendspin client [clientId]: it is that client's own player, or a player that lists it among its output protocols, as Music Assistant does when it merges the protocols of one device into a single player.
+  bool isBackedBy(String clientId) {
+    if (id == clientId) return true;
+    for (final p in (json['output_protocols'] as List?) ?? const []) {
+      if (p is Map && p['output_protocol_id'] == clientId) return true;
+    }
+    return false;
+  }
+
   /// Players a person can pick as output: available, enabled, shown, and not a member following another player.
   bool get selectable => usable && syncedTo == null;
 }

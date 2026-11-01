@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/experience.dart';
 import '../../app/providers.dart';
+import '../../ui/theme.dart';
 import 'settings_section.dart';
 import '../../ui/widgets/backdrop.dart';
 
@@ -56,14 +57,6 @@ class ExperienceSettingsPage extends ConsumerWidget {
               onChanged: (v) =>
                   ref.read(artworkColoursProvider.notifier).set(v),
             ),
-            SwitchListTile(
-              title: const Text('Rating in the player'),
-              subtitle: const Text(
-                'The player shows the stars of the current song, and tapping one rates it',
-              ),
-              value: ref.watch(playerRatingProvider),
-              onChanged: (v) => ref.read(playerRatingProvider.notifier).set(v),
-            ),
             ListTile(
               enabled: ref.watch(artworkColoursProvider),
               title: const Text('When nothing plays'),
@@ -83,11 +76,11 @@ class ExperienceSettingsPage extends ConsumerWidget {
             const SettingsSection('Layout'),
             ListTile(
               title: const Text('Start on'),
-              trailing: DropdownButton<StartTab>(
-                value: ref.watch(startTabProvider),
+              trailing: DropdownButton<MainTab>(
+                value: ref.watch(effectiveStartTabProvider),
                 underline: const SizedBox.shrink(),
                 items: [
-                  for (final t in StartTab.values)
+                  for (final t in ref.watch(visibleTabsProvider))
                     DropdownMenuItem(value: t, child: Text(t.label)),
                 ],
                 onChanged: (t) => ref.read(startTabProvider.notifier).set(t!),
@@ -106,6 +99,68 @@ class ExperienceSettingsPage extends ConsumerWidget {
                     ref.read(coverSizeProvider.notifier).set(s.single),
               ),
             ),
+            const SettingsSection('Player'),
+            _Switch(
+              provider: playerRatingProvider,
+              title: 'Rating',
+              subtitle: 'The stars of the current song, which a tap changes',
+            ),
+            _Switch(
+              provider: playerFavouriteProvider,
+              title: 'Favourite button',
+              subtitle:
+                  'A heart next to the stars adds the song to your library',
+            ),
+            _Switch(
+              provider: playerFormatProvider,
+              title: 'Format badges',
+              subtitle:
+                  'The codec and the quality of what plays, around the stars',
+            ),
+            ListTile(
+              title: const Text('Waveform'),
+              subtitle: const Text(
+                'The loudness of the song in the seek bar, when the server offers it',
+              ),
+              trailing: DropdownButton<WaveformStyle>(
+                value: ref.watch(waveformStyleProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final w in WaveformStyle.values)
+                    DropdownMenuItem(value: w, child: Text(w.label)),
+                ],
+                onChanged: (w) =>
+                    ref.read(waveformStyleProvider.notifier).set(w!),
+              ),
+            ),
+            _Switch(
+              provider: remainingTimeProvider,
+              title: 'Remaining time',
+              subtitle: 'The time on the right counts down; off, it shows the length of the song',
+            ),
+            _Switch(
+              provider: swipeToSkipProvider,
+              title: 'Swipe the artwork to skip',
+              subtitle: 'Swiping sideways plays the next or previous song',
+            ),
+            _Switch(
+              provider: upNextProvider,
+              title: 'Up next',
+              subtitle: 'The next song shows under the controls',
+            ),
+            const SettingsSection('Tabs'),
+            const _Hint('From two to five tabs. Press and drag to reorder.'),
+            _ToggleList(
+              provider: mainTabsProvider,
+              label: (t) => t.label,
+              icon: (t) => t.icon,
+            ),
+            const SettingsSection('Library'),
+            _ToggleList(
+              provider: librarySectionsProvider,
+              label: (s) => s.title,
+              icon: (s) => s.icon,
+            ),
             const SettingsSection('Home'),
             SwitchListTile(
               title: const Text('Greeting'),
@@ -122,7 +177,7 @@ class ExperienceSettingsPage extends ConsumerWidget {
               onChanged: (v) =>
                   ref.read(continueListeningProvider.notifier).set(v),
             ),
-            const _ShelfList(),
+            _ToggleList(provider: homeShelvesProvider, label: (s) => s.label),
           ],
         ),
       ),
@@ -189,30 +244,70 @@ class _AccentPicker extends ConsumerWidget {
   }
 }
 
-/// The home shelves: the checkbox shows or hides a shelf, pressing and dragging moves it.
-class _ShelfList extends ConsumerWidget {
-  const _ShelfList();
+/// A switch for a [BoolSettingNotifier].
+class _Switch extends ConsumerWidget {
+  const _Switch({
+    required this.provider,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final NotifierProvider<BoolSettingNotifier, bool> provider;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SwitchListTile(
+    title: Text(title),
+    subtitle: Text(subtitle),
+    value: ref.watch(provider),
+    onChanged: (v) => ref.read(provider.notifier).set(v),
+  );
+}
+
+class _Hint extends StatelessWidget {
+  const _Hint(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+    child: Text(text, style: TextStyle(color: context.muted, fontSize: 13)),
+  );
+}
+
+/// An ordered list of settings: the checkbox shows or hides an entry, pressing and dragging moves it. A checkbox greys out when the change would cross the limits of the list.
+class _ToggleList<T extends Enum> extends ConsumerWidget {
+  const _ToggleList({required this.provider, required this.label, this.icon});
+
+  final NotifierProvider<OrderedToggleNotifier<T>, List<ToggleItem<T>>>
+  provider;
+  final String Function(T) label;
+  final IconData Function(T)? icon;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shelves = ref.watch(homeShelvesProvider);
-    final notifier = ref.read(homeShelvesProvider.notifier);
+    final items = ref.watch(provider);
+    final notifier = ref.read(provider.notifier);
     return ReorderableListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
-      itemCount: shelves.length,
+      itemCount: items.length,
       onReorderItem: notifier.move,
       itemBuilder: (context, i) {
-        final setting = shelves[i];
+        final entry = items[i];
         return ReorderableDelayedDragStartListener(
-          key: ValueKey(setting.shelf),
+          key: ValueKey(entry.item),
           index: i,
           child: CheckboxListTile(
             controlAffinity: ListTileControlAffinity.leading,
-            title: Text(setting.shelf.label),
-            value: setting.visible,
-            onChanged: (v) => notifier.setVisible(setting.shelf, v ?? false),
+            title: Text(label(entry.item)),
+            secondary: icon == null ? null : Icon(icon!(entry.item)),
+            value: entry.visible,
+            enabled: notifier.canToggle(entry.item),
+            onChanged: (v) => notifier.setVisible(entry.item, v ?? false),
           ),
         );
       },

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/experience.dart';
 import '../../app/playback_providers.dart';
+import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
@@ -27,10 +28,14 @@ class TrackTile extends ConsumerWidget {
     this.showArtwork = true,
     this.showNumber = false,
     this.handle,
+    this.playlistId,
   });
 
   final List<Track> tracks;
   final int index;
+
+  /// The playlist the tracks come from, which then counts as played.
+  final String? playlistId;
   final bool showArtwork;
   final bool showNumber;
 
@@ -124,7 +129,9 @@ class TrackTile extends ConsumerWidget {
           ?handle,
         ],
       ),
-      onTap: playable ? () => playFrom(ref, tracks, index) : null,
+      onTap: playable
+          ? () => playFrom(ref, tracks, index, playlistId: playlistId)
+          : null,
       onLongPress: () => showTrackActions(context, ref, track),
     );
     // An Opacity of 1 still makes Impeller composite the row in a layer.
@@ -132,14 +139,18 @@ class TrackTile extends ConsumerWidget {
   }
 }
 
-/// Plays [tracks] from [index], skipping tracks that cannot play offline.
+/// Plays [tracks] from [index], skipping tracks that cannot play offline. With [playlistId], the playlist moves to the top of the recent playlists.
 Future<void> playFrom(
   WidgetRef ref,
   List<Track> tracks,
   int index, {
   bool shuffle = false,
+  String? playlistId,
 }) async {
   HapticFeedback.lightImpact();
+  if (playlistId != null) {
+    await ref.read(playlistHistoryProvider.notifier).played(playlistId);
+  }
   var list = tracks;
   var start = index;
   if (ref.read(isOfflineProvider)) {

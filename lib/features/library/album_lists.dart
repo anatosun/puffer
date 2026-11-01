@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +21,7 @@ AlbumQuery albumQuery(
   int? toYear,
 }) => (type: type, genre: genre, fromYear: fromYear, toYear: toYear);
 
-/// The albums of an [AlbumQuery], loaded page by page as the list scrolls.
+/// The albums of an [AlbumQuery], loaded page by page as the list scrolls. The first page shows from the cache while the server answers.
 class PagedAlbumsNotifier extends AsyncNotifier<List<Album>> {
   PagedAlbumsNotifier(this.query);
 
@@ -34,9 +36,36 @@ class PagedAlbumsNotifier extends AsyncNotifier<List<Album>> {
     final repository = ref.watch(repositoryProvider);
     ref.watch(isOfflineProvider);
     if (repository == null) return const [];
+    // A random list is new on every visit, so it never shows from the cache.
+    final cached = query.type == 'random'
+        ? null
+        : await repository.cachedAlbumList(
+            query.type,
+            size: _pageSize,
+            genre: query.genre,
+            fromYear: query.fromYear,
+            toYear: query.toYear,
+          );
+    if (cached != null && cached.isNotEmpty) {
+      _done = cached.length < _pageSize;
+      unawaited(_refreshFirstPage(repository));
+      return cached;
+    }
     final page = await _load(repository, 0);
     _done = page.length < _pageSize;
     return page;
+  }
+
+  /// Replaces the cached first page with the answer of the server, unless more pages have loaded meanwhile.
+  Future<void> _refreshFirstPage(LibraryRepository repository) async {
+    try {
+      final page = await _load(repository, 0);
+      if (!ref.mounted || (state.value?.length ?? 0) > _pageSize) return;
+      _done = page.length < _pageSize;
+      state = AsyncData(page);
+    } on Exception {
+      // The cached page stays.
+    }
   }
 
   Future<List<Album>> _load(LibraryRepository repository, int offset) =>
