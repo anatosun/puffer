@@ -13,6 +13,7 @@ import '../../downloads/download_manager.dart';
 import '../messages.dart';
 import '../theme.dart';
 import 'artwork.dart';
+import 'brand_mark.dart';
 import 'download_indicator.dart';
 import 'item_actions.dart';
 import 'playing_bars.dart';
@@ -477,10 +478,7 @@ class MessageView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Opacity(
-            opacity: 0.55,
-            child: Image.asset('assets/icon/foreground.png', height: 120),
-          ),
+          BrandMark(size: 120, color: context.faint),
           const SizedBox(height: 4),
           Text(
             message,

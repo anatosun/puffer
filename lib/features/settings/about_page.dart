@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../../ui/widgets/brand_mark.dart';
 
 /// The project on GitHub, where the source, the releases and the issue tracker live.
 const repositoryUrl = 'https://github.com/anatosun/puffer';
@@ -55,13 +56,18 @@ class AboutPage extends ConsumerWidget {
         body: ListView(
           children: [
             const SizedBox(height: 16),
-            Center(
-              child: Image.asset('assets/icon/foreground.png', height: 120),
-            ),
+            const Center(child: BrandMark(size: 120)),
+            // The wordmark: lowercase, Inter Tight SemiBold, tight letter-spacing.
             Center(
               child: Text(
-                'Puffer',
-                style: Theme.of(context).textTheme.headlineSmall,
+                'puffer',
+                style: TextStyle(
+                  fontFamily: 'InterTight',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 34,
+                  letterSpacing: -0.045 * 34,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ),
             const SizedBox(height: 4),
@@ -121,10 +127,7 @@ class AboutPage extends ConsumerWidget {
                 context: context,
                 applicationName: 'Puffer',
                 applicationVersion: version,
-                applicationIcon: Image.asset(
-                  'assets/icon/foreground.png',
-                  height: 64,
-                ),
+                applicationIcon: const BrandMark(size: 64),
               ),
             ),
             const SizedBox(height: 24),

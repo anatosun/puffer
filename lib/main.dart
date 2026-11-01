@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/licences.dart';
 import 'app/playback_providers.dart';
 import 'app/providers.dart';
 import 'data/db/database.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // just_audio has no Linux backend; media_kit (libmpv) provides one for development on the desktop.
   JustAudioMediaKit.ensureInitialized(linux: true, windows: false);
+  registerFontLicences();
 
   final handler = await _initAudio();
   final results = await (
