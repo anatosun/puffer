@@ -1,4 +1,9 @@
-# Puffer
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/puffer-lockup-horizontal-on-dark.svg">
+    <img src="assets/brand/puffer-lockup-horizontal-on-light.svg" alt="Puffer" width="320">
+  </picture>
+</h1>
 
 A music player for iOS and Android for Subsonic and OpenSubsonic servers (Navidrome, Gonic, Airsonic-Advanced, …). The interface follows Plexamp, downloads follow Apple Music, and multi-room playback goes through [Music Assistant](https://music-assistant.io).
 
@@ -14,10 +19,13 @@ The app is in early development.
 ### Library and playback
 
 - Home has shelves for recently played, recently added and most played albums, recent playlists, favourites, downloads and Discover (random albums). A person chooses which shelves it shows and in what order.
-- The library lists playlists, artists, albums, genres and songs. Search finds artists, albums and songs.
-- The now-playing view fills the screen with the album artwork, and the colours of the app follow the artwork. The app has a dark and a light theme.
-- Instant mix starts a queue of songs similar to a song, from `getSimilarSongs`.
-- A person rates songs with stars, adds items to their library (star), and creates and edits playlists.
+- The library lists playlists, artists, albums, genres and songs, and every list has a search. Albums load page by page. A person chooses the tabs of the navigation bar (Home, Library, Search, Playlists, Artists, Albums, Downloaded) and the order of the library sections.
+- Playlists count as recent when they are played, not only when they change on the server, and sort by recent use or by name.
+- The now-playing view fills the screen with the album artwork, and the colours of the app follow the artwork. The app has a dark and a light theme. The seek bar shows the waveform of the song on servers with the OpenSubsonic `songWaveform` extension. Badges show the format and quality of what plays; a tap on them shows the song info and the streaming quality.
+- Below the player, tabs show the songs played, the queue, the rest of the album, the artist's other albums, the artist's biography and similar artists.
+- Instant mix starts a queue of songs similar to a song, from `getSimilarSongs` or the sonic analysis of the server.
+- A person rates songs with stars, adds items to their library with a double tap on the artwork or from the song menu, and creates and edits playlists.
+- Crossfade fades one song into the next, except between songs of the same album.
 - Volume is normalised with the ReplayGain values the server reports, per track or per album.
 - Plays are reported to the server (scrobbling), so "Recently played" and "Most played" stay up to date.
 - Playback continues in the background, with controls on the lock screen and in the Android notification.
@@ -36,7 +44,8 @@ Downloads follow Apple Music.
 ### Speakers
 
 - Puffer connects to [Music Assistant](https://music-assistant.io) and plays the queue on any of its players. Music Assistant fetches the audio from the Subsonic server and sends it to the speakers over [Sendspin](https://www.sendspin-audio.com).
-- With "Play as a speaker" on, the phone joins Music Assistant as a Sendspin player and plays in sync with the other speakers.
+- The "Play on" sheet lists the players with what they play and their volume, pauses and resumes them, and syncs speakers with the current output.
+- With "Play as a speaker" on, the phone joins Music Assistant as a Sendspin player and plays in sync with the other speakers. The phone pairs with Music Assistant through the pairing token in the Music Assistant settings, over an encrypted connection.
 
 ### Privacy
 
@@ -74,3 +83,5 @@ flutter build apk --release --split-per-abi
 ## License
 
 Puffer is free software under the [GNU General Public License v3.0 or later](LICENSE).
+
+The logo and app icons are in [`assets/brand`](assets/brand). The fonts are Noto Sans and Inter Tight, both under the SIL Open Font License 1.1 ([`assets/fonts`](assets/fonts)).

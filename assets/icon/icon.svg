@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <rect width="1024" height="1024" fill="#000000"/>
-  <!-- The foreground, scaled up: without the adaptive-icon mask the mark can fill more of the square. -->
-  <image href="foreground.svg" x="-171.5" y="-171.5" width="1367" height="1367"/>
-</svg>

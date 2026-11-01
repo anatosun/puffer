@@ -74,7 +74,6 @@ dev_dependencies:
   build_runner: ^2.16.2
   drift_dev: ^2.35.2
   mocktail: ^1.0.5
-  flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
   convert: ^3.1.2
   fake_async: ^1.3.3
@@ -85,9 +84,18 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/icon/foreground.png
-  # Noto Sans by the Noto Project Authors, SIL Open Font License 1.1 (assets/fonts/NotoSans-LICENSE.txt).
+    # The mark, white on transparent; the app tints it with the theme's foreground colour.
+    - assets/brand/puffer-mark-white-512.png
+    # Shown on the licences page, next to the licences of the packages.
+    - assets/fonts/NotoSans-LICENSE.txt
+    - assets/fonts/InterTight-LICENSE.txt
+  # Noto Sans by the Noto Project Authors and Inter Tight by the Inter Project Authors, both under the SIL Open Font License 1.1 (assets/fonts/*-LICENSE.txt).
   fonts:
+    # The wordmark of the launch animation.
+    - family: InterTight
+      fonts:
+        - asset: assets/fonts/InterTight-SemiBold.ttf
+          weight: 600
     - family: Noto Sans
       fonts:
         - asset: assets/fonts/NotoSans-Regular.ttf
@@ -131,23 +139,10 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# Icons are drawn in assets/icon/*.svg; render them with rsvg-convert, then run `dart run flutter_launcher_icons`.
-flutter_launcher_icons:
-  image_path: assets/icon/icon.png
-  android: true
-  adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: assets/icon/foreground.png
-  adaptive_icon_monochrome: assets/icon/foreground.png
-  ios: true
-  remove_alpha_ios: true
-
-# The start-up screen: run `dart run flutter_native_splash:create` after changing it.
+# The start-up screen: only the background of the brand, so the launch animation (lib/ui/widgets/launch_animation.dart) starts on a clean screen. Android 12 and later show an icon, so it is blank. Run `dart run flutter_native_splash:create` after changing it.
 flutter_native_splash:
-  color: "#FFFFFF"
-  color_dark: "#000000"
-  image: assets/icon/foreground.png
+  color: "#0D0E11"
   android_12:
-    image: assets/icon/splash_android12.png
-    color: "#FFFFFF"
-    color_dark: "#000000"
+    image: assets/brand/android12-splash-icon-blank.png
+    color: "#0D0E11"
   web: false

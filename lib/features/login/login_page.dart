@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/widgets/brand_mark.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/subsonic_client.dart';
 import '../../ui/theme.dart';
@@ -70,7 +71,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 padding: const EdgeInsets.all(24),
                 shrinkWrap: true,
                 children: [
-                  Image.asset('assets/icon/foreground.png', height: 140),
+                  const Center(child: BrandMark(size: 140)),
                   const SizedBox(height: 16),
                   Text(
                     'Connect to your server',

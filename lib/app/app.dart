@@ -24,6 +24,7 @@ import '../features/settings/playback_settings_page.dart';
 import '../features/settings/settings_page.dart';
 import '../ui/messages.dart';
 import '../ui/theme.dart';
+import '../ui/widgets/launch_gate.dart';
 import 'experience.dart';
 import 'playback_providers.dart';
 import 'providers.dart';
@@ -178,8 +179,10 @@ class App extends ConsumerWidget {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: ref.watch(routerProvider),
           scaffoldMessengerKey: messengerKey,
-          builder: (context, child) =>
-              KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
+          // On a cold start, the launch animation plays over the first screen.
+          builder: (context, child) => LaunchGate(
+            child: KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );
