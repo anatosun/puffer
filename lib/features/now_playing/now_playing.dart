@@ -447,11 +447,17 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 18),
                               // The codec and quality, centred above the title; a tap opens the song info.
-                              if (format != null && track != null) ...[
-                                _FormatBadges(
-                                  format: format,
-                                  track: track,
-                                  color: highlight,
+                              // The badges keep their height while the format of a new song loads, so the title does not jump.
+                              if (ref.watch(playerFormatProvider)) ...[
+                                SizedBox(
+                                  height: _FormatBadges.height,
+                                  child: format != null && track != null
+                                      ? _FormatBadges(
+                                          format: format,
+                                          track: track,
+                                          color: highlight,
+                                        )
+                                      : null,
                                 ),
                                 const SizedBox(height: 6),
                               ],
@@ -609,7 +615,6 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
       fontFeatures: [FontFeature.tabularFigures()],
     );
     final trackId = widget.np.track?.id;
-    // The seek bar keeps the height of the waveform while it loads, so the layout does not move.
     final showWaveform =
         trackId != null &&
         (ref.watch(waveformSupportedProvider).value ?? false);
@@ -643,33 +648,31 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     );
     return Column(
       children: [
-        if (!showWaveform)
-          slider
-        else
-          SizedBox(
-            height: _waveformHeight,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Without a thumb the slider track spans the full width, as the bars do.
-                if (peaks != null)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: WaveformPainter(
-                        peaks: peaks,
-                        progress: max == 0 ? 0 : value / max,
-                        played: widget.color,
-                        smooth:
-                            ref.watch(waveformStyleProvider) ==
-                            WaveformStyle.smooth,
-                        unplayed: context.subtle,
-                      ),
+        // The seek bar always takes the height of the waveform, so the layout stays the same with a waveform, without one, and while one loads.
+        SizedBox(
+          height: _waveformHeight,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Without a thumb the slider track spans the full width, as the bars do.
+              if (peaks != null)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: WaveformPainter(
+                      peaks: peaks,
+                      progress: max == 0 ? 0 : value / max,
+                      played: widget.color,
+                      smooth:
+                          ref.watch(waveformStyleProvider) ==
+                          WaveformStyle.smooth,
+                      unplayed: context.subtle,
                     ),
                   ),
-                slider,
-              ],
-            ),
+                ),
+              slider,
+            ],
           ),
+        ),
         const SizedBox(height: 6),
         Row(
           children: [
@@ -794,6 +797,9 @@ class _CoverGesturesState extends State<_CoverGestures>
 
 /// The codec and quality badges of what plays. A tap opens the song info, with the streaming quality on top.
 class _FormatBadges extends StatelessWidget {
+  /// The height of the badges with their touch padding, which the player keeps while they load.
+  static const height = 30.0;
+
   const _FormatBadges({
     required this.format,
     required this.track,
@@ -1055,11 +1061,8 @@ class _BottomRow extends ConsumerWidget {
           child: Align(
             alignment: Alignment.centerRight,
             child: speaker
-                ? OutputButton(
-                    showName: true,
-                    activeColor: color,
-                    idleColor: context.muted,
-                  )
+                // The icon alone, highlighted while a speaker plays.
+                ? OutputButton(activeColor: color, idleColor: context.muted)
                 : null,
           ),
         ),

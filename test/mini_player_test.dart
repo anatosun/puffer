@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/repositories/library_repository.dart';
+import 'package:puffer/playback/audio_format.dart';
 import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/features/collection/album_page.dart';
 import 'package:puffer/features/collection/artist_page.dart';
@@ -563,6 +564,101 @@ void main() {
       await open('Artist', 'Bitches Brew');
       await open('About', 'A trumpeter.');
       await open('Similar', 'Bill Evans');
+    },
+  );
+
+  testWidgets('the seek bar takes the same space with and without a waveform', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    Future<Offset> seekBarWith({required bool waveform}) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => waveform),
+            waveformProvider.overrideWith(
+              (ref, id) async => waveform ? [0, 128, 255, 64] : null,
+            ),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      return tester.getCenter(find.byType(Slider));
+    }
+
+    final without = await seekBarWith(waveform: false);
+    final with_ = await seekBarWith(waveform: true);
+    expect(with_, without);
+  });
+
+  testWidgets(
+    'the title keeps its place while the format badges load, and the speaker button shows no name',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      Future<Offset> titleWith(PlayingFormat? format) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        await tester.pumpWidget(
+          ProviderScope(
+            key: UniqueKey(),
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              nowPlayingProvider.overrideWithValue(
+                AsyncData(
+                  NowPlaying(
+                    track: const Track({'id': 'a', 'title': 'A title'}),
+                    title: 'A title',
+                    positionAt: DateTime.now(),
+                    duration: const Duration(minutes: 3),
+                    outputName: 'Kitchen',
+                  ),
+                ),
+              ),
+              connectivityProvider.overrideWithValue(
+                const AsyncData([ConnectivityResult.wifi]),
+              ),
+              maClientProvider.overrideWithValue(null),
+              initialMaCredentialsProvider.overrideWithValue(
+                MaCredentials(baseUrl: Uri.parse('http://ma:8095'), token: 't'),
+              ),
+              playbackControllerProvider.overrideWithValue(_FakeController()),
+              playingFormatProvider.overrideWithValue(format),
+              waveformSupportedProvider.overrideWith((ref) async => false),
+            ],
+            child: const MaterialApp(home: NowPlayingPage()),
+          ),
+        );
+        await tester.pump();
+        return tester.getCenter(find.text('A title').first);
+      }
+
+      final loading = await titleWith(null);
+      expect(find.text('Kitchen'), findsNothing);
+      final loaded = await titleWith((codec: 'FLAC', quality: '16/44.1'));
+      expect(find.text('FLAC'), findsOneWidget);
+      expect(loaded, loading);
     },
   );
 }

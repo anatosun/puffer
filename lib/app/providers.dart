@@ -440,23 +440,22 @@ final startupSyncProvider = FutureProvider<void>((ref) async {
   await ref.read(syncAutomaticDownloadsProvider)();
 });
 
-final pinStateProvider = StreamProvider.family<PinState, (PinKind, String)>((
-  ref,
-  key,
-) {
-  final manager = ref.watch(downloadManagerProvider);
-  return manager == null
-      ? Stream.value(PinState.none)
-      : manager.watchPin(key.$1, key.$2);
-});
+/// The download state of an album, playlist, artist or track. Released when no widget shows it, so the items scrolled past do not keep their queries running.
+final pinStateProvider = StreamProvider.autoDispose
+    .family<PinState, (PinKind, String)>((ref, key) {
+      final manager = ref.watch(downloadManagerProvider);
+      return manager == null
+          ? Stream.value(PinState.none)
+          : manager.watchPin(key.$1, key.$2);
+    });
 
-final trackFileProvider = StreamProvider.family<TrackFile?, String>((
-  ref,
-  trackId,
-) {
-  final manager = ref.watch(downloadManagerProvider);
-  return manager == null ? Stream.value(null) : manager.watchTrack(trackId);
-});
+/// The download of one track, released when no widget shows it.
+final trackFileProvider = StreamProvider.autoDispose.family<TrackFile?, String>(
+  (ref, trackId) {
+    final manager = ref.watch(downloadManagerProvider);
+    return manager == null ? Stream.value(null) : manager.watchTrack(trackId);
+  },
+);
 
 final completeTrackIdsProvider = StreamProvider<List<String>>((ref) {
   final manager = ref.watch(downloadManagerProvider);
