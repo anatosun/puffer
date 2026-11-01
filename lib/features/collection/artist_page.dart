@@ -101,7 +101,7 @@ class ArtistPage extends ConsumerWidget {
                       ),
                       slivers: [
                         if (info?.biography case final biography?)
-                          SliverToBoxAdapter(child: _Biography(biography)),
+                          SliverToBoxAdapter(child: Biography(biography)),
                         // Albums, EPs, singles, live recordings and compilations each get a section, with a heading when there is more than one.
                         for (final kind in ReleaseKind.values)
                           if (groups[kind] case final group?) ...[
@@ -150,16 +150,16 @@ class ArtistPage extends ConsumerWidget {
 }
 
 /// The biography in three lines; a tap shows all of it.
-class _Biography extends StatefulWidget {
-  const _Biography(this.text);
+class Biography extends StatefulWidget {
+  const Biography(this.text, {super.key});
 
   final String text;
 
   @override
-  State<_Biography> createState() => _BiographyState();
+  State<Biography> createState() => _BiographyState();
 }
 
-class _BiographyState extends State<_Biography> {
+class _BiographyState extends State<Biography> {
   bool _expanded = false;
 
   @override

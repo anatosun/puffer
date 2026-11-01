@@ -136,6 +136,12 @@ class ArtistInfo {
     return text.isEmpty ? null : text;
   }
 
+  /// Similar artists that are in the library; the server leaves out those without an id.
+  List<Artist> get similarArtists => [
+    for (final a in jsonList(json['similarArtist']))
+      if (a['id'] != null) Artist(a),
+  ];
+
   /// A photo of the artist. Last.fm's star placeholder counts as none.
   String? get imageUrl {
     for (final key in ['largeImageUrl', 'mediumImageUrl', 'smallImageUrl']) {

@@ -19,10 +19,13 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/playing_bars.dart';
+import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
+import '../collection/album_page.dart';
+import '../collection/artist_page.dart';
 import '../collection/collection_header.dart';
 import '../collection/playlist_edit.dart';
-import 'quality_sheet.dart';
+import 'song_info.dart';
 import 'waveform.dart';
 
 /// The artwork image of what is playing: the Subsonic cover when the track is known, otherwise the Music Assistant image.
@@ -333,19 +336,24 @@ class NowPlayingPage extends ConsumerWidget {
                                       artSize,
                                       math.min(box.maxWidth, 300.0),
                                     );
-                                    final artwork = GestureDetector(
-                                      // Swiping the artwork skips to the next or previous track.
-                                      onHorizontalDragEnd:
-                                          ref.watch(swipeToSkipProvider)
-                                          ? (d) {
-                                              final v = d.primaryVelocity ?? 0;
-                                              if (v < -300) {
-                                                controller.next();
-                                              }
-                                              if (v > 300) {
-                                                controller.previous();
-                                              }
-                                            }
+                                    final artwork = _CoverGestures(
+                                      swipeToSkip: ref.watch(
+                                        swipeToSkipProvider,
+                                      ),
+                                      onNext: controller.next,
+                                      onPrevious: controller.previous,
+                                      // A double tap adds the song to the library; it needs the connection.
+                                      onDoubleTap: track != null && online
+                                          ? () => saveStar(
+                                              ref,
+                                              (
+                                                trackId: track.id,
+                                                albumId: null,
+                                                artistId: null,
+                                              ),
+                                              true,
+                                              json: track.json,
+                                            )
                                           : null,
                                       child: Hero(
                                         tag: _artworkHeroTag,
@@ -642,17 +650,125 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
               style: style,
             ),
             const Spacer(),
-            Text(
-              ref.watch(remainingTimeProvider)
-                  ? '-${formatDuration(duration - Duration(milliseconds: value.round()))}'
-                  : formatDuration(duration),
-              style: style,
+            // A tap switches between the time that remains and the length of the song.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => ref
+                  .read(remainingTimeProvider.notifier)
+                  .set(!ref.read(remainingTimeProvider)),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+                child: Text(
+                  ref.watch(remainingTimeProvider)
+                      ? '-${formatDuration(duration - Duration(milliseconds: value.round()))}'
+                      : formatDuration(duration),
+                  style: style,
+                ),
+              ),
             ),
           ],
         ),
       ],
     );
   }
+}
+
+/// The gestures of the artwork. Sideways swipes skip, with [swipeToSkip]. A swipe up scrolls to the queue and a swipe down closes the player. A double tap calls [onDoubleTap] and shows a heart over the artwork.
+class _CoverGestures extends StatefulWidget {
+  const _CoverGestures({
+    required this.child,
+    required this.swipeToSkip,
+    required this.onNext,
+    required this.onPrevious,
+    this.onDoubleTap,
+  });
+
+  final Widget child;
+  final bool swipeToSkip;
+  final VoidCallback onNext;
+  final VoidCallback onPrevious;
+  final VoidCallback? onDoubleTap;
+
+  @override
+  State<_CoverGestures> createState() => _CoverGesturesState();
+}
+
+class _CoverGesturesState extends State<_CoverGestures>
+    with SingleTickerProviderStateMixin {
+  late final _heart = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
+
+  @override
+  void dispose() {
+    _heart.dispose();
+    super.dispose();
+  }
+
+  void _toQueue() {
+    final position = Scrollable.maybeOf(context)?.position;
+    position?.animateTo(
+      position.viewportDimension,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onHorizontalDragEnd: widget.swipeToSkip
+        ? (d) {
+            final v = d.primaryVelocity ?? 0;
+            if (v < -300) widget.onNext();
+            if (v > 300) widget.onPrevious();
+          }
+        : null,
+    onVerticalDragEnd: (d) {
+      final v = d.primaryVelocity ?? 0;
+      if (v < -300) _toQueue();
+      if (v > 300) Navigator.maybePop(context);
+    },
+    onDoubleTap: widget.onDoubleTap == null
+        ? null
+        : () {
+            HapticFeedback.lightImpact();
+            widget.onDoubleTap!();
+            _heart.forward(from: 0);
+          },
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        widget.child,
+        // The heart grows in, holds, then fades out.
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _heart,
+            builder: (context, _) {
+              final t = _heart.value;
+              if (t == 0 || t == 1) return const SizedBox.shrink();
+              final scale = Curves.elasticOut.transform(
+                (t / 0.4).clamp(0.0, 1.0),
+              );
+              final opacity = t < 0.6 ? 1.0 : (1 - (t - 0.6) / 0.4);
+              return Opacity(
+                opacity: opacity.clamp(0.0, 1.0),
+                child: Transform.scale(
+                  scale: 0.5 + scale * 0.5,
+                  child: const Icon(
+                    Icons.favorite,
+                    size: 96,
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 24, color: Colors.black54)],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// The row under the artwork: the codec and quality badges at its left edge, the stars in the middle and the heart at its right edge. The sides have equal widths, so the stars stay centred, and a side shrinks its content rather than overflow.
@@ -689,15 +805,15 @@ class _TrackRow extends ConsumerWidget {
     );
     return Row(
       children: [
-        // A tap on the badges opens the streaming quality, to transcode or not.
+        // A tap on the badges opens the song info, with the streaming quality on top.
         side(Alignment.centerLeft, [
           if (format != null)
             Semantics(
               button: true,
-              label: 'Streaming quality',
+              label: 'Song info',
               child: InkWell(
                 borderRadius: BorderRadius.circular(4),
-                onTap: () => showQualitySheet(context),
+                onTap: () => showSongInfo(context, track),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Row(
@@ -946,6 +1062,7 @@ class _PlayerScrollState extends State<_PlayerScroll> {
                 ),
               ),
               const _QueueSliver(),
+              const _Discover(),
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
           ),
@@ -1054,6 +1171,135 @@ class _UpNext extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Below the queue: the rest of the album of the current song, the artist's photo and biography, and similar artists in the library. Each part shows once the server has answered, and not at all offline or when it has nothing.
+class _Discover extends ConsumerWidget {
+  const _Discover();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
+    if (track == null || ref.watch(isOfflineProvider)) {
+      return const SliverToBoxAdapter();
+    }
+    final album = track.albumId == null
+        ? null
+        : ref.watch(albumProvider(track.albumId!)).value;
+    final info = track.artistId == null
+        ? null
+        : ref.watch(artistInfoProvider(track.artistId!)).value;
+    final songs = album?.songs ?? const <Track>[];
+    final similar = info?.similarArtists ?? const <Artist>[];
+    final title = Theme.of(context).textTheme.titleLarge;
+
+    // Links leave the player for the page they open.
+    void open(String path) {
+      final router = GoRouter.of(context);
+      Navigator.pop(context);
+      router.push(path);
+    }
+
+    Widget heading(String text, {String? path}) => InkWell(
+      onTap: path == null ? null : () => open(path),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 8, 8),
+        child: Row(
+          children: [
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: title,
+              ),
+            ),
+            if (path != null) Icon(Icons.chevron_right, color: context.faint),
+          ],
+        ),
+      ),
+    );
+
+    return SliverList.list(
+      children: [
+        if (songs.length > 1) ...[
+          heading('More from ${album!.name}', path: '/album/${album.id}'),
+          for (var i = 0; i < songs.length; i++)
+            TrackTile(
+              tracks: songs,
+              index: i,
+              showArtwork: false,
+              showNumber: true,
+            ),
+        ],
+        if (info != null &&
+            (info.biography != null || info.imageUrl != null)) ...[
+          heading(
+            'About ${track.artist ?? 'the artist'}',
+            path: '/artist/${track.artistId}',
+          ),
+          if (info.imageUrl case final url?)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: CachedNetworkImage(
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+          if (info.biography case final biography?) Biography(biography),
+        ],
+        if (similar.isNotEmpty) ...[
+          heading('Similar artists'),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: similar.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 16),
+              itemBuilder: (context, i) {
+                final artist = similar[i];
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => open('/artist/${artist.id}'),
+                  child: SizedBox(
+                    width: 84,
+                    child: Column(
+                      children: [
+                        ClipOval(
+                          child: Artwork(
+                            artist.coverArt,
+                            size: 84,
+                            radius: 0,
+                            icon: Icons.person,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          artist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

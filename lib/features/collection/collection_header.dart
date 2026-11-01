@@ -298,11 +298,16 @@ class StarButton extends ConsumerStatefulWidget {
 }
 
 class _StarButtonState extends ConsumerState<StarButton> {
-  late bool _starred = widget.starred;
+  StarTarget get _target => (
+    trackId: widget.trackId,
+    albumId: widget.albumId,
+    artistId: widget.artistId,
+  );
 
   @override
   Widget build(BuildContext context) {
     final offline = ref.watch(isOfflineProvider);
+    final starred = isStarred(ref, _target, fallback: widget.starred);
     return IconButton(
       iconSize: widget.dense ? 24 : 26,
       style: widget.dense
@@ -313,32 +318,71 @@ class _StarButtonState extends ConsumerState<StarButton> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             )
           : null,
-      tooltip: _starred ? 'Remove from library' : 'Add to library',
+      tooltip: starred ? 'Remove from library' : 'Add to library',
       onPressed: offline
           ? null
-          : () async {
-              final value = !_starred;
-              setState(() => _starred = value);
-              try {
-                await ref
-                    .read(repositoryProvider)!
-                    .setStarred(
-                      starred: value,
-                      trackId: widget.trackId,
-                      albumId: widget.albumId,
-                      artistId: widget.artistId,
-                    );
-                rememberStar(widget.json, value);
-                await ref.read(syncAutomaticDownloadsProvider)();
-              } on Exception {
-                if (mounted) setState(() => _starred = !value);
-              }
-            },
+          : () => saveStar(ref, _target, !starred, json: widget.json),
       icon: Icon(
-        _starred ? Icons.favorite : Icons.favorite_border,
-        color: _starred ? widget.color : null,
+        starred ? Icons.favorite : Icons.favorite_border,
+        color: starred ? widget.color : null,
       ),
     );
+  }
+}
+
+/// The item a heart belongs to: exactly one of the ids is set.
+typedef StarTarget = ({String? trackId, String? albumId, String? artistId});
+
+String _starKey(StarTarget t) => t.trackId != null
+    ? 'track:${t.trackId}'
+    : t.albumId != null
+    ? 'album:${t.albumId}'
+    : 'artist:${t.artistId}';
+
+/// Hearts changed in this session, by item, so every heart of an item shows the same state: the button, a double tap on the artwork, and the item when it shows again.
+class StarOverridesNotifier extends Notifier<Map<String, bool>> {
+  @override
+  Map<String, bool> build() => const {};
+
+  void set(String key, bool starred) => state = {...state, key: starred};
+}
+
+final starOverridesProvider =
+    NotifierProvider<StarOverridesNotifier, Map<String, bool>>(
+      StarOverridesNotifier.new,
+    );
+
+/// Whether [target] has a heart: the change made in this session, else [fallback] from the server.
+bool isStarred(WidgetRef ref, StarTarget target, {required bool fallback}) =>
+    ref.watch(starOverridesProvider)[_starKey(target)] ?? fallback;
+
+/// Adds [target] to the library or removes it. The heart changes at once and goes back when the server refuses. Adding also pins the item when automatic downloads are on.
+Future<bool> saveStar(
+  WidgetRef ref,
+  StarTarget target,
+  bool starred, {
+  Map<String, dynamic>? json,
+}) async {
+  // Everything is read before the first wait, since the widget behind [ref] may close meanwhile, as a menu does.
+  final key = _starKey(target);
+  final overrides = ref.read(starOverridesProvider.notifier);
+  final repository = ref.read(repositoryProvider);
+  final sync = ref.read(syncAutomaticDownloadsProvider);
+  if (repository == null) return false;
+  overrides.set(key, starred);
+  try {
+    await repository.setStarred(
+      starred: starred,
+      trackId: target.trackId,
+      albumId: target.albumId,
+      artistId: target.artistId,
+    );
+    rememberStar(json, starred);
+    await sync();
+    return true;
+  } on Exception {
+    overrides.set(key, !starred);
+    return false;
   }
 }
 

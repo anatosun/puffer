@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
+import 'package:puffer/data/repositories/library_repository.dart';
 import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/features/now_playing/now_playing.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
@@ -15,6 +16,8 @@ import 'package:puffer/ui/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeController extends Mock implements PlaybackController {}
+
+class _FakeRepository extends Mock implements LibraryRepository {}
 
 void main() {
   for (final brightness in Brightness.values) {
@@ -331,52 +334,117 @@ void main() {
     expect(find.text('Next one'), findsNothing);
   });
 
-  testWidgets('a tap on the format badges sets the streaming quality', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await tester.binding.setSurfaceSize(const Size(400, 800));
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          nowPlayingProvider.overrideWithValue(
-            AsyncData(
-              NowPlaying(
-                track: const Track({'id': 'a', 'title': 'A title'}),
-                title: 'A title',
-                positionAt: DateTime.now(),
-                duration: const Duration(minutes: 3),
+  testWidgets(
+    'the format badges lead through the song info to the streaming quality',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
               ),
             ),
-          ),
-          connectivityProvider.overrideWithValue(
-            const AsyncData([ConnectivityResult.wifi]),
-          ),
-          maClientProvider.overrideWithValue(null),
-          playbackControllerProvider.overrideWithValue(_FakeController()),
-          playingFormatProvider.overrideWithValue((
-            codec: 'FLAC',
-            quality: '16/44.1',
-          )),
-          // A downloaded song, which keeps playing its file.
-          playingSourceProvider.overrideWithValue(PlayingSource.download),
-          waveformSupportedProvider.overrideWith((ref) async => false),
-        ],
-        child: const MaterialApp(home: NowPlayingPage()),
-      ),
-    );
-    await tester.pump();
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue((
+              codec: 'FLAC',
+              quality: '16/44.1',
+            )),
+            // A downloaded song, which keeps playing its file.
+            playingSourceProvider.overrideWithValue(PlayingSource.download),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.text('FLAC'));
-    await tester.pumpAndSettle();
-    expect(find.text('Streaming quality on Wi-Fi'), findsOneWidget);
-    expect(find.textContaining('plays from its download'), findsOneWidget);
+      // The badges open the song info, which leads to the streaming quality.
+      await tester.tap(find.text('FLAC'));
+      await tester.pumpAndSettle();
+      expect(find.text('Streaming quality'), findsOneWidget);
+      await tester.tap(find.text('Streaming quality'));
+      await tester.pumpAndSettle();
+      expect(find.text('Streaming quality on Wi-Fi'), findsOneWidget);
+      expect(find.textContaining('plays from its download'), findsOneWidget);
 
-    await tester.tap(find.text('Opus 128 kbit/s'));
-    await tester.pumpAndSettle();
-    expect(prefs.getString('playback.qualityWifi'), 'opus128');
-    expect(find.text('Streaming quality on Wi-Fi'), findsNothing);
-  });
+      await tester.tap(find.text('Opus 128 kbit/s'));
+      await tester.pumpAndSettle();
+      expect(prefs.getString('playback.qualityWifi'), 'opus128');
+      expect(find.text('Streaming quality on Wi-Fi'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a double tap on the artwork adds the song to the library, and a tap on the time shows its length',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repository = _FakeRepository();
+      when(
+        () => repository.setStarred(
+          starred: any(named: 'starred'),
+          trackId: any(named: 'trackId'),
+        ),
+      ).thenAnswer((_) async {});
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            repositoryProvider.overrideWithValue(repository),
+            syncAutomaticDownloadsProvider.overrideWithValue(() async {}),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+
+      final cover = find.byType(Hero);
+      await tester.tap(cover);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(cover);
+      await tester.pumpAndSettle();
+      verify(() => repository.setStarred(starred: true, trackId: 'a'))
+          .called(1);
+      // The heart under the artwork follows the double tap.
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+
+      await tester.tap(find.text('-3:00'));
+      await tester.pump();
+      expect(find.text('3:00'), findsOneWidget);
+      expect(prefs.getBool('experience.remainingTime'), isFalse);
+    },
+  );
 }

@@ -7,7 +7,9 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../../features/collection/collection_header.dart';
 import '../../features/collection/playlist_edit.dart';
+import '../../features/now_playing/song_info.dart';
 import '../messages.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
@@ -29,6 +31,7 @@ Future<void> showItemActions(
   Playlist? playlist,
   int? rating,
   void Function(int rating)? onRated,
+  VoidCallback? info,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -175,28 +178,50 @@ Future<void> showItemActions(
                 if (starred != null &&
                     repository != null &&
                     kind != PinKind.playlist)
+                  Builder(
+                    builder: (_) {
+                      final target = (
+                        trackId: kind == PinKind.track ? id : null,
+                        albumId: kind == PinKind.album ? id : null,
+                        artistId: kind == PinKind.artist ? id : null,
+                      );
+                      final on = isStarred(ref, target, fallback: starred);
+                      return ListTile(
+                        enabled: !offline,
+                        leading: Icon(
+                          on ? Icons.favorite : Icons.favorite_border,
+                        ),
+                        title: Text(
+                          on ? 'Remove from library' : 'Add to library',
+                        ),
+                        onTap: () async {
+                          // The menu closes before the server answers, so the list of starred items is refreshed through the app's container.
+                          final container = ProviderScope.containerOf(
+                            context,
+                            listen: false,
+                          );
+                          final saving = saveStar(ref, target, !on);
+                          close();
+                          if (await saving) {
+                            container.invalidate(starredProvider);
+                          } else {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('The server refused the change'),
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                if (info != null)
                   ListTile(
-                    enabled: !offline,
-                    leading: Icon(
-                      starred ? Icons.favorite : Icons.favorite_border,
-                    ),
-                    title: Text(
-                      starred ? 'Remove from library' : 'Add to library',
-                    ),
-                    onTap: () async {
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('Song info'),
+                    onTap: () {
                       close();
-                      try {
-                        await repository.setStarred(
-                          starred: !starred,
-                          trackId: kind == PinKind.track ? id : null,
-                          albumId: kind == PinKind.album ? id : null,
-                          artistId: kind == PinKind.artist ? id : null,
-                        );
-                        ref.invalidate(starredProvider);
-                        await ref.read(syncAutomaticDownloadsProvider)();
-                      } on Exception catch (e) {
-                        messenger.showSnackBar(SnackBar(content: Text('$e')));
-                      }
+                      info();
                     },
                   ),
                 if (albumId != null && kind != PinKind.album)
@@ -252,6 +277,7 @@ Future<void> showTrackActions(
   mix: () => ref.read(repositoryProvider)!.instantMix(track),
   albumId: track.albumId,
   artistId: track.artistId,
+  info: () => showSongInfo(context, track),
 );
 
 /// Keeps a rating in the JSON of a model loaded from the server, so its menu shows it next time. Models built from constant maps stay as they are.
