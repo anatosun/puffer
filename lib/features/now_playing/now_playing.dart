@@ -609,7 +609,6 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
       fontFeatures: [FontFeature.tabularFigures()],
     );
     final trackId = widget.np.track?.id;
-    // The seek bar keeps the height of the waveform while it loads, so the layout does not move.
     final showWaveform =
         trackId != null &&
         (ref.watch(waveformSupportedProvider).value ?? false);
@@ -643,33 +642,31 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     );
     return Column(
       children: [
-        if (!showWaveform)
-          slider
-        else
-          SizedBox(
-            height: _waveformHeight,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Without a thumb the slider track spans the full width, as the bars do.
-                if (peaks != null)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: WaveformPainter(
-                        peaks: peaks,
-                        progress: max == 0 ? 0 : value / max,
-                        played: widget.color,
-                        smooth:
-                            ref.watch(waveformStyleProvider) ==
-                            WaveformStyle.smooth,
-                        unplayed: context.subtle,
-                      ),
+        // The seek bar always takes the height of the waveform, so the layout stays the same with a waveform, without one, and while one loads.
+        SizedBox(
+          height: _waveformHeight,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Without a thumb the slider track spans the full width, as the bars do.
+              if (peaks != null)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: WaveformPainter(
+                      peaks: peaks,
+                      progress: max == 0 ? 0 : value / max,
+                      played: widget.color,
+                      smooth:
+                          ref.watch(waveformStyleProvider) ==
+                          WaveformStyle.smooth,
+                      unplayed: context.subtle,
                     ),
                   ),
-                slider,
-              ],
-            ),
+                ),
+              slider,
+            ],
           ),
+        ),
         const SizedBox(height: 6),
         Row(
           children: [

@@ -565,4 +565,50 @@ void main() {
       await open('Similar', 'Bill Evans');
     },
   );
+
+  testWidgets('the seek bar takes the same space with and without a waveform', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    Future<Offset> seekBarWith({required bool waveform}) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => waveform),
+            waveformProvider.overrideWith(
+              (ref, id) async => waveform ? [0, 128, 255, 64] : null,
+            ),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      return tester.getCenter(find.byType(Slider));
+    }
+
+    final without = await seekBarWith(waveform: false);
+    final with_ = await seekBarWith(waveform: true);
+    expect(with_, without);
+  });
 }
