@@ -1,0 +1,6 @@
+- Crossfade between songs, on this device and on Music Assistant speakers; songs of the same album never fade
+- Song info: format, quality, size, loudness, plays and more, from the format badges or the song menu
+- Below the queue: more from the album, the artist's photo and biography, and similar artists
+- Double-tap the artwork to add the song to your library
+- Swipe up on the artwork for the queue, down to close the player
+- Tap the time to switch between remaining time and length
