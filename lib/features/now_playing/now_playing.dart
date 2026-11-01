@@ -447,11 +447,17 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 18),
                               // The codec and quality, centred above the title; a tap opens the song info.
-                              if (format != null && track != null) ...[
-                                _FormatBadges(
-                                  format: format,
-                                  track: track,
-                                  color: highlight,
+                              // The badges keep their height while the format of a new song loads, so the title does not jump.
+                              if (ref.watch(playerFormatProvider)) ...[
+                                SizedBox(
+                                  height: _FormatBadges.height,
+                                  child: format != null && track != null
+                                      ? _FormatBadges(
+                                          format: format,
+                                          track: track,
+                                          color: highlight,
+                                        )
+                                      : null,
                                 ),
                                 const SizedBox(height: 6),
                               ],
@@ -791,6 +797,9 @@ class _CoverGesturesState extends State<_CoverGestures>
 
 /// The codec and quality badges of what plays. A tap opens the song info, with the streaming quality on top.
 class _FormatBadges extends StatelessWidget {
+  /// The height of the badges with their touch padding, which the player keeps while they load.
+  static const height = 30.0;
+
   const _FormatBadges({
     required this.format,
     required this.track,
@@ -1052,11 +1061,8 @@ class _BottomRow extends ConsumerWidget {
           child: Align(
             alignment: Alignment.centerRight,
             child: speaker
-                ? OutputButton(
-                    showName: true,
-                    activeColor: color,
-                    idleColor: context.muted,
-                  )
+                // The icon alone, highlighted while a speaker plays.
+                ? OutputButton(activeColor: color, idleColor: context.muted)
                 : null,
           ),
         ),
