@@ -14,7 +14,7 @@
       }
     },
     "address": "https://anatosun.github.io/puffer/fdroid/repo",
-    "timestamp": 1793543319000,
+    "timestamp": 1793545713000,
     "categories": {
       "Multimedia": {
         "name": {
@@ -26,13 +26,13 @@
   "packages": {
     "io.github.anatosun.puffer": {
       "metadata": {
-        "added": 1793541143000,
+        "added": 1793543312000,
         "categories": [
           "Multimedia"
         ],
         "changelog": "https://github.com/anatosun/puffer/releases",
         "issueTracker": "https://github.com/anatosun/puffer/issues",
-        "lastUpdated": 1793543312000,
+        "lastUpdated": 1793545706000,
         "license": "GPL-3.0-or-later",
         "sourceCode": "https://github.com/anatosun/puffer",
         "screenshots": {
@@ -111,6 +111,62 @@
         "preferredSigner": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
       },
       "versions": {
+        "bdbbf3ca8d4462f816853fbf43846e1bb2d8030d466a687a24a4688c84a1e3ae": {
+          "added": 1793545706000,
+          "file": {
+            "name": "/puffer-0.1.0-alpha.19-x86_64.apk",
+            "sha256": "bdbbf3ca8d4462f816853fbf43846e1bb2d8030d466a687a24a4688c84a1e3ae",
+            "size": 28878030
+          },
+          "manifest": {
+            "nativecode": [
+              "x86_64"
+            ],
+            "versionName": "0.1.0-alpha.19",
+            "versionCode": 4019,
+            "usesSdk": {
+              "minSdkVersion": 24,
+              "targetSdkVersion": 36
+            },
+            "signer": {
+              "sha256": [
+                "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
+              ]
+            },
+            "usesPermission": [
+              {
+                "name": "android.permission.INTERNET"
+              },
+              {
+                "name": "android.permission.ACCESS_NETWORK_STATE"
+              },
+              {
+                "name": "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+              },
+              {
+                "name": "android.permission.WAKE_LOCK"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+              },
+              {
+                "name": "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+              },
+              {
+                "name": "android.permission.POST_NOTIFICATIONS"
+              },
+              {
+                "name": "android.permission.RECEIVE_BOOT_COMPLETED"
+              },
+              {
+                "name": "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+              }
+            ]
+          }
+        },
         "f52fee971b5ef4946cec3217ec961d821f7d49245e0aca2d713d11913826b043": {
           "added": 1793543312000,
           "file": {
@@ -167,19 +223,19 @@
             ]
           }
         },
-        "01d5ed91813860609dbf74f3d51bb4dbca278f90a5437391ec7d1e86a7fc806f": {
-          "added": 1793541143000,
+        "66fa4f60c451892d763ffeed0eaf2400b6f919554f46089adc131ee65fe1b063": {
+          "added": 1793545706000,
           "file": {
-            "name": "/puffer-0.1.0-alpha.17-x86_64.apk",
-            "sha256": "01d5ed91813860609dbf74f3d51bb4dbca278f90a5437391ec7d1e86a7fc806f",
-            "size": 28744139
+            "name": "/puffer-0.1.0-alpha.19-arm64-v8a.apk",
+            "sha256": "66fa4f60c451892d763ffeed0eaf2400b6f919554f46089adc131ee65fe1b063",
+            "size": 27295232
           },
           "manifest": {
             "nativecode": [
-              "x86_64"
+              "arm64-v8a"
             ],
-            "versionName": "0.1.0-alpha.17",
-            "versionCode": 4017,
+            "versionName": "0.1.0-alpha.19",
+            "versionCode": 2019,
             "usesSdk": {
               "minSdkVersion": 24,
               "targetSdkVersion": 36
@@ -279,19 +335,19 @@
             ]
           }
         },
-        "649ee359c54f89d74fd888dab8aa278663b0968dc36c4e1a778f9c8c69938ca3": {
-          "added": 1793541143000,
+        "6457aa96314fec7ce1e8e9ed6ea7cd0f19148287b175a13f451138133759511d": {
+          "added": 1793545706000,
           "file": {
-            "name": "/puffer-0.1.0-alpha.17-arm64-v8a.apk",
-            "sha256": "649ee359c54f89d74fd888dab8aa278663b0968dc36c4e1a778f9c8c69938ca3",
-            "size": 27161341
+            "name": "/puffer-0.1.0-alpha.19-armeabi-v7a.apk",
+            "sha256": "6457aa96314fec7ce1e8e9ed6ea7cd0f19148287b175a13f451138133759511d",
+            "size": 24982860
           },
           "manifest": {
             "nativecode": [
-              "arm64-v8a"
+              "armeabi-v7a"
             ],
-            "versionName": "0.1.0-alpha.17",
-            "versionCode": 2017,
+            "versionName": "0.1.0-alpha.19",
+            "versionCode": 1019,
             "usesSdk": {
               "minSdkVersion": 24,
               "targetSdkVersion": 36
@@ -348,62 +404,6 @@
             ],
             "versionName": "0.1.0-alpha.18",
             "versionCode": 1018,
-            "usesSdk": {
-              "minSdkVersion": 24,
-              "targetSdkVersion": 36
-            },
-            "signer": {
-              "sha256": [
-                "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84"
-              ]
-            },
-            "usesPermission": [
-              {
-                "name": "android.permission.INTERNET"
-              },
-              {
-                "name": "android.permission.ACCESS_NETWORK_STATE"
-              },
-              {
-                "name": "android.permission.CHANGE_WIFI_MULTICAST_STATE"
-              },
-              {
-                "name": "android.permission.WAKE_LOCK"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-              },
-              {
-                "name": "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
-              },
-              {
-                "name": "android.permission.POST_NOTIFICATIONS"
-              },
-              {
-                "name": "android.permission.RECEIVE_BOOT_COMPLETED"
-              },
-              {
-                "name": "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-              }
-            ]
-          }
-        },
-        "654819cd42c174d4cd7c7152279e5ca8324f6162f6411023bac5b54b1536bdca": {
-          "added": 1793541143000,
-          "file": {
-            "name": "/puffer-0.1.0-alpha.17-armeabi-v7a.apk",
-            "sha256": "654819cd42c174d4cd7c7152279e5ca8324f6162f6411023bac5b54b1536bdca",
-            "size": 24865357
-          },
-          "manifest": {
-            "nativecode": [
-              "armeabi-v7a"
-            ],
-            "versionName": "0.1.0-alpha.17",
-            "versionCode": 1017,
             "usesSdk": {
               "minSdkVersion": 24,
               "targetSdkVersion": 36
