@@ -88,8 +88,19 @@ class DownloadManager {
   /// While true, new files stay queued in the database and are not handed to [backend].
   bool _held = false;
 
+  /// The updates of the transfers, applied one after the other, so two completed files never trim the storage at the same time.
+  Future<void> _updates = Future.value();
+
+  /// Completes once every transfer update received so far is applied.
+  Future<void> get settled => _updates;
+
   Future<void> start() async {
-    _subscription ??= backend.updates.listen(_onUpdate);
+    // A failed update leaves its file as it was, and the updates after it still apply.
+    _subscription ??= backend.updates.listen(
+      (update) => _updates = _updates
+          .then((_) => _onUpdate(update))
+          .catchError((Object _) {}),
+    );
     await backend.start();
   }
 

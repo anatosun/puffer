@@ -78,7 +78,9 @@ void main() {
     backend.controller.add(
       TransferUpdate(id, status: FileStatus.complete, path: file.path),
     );
+    // The update reads the file from disk, which can outlast a fixed number of event-loop turns on a slow machine.
     await pumpEventQueue();
+    await manager.settled;
   }
 
   Future<Set<String>> fileIds() async => {
