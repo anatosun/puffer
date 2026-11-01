@@ -17,6 +17,7 @@ import '../features/now_playing/now_playing.dart';
 import '../features/now_playing/speaker_bar.dart';
 import '../features/now_playing/waveform.dart';
 import '../features/search/search_page.dart';
+import '../features/settings/about_page.dart';
 import '../features/settings/downloads_settings_page.dart';
 import '../features/settings/experience_settings_page.dart';
 import '../features/settings/playback_settings_page.dart';
@@ -131,6 +132,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings/music-assistant',
             builder: (_, _) => const MusicAssistantPage(),
+          ),
+          GoRoute(
+            path: '/settings/about',
+            builder: (_, _) => const AboutPage(),
           ),
           GoRoute(
             path: '/settings/downloads',

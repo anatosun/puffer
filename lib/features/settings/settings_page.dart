@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../ui/widgets/backdrop.dart';
+import 'about_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -64,6 +65,19 @@ class SettingsPage extends ConsumerWidget {
               title: const Text('Downloads'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/settings/downloads'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About Puffer'),
+              subtitle: Text(
+                [
+                  if (ref.watch(packageInfoProvider).value case final info?)
+                    'Version ${versionLabel(info)}',
+                  'Source code and licences',
+                ].join(' · '),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/about'),
             ),
             const Divider(),
             ListTile(
