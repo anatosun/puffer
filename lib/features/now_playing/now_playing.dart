@@ -407,7 +407,11 @@ class NowPlayingPage extends ConsumerWidget {
                                     return Column(
                                       children: [
                                         SizedBox(height: slack / 2),
-                                        artwork,
+                                        // Held to the size of the artwork: while it cross-fades to the next song, the outgoing artwork keeps the size it had, which no longer fits if the window shrank meanwhile.
+                                        SizedBox.square(
+                                          dimension: artSize,
+                                          child: artwork,
+                                        ),
                                         if (showTrackRow) ...[
                                           SizedBox(height: 14 + slack / 4),
                                           SizedBox(
