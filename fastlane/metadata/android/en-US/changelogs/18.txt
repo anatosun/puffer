@@ -1,0 +1,6 @@
+- Tabs below the player: played songs, the queue, the album, the artist's albums, about the artist and similar artists
+- The queue starts with the song that plays
+- "Play album" makes the current album the queue
+- Format badges above the title; instant mix next to the tabs
+- Larger stars, clearer colours in the player
+- The heart button made way for double-tap on the artwork
