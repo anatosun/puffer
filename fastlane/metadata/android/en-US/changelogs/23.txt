@@ -1,0 +1,2 @@
+- The next three songs of the queue are fetched ahead, so they play through gaps in the connection
+- Settings → Playback → Songs ahead: on Wi-Fi only or always, the space they may take, and a button to clear them
