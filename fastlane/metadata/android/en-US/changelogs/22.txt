@@ -1,0 +1,5 @@
+- Server settings: edit the address and sign-in without signing out, test the connection, and see the server software, API version and OpenSubsonic extensions
+- A local address for the home network, used on Wi-Fi when the server answers there
+- Scan the library from the app, for administrators
+- Refresh the library cache; downloads keep working offline
+- The themed icon is drawn in lines, like the Arcticons icon
