@@ -6,11 +6,24 @@ import 'package:just_audio/just_audio.dart';
 
 import '../data/subsonic/models.dart';
 import 'crossfade.dart';
+import 'prefetch_cache.dart';
+import 'stable_shuffle_order.dart';
 
 /// What the handler needs from the session: where each track's audio and artwork are, and where to report plays.
 abstract class PlaybackSource {
   Future<String?> localPath(String trackId);
   Uri streamUri(Track track);
+
+  /// The file of [track] among the songs fetched ahead, when there is one.
+  Future<String?> cachedPath(Track track);
+
+  /// Fetches [upcoming], the next songs of the queue, ahead of playback, and calls [ready] with the file of each. Files of the songs in [keep] stay in the cache; [removed] receives the names of the files deleted to make room.
+  Future<void> prefetch(
+    List<Track> upcoming, {
+    required Set<Track> keep,
+    required void Function(Track track, String path) ready,
+    required void Function(Set<String> fileNames) removed,
+  });
   Uri? artUri(String? coverArt);
   Future<void> nowPlaying(Track track);
   Future<void> played(Track track);
@@ -47,6 +60,21 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// The main player is taking over the incoming song, so its volume stays down until then.
   bool _handingOver = false;
 
+  /// The shuffle order of the queue, which keeps a song in place when its cached file replaces its stream.
+  StableShuffleOrder _order = StableShuffleOrder();
+
+  /// Counts the queues loaded, so a prefetch for an earlier queue changes nothing.
+  int _generation = 0;
+
+  /// Changes of the queue run one after the other, so replacing a stream by its cached file never interleaves with an edit.
+  Future<void> _edits = Future.value();
+
+  /// The queue [_lastIndex] belongs to.
+  int _indexGeneration = -1;
+
+  /// A stream is being replaced by its file, or back: the player reports index changes that are not song changes.
+  bool _swapping = false;
+
   /// The last index the player reported. While it seeks, some backends report no index for a moment, which must not make the current track unknown.
   int? _lastIndex;
 
@@ -62,14 +90,18 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
-    player.playbackEventStream.listen(
-      _broadcastState,
-      onError: (Object _, StackTrace _) {},
-    );
+    player.playbackEventStream.listen((event) {
+      if (!_swapping) _broadcastState(event);
+    }, onError: (Object _, StackTrace _) {});
     player.playingStream.listen((_) => _broadcastState(player.playbackEvent));
     player.currentIndexStream.listen((index) {
-      if (index == null || index >= _tracks.length) return;
+      if (_swapping || index == null || index >= _tracks.length) return;
+      // A replacement before the current song shifts the index for a moment; only the index the player holds now counts, and only once per queue.
+      if (index != player.currentIndex) return;
+      if (index == _lastIndex && _generation == _indexGeneration) return;
+      _indexGeneration = _generation;
       _lastIndex = index;
+      _prefetch();
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
       if (!_handingOver) player.setVolume(source?.volumeFor(track) ?? 1);
@@ -92,10 +124,128 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<AudioSource> _audioSource(Track track) async {
-    final path = await source?.localPath(track.id);
+    final path =
+        await source?.localPath(track.id) ?? await source?.cachedPath(track);
     if (path != null) return AudioSource.file(path, tag: track.id);
     return AudioSource.uri(source!.streamUri(track), tag: track.id);
   }
+
+  Future<T> _serial<T>(Future<T> Function() edit) {
+    final result = _edits.then((_) => edit());
+    _edits = result.then((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  /// Loads [sources] as a new queue with a fresh shuffle order.
+  Future<void> _load(
+    List<AudioSource> sources, {
+    int? initialIndex,
+    Duration? initialPosition,
+  }) async {
+    _generation++;
+    _order = StableShuffleOrder();
+    await player.setAudioSources(
+      sources,
+      initialIndex: initialIndex,
+      initialPosition: initialPosition,
+      shuffleOrder: _order,
+    );
+  }
+
+  bool _streams(int index) {
+    final sources = player.audioSources;
+    if (index >= sources.length) return false;
+    final s = sources[index];
+    return s is UriAudioSource && s.uri.scheme != 'file';
+  }
+
+  /// Fetches the next songs ahead of playback and plays each from its file once it is there.
+  void _prefetch() {
+    final src = source;
+    final current = player.currentIndex;
+    if (src == null || current == null || current >= _tracks.length) return;
+    final order = player.effectiveIndices;
+    final next = upcomingIndices(
+      order,
+      current,
+      loop: player.loopMode == LoopMode.all,
+    ).where((i) => i < _tracks.length).toList();
+    final at = order.indexOf(current);
+    final recent = order
+        .sublist(
+          (at - recentlyPlayedKept).clamp(0, order.length),
+          at.clamp(0, order.length),
+        )
+        .where((i) => i < _tracks.length);
+    final generation = _generation;
+    unawaited(
+      src
+          .prefetch(
+            [
+              for (final i in next)
+                if (_streams(i)) _tracks[i],
+            ],
+            keep: {
+              _tracks[current],
+              for (final i in next) _tracks[i],
+              for (final i in recent) _tracks[i],
+            },
+            ready: (track, path) => _replace(
+              generation,
+              track.id,
+              toFile: true,
+              source: AudioSource.file(path, tag: track.id),
+            ),
+            removed: cachedFilesRemoved,
+          )
+          .catchError((Object _) {}),
+    );
+  }
+
+  /// Songs of the queue whose cached files were deleted stream again.
+  void cachedFilesRemoved(Set<String> fileNames) {
+    final src = source;
+    if (src == null) return;
+    final sources = player.audioSources;
+    for (var i = 0; i < sources.length && i < _tracks.length; i++) {
+      final s = sources[i];
+      if (s is! UriAudioSource || s.uri.scheme != 'file') continue;
+      if (!fileNames.contains(s.uri.pathSegments.last)) continue;
+      final track = _tracks[i];
+      unawaited(
+        _replace(
+          _generation,
+          track.id,
+          toFile: false,
+          source: AudioSource.uri(src.streamUri(track), tag: track.id),
+        ),
+      );
+    }
+  }
+
+  /// Replaces the queue entries of [trackId] other than the current song: its stream by its cached file when [toFile], its cached file by its stream otherwise.
+  Future<void> _replace(
+    int generation,
+    String trackId, {
+    required bool toFile,
+    required AudioSource source,
+  }) => _serial(() async {
+    if (generation != _generation || _fading) return;
+    for (var i = 0; i < _tracks.length; i++) {
+      if (_tracks[i].id != trackId || i == player.currentIndex) continue;
+      if (_streams(i) != toFile) continue;
+      _swapping = true;
+      try {
+        _order.replacing(i);
+        await player.removeAudioSourceAt(i);
+        await player.insertAudioSource(i, source);
+      } on Exception {
+        // The entry keeps its previous source.
+      } finally {
+        _swapping = false;
+      }
+    }
+  });
 
   MediaItem _mediaItem(Track track) => MediaItem(
     id: track.id,
@@ -209,12 +359,15 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     await player.setShuffleModeEnabled(shuffle);
-    await player.setAudioSources(
-      sources,
-      initialIndex: shuffle ? null : index,
-      initialPosition: Duration.zero,
+    await _serial(
+      () => _load(
+        sources,
+        initialIndex: shuffle ? null : index,
+        initialPosition: Duration.zero,
+      ),
     );
     if (shuffle) await player.shuffle();
+    _prefetch();
     await player.play();
   }
 
@@ -225,11 +378,10 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
-    await player.setAudioSources(
-      sources,
-      initialIndex: index,
-      initialPosition: position,
+    await _serial(
+      () => _load(sources, initialIndex: index, initialPosition: position),
     );
+    _prefetch();
   }
 
   /// Builds the audio sources of the queue again, for example after the streaming quality changed, and carries on from the same song and position. A song that was playing keeps playing.
@@ -240,45 +392,58 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final position = player.position;
     final playing = player.playing;
     final sources = await Future.wait(_tracks.map(_audioSource));
-    await player.setAudioSources(
-      sources,
-      initialIndex: index,
-      initialPosition: position,
+    await _serial(
+      () => _load(sources, initialIndex: index, initialPosition: position),
     );
+    _prefetch();
     if (playing) await player.play();
   }
 
   Future<void> playNext(List<Track> tracks) async {
     if (_tracks.isEmpty) return playTracks(tracks);
-    var insertAt = (player.currentIndex ?? -1) + 1;
-    for (final t in tracks) {
-      await player.insertAudioSource(insertAt, await _audioSource(t));
-      _tracks.insert(insertAt, t);
-      insertAt++;
-    }
-    queue.add([for (final t in _tracks) _mediaItem(t)]);
+    final sources = [for (final t in tracks) await _audioSource(t)];
+    await _serial(() async {
+      var insertAt = (player.currentIndex ?? -1) + 1;
+      for (final (i, t) in tracks.indexed) {
+        await player.insertAudioSource(insertAt, sources[i]);
+        _tracks.insert(insertAt, t);
+        insertAt++;
+      }
+      queue.add([for (final t in _tracks) _mediaItem(t)]);
+    });
+    _prefetch();
   }
 
   Future<void> addTracks(List<Track> tracks) async {
     if (_tracks.isEmpty) return playTracks(tracks);
-    for (final t in tracks) {
-      await player.addAudioSource(await _audioSource(t));
-      _tracks.add(t);
-    }
-    queue.add([for (final t in _tracks) _mediaItem(t)]);
+    final sources = [for (final t in tracks) await _audioSource(t)];
+    await _serial(() async {
+      for (final (i, t) in tracks.indexed) {
+        await player.addAudioSource(sources[i]);
+        _tracks.add(t);
+      }
+      queue.add([for (final t in _tracks) _mediaItem(t)]);
+    });
+    _prefetch();
   }
 
   @override
   Future<void> removeQueueItemAt(int index) async {
-    await player.removeAudioSourceAt(index);
-    _tracks.removeAt(index);
-    queue.add([for (final t in _tracks) _mediaItem(t)]);
+    await _serial(() async {
+      await player.removeAudioSourceAt(index);
+      _tracks.removeAt(index);
+      queue.add([for (final t in _tracks) _mediaItem(t)]);
+    });
+    _prefetch();
   }
 
   Future<void> moveQueueItem(int from, int to) async {
-    await player.moveAudioSource(from, to);
-    _tracks.insert(to, _tracks.removeAt(from));
-    queue.add([for (final t in _tracks) _mediaItem(t)]);
+    await _serial(() async {
+      await player.moveAudioSource(from, to);
+      _tracks.insert(to, _tracks.removeAt(from));
+      queue.add([for (final t in _tracks) _mediaItem(t)]);
+    });
+    _prefetch();
   }
 
   @override
@@ -322,6 +487,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final enabled = shuffleMode != AudioServiceShuffleMode.none;
     if (enabled) await player.shuffle();
     await player.setShuffleModeEnabled(enabled);
+    _prefetch();
   }
 
   @override
@@ -337,7 +503,10 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> stop() async {
     _cancelCrossfade();
     await player.stop();
-    await player.clearAudioSources();
+    await _serial(() async {
+      _generation++;
+      await player.clearAudioSources();
+    });
     _tracks = const [];
     queue.add(const []);
     mediaItem.add(null);

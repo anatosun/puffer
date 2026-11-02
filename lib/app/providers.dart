@@ -19,6 +19,7 @@ import '../downloads/download_manager.dart';
 import '../downloads/download_settings.dart';
 import '../downloads/transfer_backend.dart';
 import '../playback/player_handler.dart';
+import '../playback/prefetch_cache.dart';
 import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
 
@@ -94,6 +95,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
   Future<void> signOut() async {
     await ref.read(downloadManagerProvider)?.removeAll();
     await ref.read(artworkStoreProvider)?.clear();
+    await ref.read(prefetchCacheProvider).clear();
     await ref.read(queueStoreProvider).clear();
     await secureStorage.delete(key: _credentialsKey);
     state = null;
@@ -316,6 +318,75 @@ final currentQualitySettingProvider =
 /// The streaming quality for the current network.
 final streamingQualityProvider = Provider<DownloadQuality>(
   (ref) => ref.watch(ref.watch(currentQualitySettingProvider)),
+);
+
+// ------------------------------------------------------------ songs fetched ahead
+
+class PrefetchModeNotifier extends Notifier<PrefetchMode> {
+  static const _key = 'playback.prefetch';
+
+  @override
+  PrefetchMode build() =>
+      PrefetchMode.values.asNameMap()[ref
+          .read(sharedPreferencesProvider)
+          .getString(_key)] ??
+      PrefetchMode.wifi;
+
+  Future<void> set(PrefetchMode mode) async {
+    state = mode;
+    await ref.read(sharedPreferencesProvider).setString(_key, mode.name);
+  }
+}
+
+final prefetchModeProvider =
+    NotifierProvider<PrefetchModeNotifier, PrefetchMode>(
+      PrefetchModeNotifier.new,
+    );
+
+class PrefetchLimitNotifier extends Notifier<int> {
+  static const _key = 'playback.prefetchLimit';
+
+  @override
+  int build() =>
+      ref.read(sharedPreferencesProvider).getInt(_key) ?? prefetchLimits[1];
+
+  Future<void> set(int bytes) async {
+    state = bytes;
+    await ref.read(sharedPreferencesProvider).setInt(_key, bytes);
+    await ref.read(prefetchCacheProvider).evict();
+  }
+}
+
+final prefetchLimitProvider = NotifierProvider<PrefetchLimitNotifier, int>(
+  PrefetchLimitNotifier.new,
+);
+
+/// The songs fetched ahead of playback, in their own folder next to the downloads.
+final prefetchCacheProvider = Provider<PrefetchCache>((ref) {
+  final cache = PrefetchCache(
+    Directory(p.join(ref.watch(supportDirectoryProvider).path, 'prefetch')),
+    maxBytes: ref.read(prefetchLimitProvider),
+  );
+  ref.listen(prefetchLimitProvider, (_, bytes) => cache.maxBytes = bytes);
+  ref.onDispose(cache.close);
+  return cache;
+});
+
+/// The size of the songs fetched ahead, for the settings. Invalidated after a clear.
+final prefetchSizeProvider = FutureProvider.autoDispose<int>(
+  (ref) => ref.watch(prefetchCacheProvider).size(),
+);
+
+/// Deletes the songs fetched ahead, except those the queue plays from.
+final clearPrefetchCacheProvider = Provider<Future<void> Function()>(
+  (ref) => () async {
+    final queue = ref.read(playerHandlerProvider).tracks;
+    final source = SessionPlaybackSource(ref);
+    await ref
+        .read(prefetchCacheProvider)
+        .clear(keep: {for (final t in queue) source.cacheName(t)});
+    ref.invalidate(prefetchSizeProvider);
+  },
 );
 
 // ------------------------------------------------------------ offline
@@ -565,6 +636,50 @@ class SessionPlaybackSource implements PlaybackSource {
           format: quality.format,
           maxBitRate: quality.maxBitRate,
         );
+  }
+
+  /// The file name of [track] in the cache, at the streaming quality of the current network.
+  String cacheName(Track track) {
+    final quality = ref.read(streamingQualityProvider);
+    return PrefetchCache.fileName(
+      track.id,
+      quality.name,
+      quality.format ?? track.suffix,
+    );
+  }
+
+  @override
+  Future<String?> cachedPath(Track track) async =>
+      (await ref.read(prefetchCacheProvider).existing(cacheName(track)))?.path;
+
+  int _prefetchRun = 0;
+
+  @override
+  Future<void> prefetch(
+    List<Track> upcoming, {
+    required Set<Track> keep,
+    required void Function(Track track, String path) ready,
+    required void Function(Set<String> fileNames) removed,
+  }) async {
+    final run = ++_prefetchRun;
+    final mode = ref.read(prefetchModeProvider);
+    if (mode == PrefetchMode.off || ref.read(isOfflineProvider)) return;
+    if (mode == PrefetchMode.wifi && ref.read(onCellularProvider)) return;
+    final cache = ref.read(prefetchCacheProvider);
+    final kept = {for (final t in keep) cacheName(t)};
+    for (final track in upcoming) {
+      if (run != _prefetchRun) return;
+      if (await localPath(track.id) != null) continue;
+      try {
+        final file = await cache.fetch(cacheName(track), streamUri(track));
+        ready(track, file.path);
+      } on Exception {
+        // The song streams when its turn comes.
+        continue;
+      }
+      final deleted = await cache.evict(keep: kept);
+      if (deleted.isNotEmpty) removed(deleted.toSet());
+    }
   }
 
   @override
