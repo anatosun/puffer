@@ -27,6 +27,7 @@ class ServerCredentials {
     this.token,
     this.salt,
     this.apiKey,
+    this.localUrl,
   });
 
   /// Builds credentials from a password, with a fresh random salt.
@@ -55,6 +56,9 @@ class ServerCredentials {
   final String? salt;
   final String? apiKey;
 
+  /// An address of the same server on the home network, used instead of [baseUrl] when it answers.
+  final String? localUrl;
+
   Map<String, String> get authParams => apiKey != null
       ? {'apiKey': apiKey!}
       : {'u': username, 't': token!, 's': salt!};
@@ -65,6 +69,7 @@ class ServerCredentials {
     'token': ?token,
     'salt': ?salt,
     'apiKey': ?apiKey,
+    'localUrl': ?localUrl,
   };
 
   factory ServerCredentials.fromJson(Map<String, dynamic> json) =>
@@ -74,6 +79,7 @@ class ServerCredentials {
         token: json['token'] as String?,
         salt: json['salt'] as String?,
         apiKey: json['apiKey'] as String?,
+        localUrl: json['localUrl'] as String?,
       );
 }
 
@@ -87,11 +93,15 @@ String normaliseBaseUrl(String url) {
 }
 
 class SubsonicClient {
-  SubsonicClient(this.credentials, {http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  SubsonicClient(this.credentials, {http.Client? httpClient, String? baseUrl})
+    : _http = httpClient ?? http.Client(),
+      baseUrl = baseUrl ?? credentials.baseUrl;
 
   final ServerCredentials credentials;
   final http.Client _http;
+
+  /// The address requests go to: [ServerCredentials.baseUrl], or the local address while it answers.
+  String baseUrl;
 
   /// OpenSubsonic extension names reported by the server, filled by [loadExtensions].
   Set<String> extensions = const {};
@@ -110,17 +120,15 @@ class SubsonicClient {
           ? value.map((e) => '$e').toList()
           : '$value';
     });
-    return Uri.parse('${credentials.baseUrl}/rest/$endpoint')
-        .replace(queryParameters: query);
+    return Uri.parse('$baseUrl/rest/$endpoint').replace(queryParameters: query);
   }
 
   Future<Json> _get(
     String endpoint, [
     Map<String, Object?> params = const {},
+    Duration timeout = const Duration(seconds: 20),
   ]) async {
-    final response = await _http
-        .get(_uri(endpoint, params))
-        .timeout(const Duration(seconds: 20));
+    final response = await _http.get(_uri(endpoint, params)).timeout(timeout);
     if (response.statusCode != 200) {
       throw SubsonicException(
         response.statusCode,
@@ -142,9 +150,29 @@ class SubsonicClient {
     return body;
   }
 
-  Future<void> ping() async {
-    await _get('ping');
+  Future<void> ping({Duration timeout = const Duration(seconds: 20)}) async {
+    await _get('ping', const {}, timeout);
   }
+
+  /// What the server reports about itself, and how long it took to answer.
+  Future<ServerInfo> serverInfo() async {
+    final watch = Stopwatch()..start();
+    final body = await _get('ping');
+    watch.stop();
+    return ServerInfo(body, watch.elapsed);
+  }
+
+  /// Whether [ServerCredentials.username] is an administrator of the server, from the `adminRole` of `getUser`.
+  Future<bool> isAdmin() async {
+    final body = await _get('getUser', {'username': credentials.username});
+    return (body['user'] as Json?)?['adminRole'] == true;
+  }
+
+  Future<ScanStatus> getScanStatus() async =>
+      ScanStatus(await _get('getScanStatus'));
+
+  /// Starts a scan of the music folders. Most servers allow it only for administrators.
+  Future<ScanStatus> startScan() async => ScanStatus(await _get('startScan'));
 
   Future<Set<String>> loadExtensions() =>
       _extensionsLoading = _loadExtensions();
@@ -386,4 +414,43 @@ class SubsonicClient {
       _uri('getCoverArt', {'id': id, 'size': size});
 
   void close() => _http.close();
+}
+
+/// The fields of a `ping` response that describe the server.
+class ServerInfo {
+  const ServerInfo(this.json, this.responseTime);
+
+  final Json json;
+  final Duration responseTime;
+
+  String get apiVersion => json['version'] as String? ?? '';
+  bool get openSubsonic => json['openSubsonic'] == true;
+
+  /// The server software and its version, such as "navidrome 0.53.3". OpenSubsonic servers report it; others do not.
+  String? get server => [
+    json['type'] as String?,
+    json['serverVersion'] as String?,
+  ].nonNulls.join(' ').nullIfEmpty;
+}
+
+/// The library scan state of a `getScanStatus` or `startScan` response.
+class ScanStatus {
+  const ScanStatus(this.response);
+
+  final Json response;
+
+  Json get _status => response['scanStatus'] as Json? ?? const {};
+
+  bool get scanning => _status['scanning'] == true;
+
+  /// The number of songs found, so far while scanning.
+  int? get count => (_status['count'] as num?)?.toInt();
+
+  /// When the last scan finished. Navidrome and other OpenSubsonic servers report it.
+  DateTime? get lastScan =>
+      DateTime.tryParse(_status['lastScan'] as String? ?? '')?.toLocal();
+}
+
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
 }

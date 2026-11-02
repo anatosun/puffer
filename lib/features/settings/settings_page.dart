@@ -30,6 +30,8 @@ class SettingsPage extends ConsumerWidget {
                     'OpenSubsonic',
                 ].nonNulls.join(' · '),
               ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/server'),
             ),
             ListTile(
               leading: const Icon(Icons.palette_outlined),

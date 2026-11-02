@@ -13,6 +13,7 @@ import '../data/artwork_store.dart';
 import '../data/db/database.dart';
 import '../data/repositories/library_repository.dart';
 import '../data/subsonic/models.dart';
+import '../data/subsonic/server_address.dart';
 import '../data/subsonic/subsonic_client.dart';
 import '../downloads/download_manager.dart';
 import '../downloads/download_settings.dart';
@@ -65,6 +66,24 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
     } finally {
       client.close();
     }
+    await _store(credentials);
+  }
+
+  /// Replaces the connection details of the signed-in server, keeping the downloads and the library cache. The server has to answer at the address or, failing that, at the local address.
+  Future<void> updateConnection(ServerCredentials credentials) async {
+    final client = SubsonicClient(credentials);
+    try {
+      await client.ping();
+    } on Exception {
+      final local = credentials.localUrl;
+      if (local == null || !await serverAnswers(credentials, local)) rethrow;
+    } finally {
+      client.close();
+    }
+    await _store(credentials);
+  }
+
+  Future<void> _store(ServerCredentials credentials) async {
     await secureStorage.write(
       key: _credentialsKey,
       value: jsonEncode(credentials.toJson()),
@@ -86,12 +105,62 @@ final credentialsProvider =
       CredentialsNotifier.new,
     );
 
+const _addressKey = 'server.address';
+
+/// The address the client sends requests to, the public or the local one.
+class ActiveAddressNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String address) {
+    state = address;
+    unawaited(
+      ref.read(sharedPreferencesProvider).setString(_addressKey, address),
+    );
+  }
+}
+
+final activeAddressProvider = NotifierProvider<ActiveAddressNotifier, String?>(
+  ActiveAddressNotifier.new,
+);
+
+/// The client of the signed-in server. With a local address, it starts on the address used last and, on every change of network, uses the local address when the server answers there.
 final clientProvider = Provider<SubsonicClient?>((ref) {
   final credentials = ref.watch(credentialsProvider);
   if (credentials == null) return null;
-  final client = SubsonicClient(credentials);
+  final local = credentials.localUrl;
+  final last = ref.read(sharedPreferencesProvider).getString(_addressKey);
+  final client = SubsonicClient(
+    credentials,
+    baseUrl: local != null && last == local ? local : null,
+  );
+  var disposed = false;
+  ref.onDispose(() {
+    disposed = true;
+    client.close();
+  });
   unawaited(client.loadExtensions().catchError((_) => const <String>{}));
-  ref.onDispose(client.close);
+  Future.microtask(() {
+    if (!disposed) ref.read(activeAddressProvider.notifier).set(client.baseUrl);
+  });
+  if (local != null) {
+    var probe = 0;
+    ref.listen(connectivityProvider, (_, next) async {
+      final networks = next.value;
+      if (networks == null) return;
+      final current = ++probe;
+      final address = await chooseAddress(
+        credentials,
+        onLocalNetwork:
+            networks.contains(ConnectivityResult.wifi) ||
+            networks.contains(ConnectivityResult.ethernet),
+        answers: (url) => serverAnswers(credentials, url),
+      );
+      if (disposed || current != probe) return;
+      client.baseUrl = address;
+      ref.read(activeAddressProvider.notifier).set(address);
+    }, fireImmediately: true);
+  }
   return client;
 });
 

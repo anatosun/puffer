@@ -290,6 +290,56 @@ class LibraryRepository {
     return [for (final id in idList) ?byId[id]];
   }
 
+  /// Empties the cache except what downloads need offline, then reloads that part from the server. Kept are the tracks with a file, their albums and artists, and the downloaded playlists and artists. [onProgress] receives the number of reloaded items and their total.
+  Future<void> refreshCache({
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final trackIds = (await db.select(db.trackFiles).get())
+        .map((f) => f.trackId)
+        .toSet();
+    final tracks = await cachedTracks(trackIds);
+    final pins = await db.select(db.pins).get();
+    Set<String> pinned(String kind) => {
+      for (final pin in pins)
+        if (pin.kind == kind) pin.itemId,
+    };
+    final albums = {
+      ...pinned('album'),
+      ...tracks.map((t) => t.albumId).nonNulls,
+    };
+    final artists = {
+      ...pinned('artist'),
+      ...tracks.map((t) => t.artistId).nonNulls,
+    };
+    final playlists = pinned('playlist');
+
+    await (db.delete(db.cachedItems)..where(
+          (t) =>
+              (t.kind.equals('track') & t.id.isIn(trackIds)).not() &
+              (t.kind.equals('album') & t.id.isIn(albums)).not() &
+              (t.kind.equals('artist') & t.id.isIn(artists)).not() &
+              (t.kind.equals('playlist') & t.id.isIn(playlists)).not(),
+        ))
+        .go();
+
+    final reloads = <Future<void> Function()>[
+      for (final id in albums) () => album(id),
+      for (final id in artists) () => artist(id),
+      for (final id in playlists) () => playlist(id),
+    ];
+    var done = 0;
+    onProgress?.call(done, reloads.length);
+    const parallel = 4;
+    for (var i = 0; i < reloads.length; i += parallel) {
+      await Future.wait([
+        for (final reload in reloads.skip(i).take(parallel))
+          reload().then<void>((_) {}, onError: (Object _) {}),
+      ]);
+      done = (i + parallel).clamp(0, reloads.length);
+      onProgress?.call(done, reloads.length);
+    }
+  }
+
   Future<Album?> cachedAlbum(String id) async {
     final json = await _cached('album', id);
     return json == null ? null : Album(json as Json);
