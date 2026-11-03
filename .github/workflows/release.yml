@@ -128,7 +128,7 @@ jobs:
           f="fastlane/metadata/android/en-US/changelogs/$code.txt"
           if [ -f "$f" ]; then echo "file=$f" >> "$GITHUB_OUTPUT"; fi
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           body_path: ${{ steps.changelog.outputs.file }}
