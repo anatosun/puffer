@@ -320,6 +320,24 @@ final streamingQualityProvider = Provider<DownloadQuality>(
   (ref) => ref.watch(ref.watch(currentQualitySettingProvider)),
 );
 
+// ------------------------------------------------------------ external items
+
+/// Whether work the person did not start song by song (the albums of a downloaded artist, the songs fetched ahead) includes items from external providers, whose IDs start with `ext-`. Off by default: a proxy such as octo-fiesta downloads each of them in full from the provider. Changing it syncs the downloads again.
+class ExternalInBackgroundNotifier extends BoolSettingNotifier {
+  ExternalInBackgroundNotifier() : super('server.externalInBackground', false);
+
+  @override
+  Future<void> set(bool value) async {
+    await super.set(value);
+    await ref.read(downloadManagerProvider)?.syncPins();
+  }
+}
+
+final externalInBackgroundProvider =
+    NotifierProvider<ExternalInBackgroundNotifier, bool>(
+      ExternalInBackgroundNotifier.new,
+    );
+
 // ------------------------------------------------------------ songs fetched ahead
 
 class PrefetchModeNotifier extends Notifier<PrefetchMode> {
@@ -521,7 +539,12 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
         final artist = await repository.artist(id);
         unawaited(art(artist.coverArt));
         final tracks = <Track>[];
-        for (final a in artist.albums) {
+        final external = ref.read(externalInBackgroundProvider);
+        for (final a in forBackground(
+          artist.albums,
+          (a) => a.id,
+          includeExternal: external,
+        )) {
           final album = await repository.album(a.id);
           unawaited(art(album.coverArt));
           tracks.addAll(album.songs);
@@ -667,7 +690,12 @@ class SessionPlaybackSource implements PlaybackSource {
     if (mode == PrefetchMode.wifi && ref.read(onCellularProvider)) return;
     final cache = ref.read(prefetchCacheProvider);
     final kept = {for (final t in keep) cacheName(t)};
-    for (final track in upcoming) {
+    final external = ref.read(externalInBackgroundProvider);
+    for (final track in forBackground(
+      upcoming,
+      (t) => t.id,
+      includeExternal: external,
+    )) {
       if (run != _prefetchRun) return;
       if (await localPath(track.id) != null) continue;
       try {

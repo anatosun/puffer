@@ -102,6 +102,17 @@ class ServerSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
+            const SettingsSection('External sources'),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_download_outlined),
+              title: const Text('Skip external songs in the background'),
+              subtitle: const Text(
+                'Songs a proxy like octo-fiesta fetches from outside your library are left out',
+              ),
+              value: !ref.watch(externalInBackgroundProvider),
+              onChanged: (skip) =>
+                  ref.read(externalInBackgroundProvider.notifier).set(!skip),
+            ),
             const SettingsSection('Library'),
             if (!offline && (ref.watch(isAdminProvider).value ?? false))
               const _ScanTile(),

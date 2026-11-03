@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:puffer/data/db/database.dart';
 import 'package:puffer/data/repositories/library_repository.dart';
+import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/data/subsonic/server_address.dart';
 import 'package:puffer/data/subsonic/subsonic_client.dart';
 import 'package:puffer/features/settings/server_settings.dart';
@@ -297,5 +298,22 @@ void main() {
         expect(progress.last, (3, 3));
       },
     );
+  });
+
+  group('external items', () {
+    test('items fetched through a proxy such as octo-fiesta are recognised by their ID', () {
+      expect(isExternalId('ext-qobuz-album-123'), isTrue);
+      expect(isExternalId('al-4f2a'), isFalse);
+      expect(isExternalId('42'), isFalse);
+    });
+
+    test('background work leaves external items out unless the setting allows them', () {
+      final albums = ['al-1', 'ext-qobuz-album-2', 'al-3'];
+      expect(forBackground(albums, (a) => a, includeExternal: false), [
+        'al-1',
+        'al-3',
+      ]);
+      expect(forBackground(albums, (a) => a, includeExternal: true), albums);
+    });
   });
 }

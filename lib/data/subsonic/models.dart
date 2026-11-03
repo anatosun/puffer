@@ -2,6 +2,16 @@
 
 typedef Json = Map<String, dynamic>;
 
+/// Whether [id] names an item a proxy such as octo-fiesta fetches from an external provider (Deezer, Qobuz, Tidal, …). Such a proxy downloads the song in full from the provider whenever a client requests its audio.
+bool isExternalId(String id) => id.startsWith('ext-');
+
+/// [items] without the external ones, unless [includeExternal]: what background work such as artist downloads and fetching ahead may request.
+Iterable<T> forBackground<T>(
+  Iterable<T> items,
+  String Function(T) id, {
+  required bool includeExternal,
+}) => includeExternal ? items : items.where((i) => !isExternalId(id(i)));
+
 List<Json> _list(Object? value) {
   if (value is List) return value.cast<Json>();
   if (value is Map) return [value.cast<String, dynamic>()];
