@@ -1,0 +1,1 @@
+- Settings → Server → Skip external songs in the background: artist downloads and songs fetched ahead leave out songs a proxy like octo-fiesta fetches from outside your library
