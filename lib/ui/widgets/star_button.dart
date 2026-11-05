@@ -15,7 +15,6 @@ class StarButton extends ConsumerStatefulWidget {
     this.color,
     this.offColor,
     this.dense = false,
-    this.compact = false,
   });
 
   final bool starred;
@@ -35,9 +34,6 @@ class StarButton extends ConsumerStatefulWidget {
   /// A narrower button, for rows that hold more than the heart.
   final bool dense;
 
-  /// A small button, for the rows of track lists.
-  final bool compact;
-
   @override
   ConsumerState<StarButton> createState() => _StarButtonState();
 }
@@ -54,15 +50,11 @@ class _StarButtonState extends ConsumerState<StarButton> {
     final offline = ref.watch(isOfflineProvider);
     final starred = isStarred(ref, _target, fallback: widget.starred);
     return IconButton(
-      iconSize: widget.compact
-          ? 18
-          : widget.dense
-          ? 24
-          : 26,
-      style: widget.dense || widget.compact
+      iconSize: widget.dense ? 24 : 26,
+      style: widget.dense
           ? IconButton.styleFrom(
-              minimumSize: Size(28, widget.compact ? 28 : 40),
-              fixedSize: Size(28, widget.compact ? 28 : 40),
+              minimumSize: const Size(28, 40),
+              fixedSize: const Size(28, 40),
               padding: EdgeInsets.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             )

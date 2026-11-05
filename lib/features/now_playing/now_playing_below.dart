@@ -13,6 +13,7 @@ import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/playing_bars.dart';
+import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/tiles.dart';
 import '../collection/album_page.dart';
 import '../collection/artist_page.dart';
@@ -398,11 +399,17 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     final current = np?.index ?? 0;
     final controller = ref.read(playbackControllerProvider);
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
-    final marks = ref.watch(trackMarksProvider);
+    final showStars = ref.watch(trackStarsProvider);
+    final showHearts = ref.watch(trackHeartsProvider);
+    final ratings = ref.watch(ratingOverridesProvider);
 
     Widget tile(int i, {required bool removable}) {
       final item = queue[i];
       final playing = i == np?.index;
+      // The library knows a song's rating and heart, which the queue entry does not carry.
+      final known = showStars || showHearts
+          ? ref.watch(queueTrackProvider(item.id)).value
+          : null;
       final row = ListTile(
         leading: Stack(
           alignment: Alignment.center,
@@ -427,34 +434,33 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           ],
         ),
         selected: playing,
-        title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: TrackTitle(
+          item.title,
+          stars: showStars && known != null
+              ? ratings[item.id] ?? known.rating
+              : 0,
+        ),
+        trailing: showHearts && known != null
+            ? TrackHeart(item.id, starred: known.starred)
+            : null,
+        subtitle: Row(
           children: [
-            Row(
-              children: [
-                if (downloaded.contains(item.id))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.arrow_circle_down,
-                      size: 14,
-                      color: context.colors.primary,
-                    ),
-                  ),
-                Expanded(
-                  child: Text(
-                    item.artist ?? '',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            if (downloaded.contains(item.id))
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.arrow_circle_down,
+                  size: 14,
+                  color: context.colors.primary,
                 ),
-              ],
+              ),
+            Expanded(
+              child: Text(
+                item.artist ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            if (marks)
-              if (ref.watch(queueTrackProvider(item.id)).value
-                  case final track?)
-                TrackMarks(track),
           ],
         ),
         onTap: playing ? null : () => controller.skipTo(i),

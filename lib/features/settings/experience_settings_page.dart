@@ -101,9 +101,14 @@ class ExperienceSettingsPage extends ConsumerWidget {
             ),
             const SettingsSection('Lists'),
             _Switch(
-              provider: trackMarksProvider,
-              title: 'Hearts and stars',
-              subtitle: 'Each song in albums, playlists, search results and the queue shows its heart and rating, which a tap changes',
+              provider: trackStarsProvider,
+              title: 'Ratings',
+              subtitle: 'The stars of a song show next to its title in albums, playlists, search results and the queue',
+            ),
+            _Switch(
+              provider: trackHeartsProvider,
+              title: 'Hearts',
+              subtitle: 'Songs in your library show a heart at the right edge of their row',
             ),
             const SettingsSection('Player'),
             _Switch(

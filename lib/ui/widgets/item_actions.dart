@@ -289,10 +289,24 @@ void rememberRating(Map<String, dynamic> json, int rating) {
   }
 }
 
+/// Ratings changed in this session, by track ID, so the stars of a row follow a change made in the menu or the player.
+class RatingOverridesNotifier extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() => const {};
+
+  void set(String id, int rating) => state = {...state, id: rating};
+}
+
+final ratingOverridesProvider =
+    NotifierProvider<RatingOverridesNotifier, Map<String, int>>(
+      RatingOverridesNotifier.new,
+    );
+
 /// Sends a rating from 0 to 5 to the server and reports whether it was saved.
 Future<bool> rate(WidgetRef ref, String id, int rating) async {
   try {
     await ref.read(clientProvider)!.setRating(id, rating);
+    ref.read(ratingOverridesProvider.notifier).set(id, rating);
     return true;
   } on Exception catch (e) {
     showMessage('$e');
@@ -310,7 +324,6 @@ class RatingStars extends StatefulWidget {
     this.alignment = MainAxisAlignment.start,
     this.dense = false,
     this.large = false,
-    this.compact = false,
   });
 
   final int rating;
@@ -325,9 +338,6 @@ class RatingStars extends StatefulWidget {
 
   /// Larger stars with full-size touch targets of 48 pixels, for the player.
   final bool large;
-
-  /// Small stars with 28-pixel touch targets, for the rows of track lists.
-  final bool compact;
 
   @override
   State<RatingStars> createState() => _RatingStarsState();
@@ -345,25 +355,19 @@ class _RatingStarsState extends State<RatingStars> {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: widget.alignment,
-    mainAxisSize: widget.dense || widget.large || widget.compact
+    mainAxisSize: widget.dense || widget.large
         ? MainAxisSize.min
         : MainAxisSize.max,
     children: [
       for (var star = 1; star <= 5; star++)
         IconButton(
           tooltip: '$star stars',
-          iconSize: widget.large
-              ? 30
-              : widget.compact
-              ? 18
-              : null,
+          iconSize: widget.large ? 30 : null,
           visualDensity: widget.large
               ? VisualDensity.standard
               : VisualDensity.compact,
-          padding: widget.dense || widget.compact ? EdgeInsets.zero : null,
-          constraints: widget.compact
-              ? const BoxConstraints.tightFor(width: 26, height: 28)
-              : widget.dense
+          padding: widget.dense ? EdgeInsets.zero : null,
+          constraints: widget.dense
               ? const BoxConstraints.tightFor(width: 30, height: 40)
               : null,
           icon: Icon(

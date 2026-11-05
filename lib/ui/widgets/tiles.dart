@@ -88,37 +88,32 @@ class TrackTile extends ConsumerWidget {
                     ),
             )
           : null,
-      title: Text(
+      title: TrackTitle(
         track.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: color),
+        color: color,
+        stars: ref.watch(trackStarsProvider)
+            ? ref.watch(ratingOverridesProvider)[track.id] ?? track.rating
+            : 0,
       ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      subtitle: Row(
         children: [
-          Row(
-            children: [
-              if (downloaded.contains(track.id))
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Icon(
-                    Icons.arrow_circle_down,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              Expanded(
-                child: Text(
-                  track.artist ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: context.muted),
-                ),
+          if (downloaded.contains(track.id))
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(
+                Icons.arrow_circle_down,
+                size: 14,
+                color: Theme.of(context).colorScheme.primary,
               ),
-            ],
+            ),
+          Expanded(
+            child: Text(
+              track.artist ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.muted),
+            ),
           ),
-          if (ref.watch(trackMarksProvider)) TrackMarks(track),
         ],
       ),
       trailing: Row(
@@ -134,6 +129,8 @@ class TrackTile extends ConsumerWidget {
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
+          if (ref.watch(trackHeartsProvider))
+            TrackHeart(track.id, starred: track.starred),
           ?handle,
         ],
       ),
@@ -147,36 +144,72 @@ class TrackTile extends ConsumerWidget {
   }
 }
 
-/// The heart and the stars of a song, under its title in track lists. Offline, the heart stays but cannot change and the stars hide.
-class TrackMarks extends ConsumerWidget {
-  const TrackMarks(this.track, {super.key});
+/// The title of a song with its rating as small stars after it. The stars only display, and none show for an unrated song.
+class TrackTitle extends StatelessWidget {
+  const TrackTitle(this.title, {super.key, this.color, this.stars = 0});
 
-  final Track track;
+  final String title;
+  final Color? color;
+
+  /// The rating from 0 to 5.
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Flexible(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: color),
+        ),
+      ),
+      if (stars > 0) ...[
+        const SizedBox(width: 6),
+        Semantics(
+          label: '$stars stars',
+          excludeSemantics: true,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < stars; i++)
+                Icon(
+                  Icons.star_rounded,
+                  size: 12,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+/// A filled heart for a song in the library, at the right edge of a row. It only displays, and nothing shows for other songs.
+class TrackHeart extends ConsumerWidget {
+  const TrackHeart(this.id, {super.key, required this.starred});
+
+  final String id;
+  final bool starred;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final offline = ref.watch(isOfflineProvider);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        StarButton(
-          compact: true,
-          starred: track.starred,
-          trackId: track.id,
-          json: track.json,
-        ),
-        if (!offline)
-          RatingStars(
-            key: ValueKey(track.id),
-            compact: true,
-            rating: track.rating,
-            onChanged: (value) async {
-              if (await rate(ref, track.id, value)) {
-                rememberRating(track.json, value);
-              }
-            },
-          ),
-      ],
+    final on = isStarred(ref, (
+      trackId: id,
+      albumId: null,
+      artistId: null,
+    ), fallback: starred);
+    if (!on) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Icon(
+        Icons.favorite,
+        size: 16,
+        color: Theme.of(context).colorScheme.primary,
+        semanticLabel: 'In your library',
+      ),
     );
   }
 }

@@ -219,9 +219,14 @@ final playerRatingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.playerRating', false),
 );
 
-/// Track lists (albums, playlists, search, the queue) show a heart and the stars on each row.
-final trackMarksProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.trackMarks', true),
+/// Track rows (albums, playlists, search, the queue) show the rating of the song as stars next to its title. The stars only display; the menu of the song changes them.
+final trackStarsProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.trackStars', true),
+);
+
+/// Track rows show a heart at the right edge for songs in the library. The heart only displays; the menu of the song changes it.
+final trackHeartsProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.trackHearts', true),
 );
 
 /// Home greets the person by the time of day; otherwise its title is "Home".
