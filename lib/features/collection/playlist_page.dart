@@ -153,25 +153,29 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
           SliverReorderableList(
             itemCount: _entries.length,
             onReorderItem: _move,
-            itemBuilder: (context, i) => Dismissible(
+            itemBuilder: (context, i) => ReorderableDelayedDragStartListener(
               key: ValueKey('${_entries[i].id}-$i'),
-              direction: DismissDirection.endToStart,
-              onDismissed: (_) => _remove(i),
-              background: Container(
-                color: Colors.red.shade900,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 16),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              child: TrackTile(
-                tracks: _entries,
-                index: i,
-                playlistId: playlist.id,
-                handle: ReorderableDragStartListener(
+              index: i,
+              child: Dismissible(
+                key: ValueKey('dismiss-${_entries[i].id}-$i'),
+                direction: DismissDirection.endToStart,
+                onDismissed: (_) => _remove(i),
+                background: Container(
+                  color: Colors.red.shade900,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 16),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                child: TrackTile(
+                  tracks: _entries,
                   index: i,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Icon(Icons.drag_handle, color: context.faint),
+                  playlistId: playlist.id,
+                  handle: ReorderableDragStartListener(
+                    index: i,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(Icons.drag_handle, color: context.faint),
+                    ),
                   ),
                 ),
               ),
