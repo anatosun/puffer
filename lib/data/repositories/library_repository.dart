@@ -49,16 +49,24 @@ class LibraryRepository {
   final AppDatabase db;
   final bool Function() isOffline;
 
-  Future<void> _put(String kind, String id, Object json) => db
-      .into(db.cachedItems)
-      .insertOnConflictUpdate(
-        CachedItemsCompanion.insert(
-          kind: kind,
-          id: id,
-          json: jsonEncode(json),
-          updatedAt: DateTime.now(),
-        ),
-      );
+  /// Stores [json] unless the cache already holds the same text, so repeated fetches of an unchanged item write nothing.
+  Future<void> _put(String kind, String id, Object json) async {
+    final text = jsonEncode(json);
+    final existing = await (db.select(
+      db.cachedItems,
+    )..where((t) => t.kind.equals(kind) & t.id.equals(id))).getSingleOrNull();
+    if (existing?.json == text) return;
+    await db
+        .into(db.cachedItems)
+        .insertOnConflictUpdate(
+          CachedItemsCompanion.insert(
+            kind: kind,
+            id: id,
+            json: text,
+            updatedAt: DateTime.now(),
+          ),
+        );
+  }
 
   Future<Object?> _cached(String kind, String id) async {
     final row = await (db.select(
