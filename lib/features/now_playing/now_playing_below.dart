@@ -403,7 +403,8 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     final showHearts = ref.watch(trackHeartsProvider);
     final ratings = ref.watch(ratingOverridesProvider);
 
-    Widget tile(int i, {required bool removable}) {
+    /// A row of the queue. With [dragIndex], it carries a handle that drags it to another place, as in editable playlists.
+    Widget tile(int i, {required bool removable, int? dragIndex}) {
       final item = queue[i];
       final playing = i == np?.index;
       // The library knows a song's rating and heart, which the queue entry does not carry.
@@ -440,8 +441,22 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
               ? ratings[item.id] ?? known.rating
               : 0,
         ),
-        trailing: showHearts && known != null
-            ? TrackHeart(item.id, starred: known.starred)
+        trailing: (showHearts && known != null) || dragIndex != null
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showHearts && known != null)
+                    TrackHeart(item.id, starred: known.starred),
+                  if (dragIndex != null)
+                    ReorderableDragStartListener(
+                      index: dragIndex,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Icon(Icons.drag_handle, color: context.faint),
+                      ),
+                    ),
+                ],
+              )
             : null,
         subtitle: Row(
           children: [
@@ -516,7 +531,7 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
         return ReorderableDelayedDragStartListener(
           key: ValueKey('${item.id}-$i'),
           index: j,
-          child: tile(i, removable: true),
+          child: tile(i, removable: true, dragIndex: j),
         );
       },
     );
