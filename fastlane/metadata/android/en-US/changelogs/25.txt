@@ -1,0 +1,5 @@
+- Song rows show the rating as five stars after the title and a heart at the right edge for songs in your library, with a switch for each under Settings → Experience → Lists
+- Press and drag reorders the songs of your playlists, and the upcoming songs of the queue have a drag handle like playlists do
+- The player keeps every part in the same place, whatever shows
+- Settings → Server shows External sources only when the server runs octo-fiesta
+- The server extensions load again when the server does not answer at first
