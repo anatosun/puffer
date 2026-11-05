@@ -181,8 +181,8 @@ class TrackMarks extends ConsumerWidget {
   }
 }
 
-/// The song behind a queue entry, from the library, or null when the library does not know it.
-final queueTrackProvider = FutureProvider.family<Track?, String>((
+/// The song behind a queue entry, from the library, or null when the library does not know it. Rows that scroll away drop theirs.
+final queueTrackProvider = FutureProvider.autoDispose.family<Track?, String>((
   ref,
   id,
 ) async {
