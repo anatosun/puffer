@@ -20,6 +20,7 @@ import '../../ui/widgets/item_actions.dart';
 import '../cast/output_sheet.dart';
 import '../../ui/widgets/star_button.dart';
 import '../collection/playlist_edit.dart';
+import 'lyrics_view.dart';
 import 'now_playing_below.dart';
 import 'song_info.dart';
 import 'waveform.dart';
@@ -228,6 +229,7 @@ class NowPlayingPage extends ConsumerWidget {
     final highlight = scheme?.primary ?? context.colors.primary;
     final track = np?.track;
     final online = !ref.watch(isOfflineProvider);
+    final lyricsShown = ref.watch(lyricsShownProvider);
     final showRating =
         track != null && ref.watch(playerRatingProvider) && online;
     // The format badges sit centred above the title.
@@ -327,47 +329,67 @@ class NowPlayingPage extends ConsumerWidget {
                                               json: track.json,
                                             )
                                           : null,
-                                      child: Hero(
-                                        tag: _artworkHeroTag,
-                                        child: AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          transitionBuilder: fadeWithoutKey,
-                                          child: DecoratedBox(
-                                            key: ValueKey(
-                                              np.title + (np.album ?? ''),
-                                            ),
-                                            // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withValues(
-                                                        alpha:
-                                                            Theme.of(
-                                                                  context,
-                                                                ).brightness ==
-                                                                Brightness.dark
-                                                            ? 0.35
-                                                            : 0.15,
-                                                      ),
-                                                  blurRadius: 20,
-                                                  spreadRadius: -4,
-                                                  offset: const Offset(0, 8),
+                                      onTap: track == null
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  lyricsShownProvider.notifier,
+                                                )
+                                                .set(!lyricsShown),
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Hero(
+                                            tag: _artworkHeroTag,
+                                            child: AnimatedSwitcher(
+                                              duration: const Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              transitionBuilder: fadeWithoutKey,
+                                              child: DecoratedBox(
+                                                key: ValueKey(
+                                                  np.title + (np.album ?? ''),
                                                 ),
-                                              ],
-                                            ),
-                                            child: NowPlayingArtwork(
-                                              np.coverArt,
-                                              np.imageUrl,
-                                              size: artSize,
-                                              radius: 10,
+                                                // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withValues(
+                                                            alpha:
+                                                                Theme.of(
+                                                                      context,
+                                                                    ).brightness ==
+                                                                    Brightness
+                                                                        .dark
+                                                                ? 0.35
+                                                                : 0.15,
+                                                          ),
+                                                      blurRadius: 20,
+                                                      spreadRadius: -4,
+                                                      offset: const Offset(
+                                                        0,
+                                                        8,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: NowPlayingArtwork(
+                                                  np.coverArt,
+                                                  np.imageUrl,
+                                                  size: artSize,
+                                                  radius: 10,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                          if (lyricsShown)
+                                            Positioned.fill(
+                                              child: LyricsPanel(np: np),
+                                            ),
+                                        ],
                                       ),
                                     );
                                     // Half the free height goes above the artwork; the rest is shared around the row, so it sits halfway between the artwork and the title.
@@ -690,6 +712,7 @@ class _CoverGestures extends StatefulWidget {
     required this.onNext,
     required this.onPrevious,
     this.onDoubleTap,
+    this.onTap,
   });
 
   final Widget child;
@@ -697,6 +720,9 @@ class _CoverGestures extends StatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback? onDoubleTap;
+
+  /// A tap on the artwork, which shows or hides the lyrics.
+  final VoidCallback? onTap;
 
   @override
   State<_CoverGestures> createState() => _CoverGesturesState();
@@ -719,6 +745,7 @@ class _CoverGesturesState extends State<_CoverGestures>
 
   @override
   Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onTap,
     onHorizontalDragEnd: widget.swipeToSkip
         ? (d) {
             final v = d.primaryVelocity ?? 0;

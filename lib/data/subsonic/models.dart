@@ -2,6 +2,70 @@
 
 typedef Json = Map<String, dynamic>;
 
+/// One line of lyrics. [start] is null in lyrics without timing.
+class LyricLine {
+  const LyricLine(this.text, [this.start]);
+
+  final String text;
+  final Duration? start;
+}
+
+/// The lyrics of a song, from the OpenSubsonic `getLyricsBySongId` response. [json] is one `structuredLyrics` entry.
+class Lyrics {
+  const Lyrics(this.json);
+
+  final Json json;
+
+  /// The entry to show out of a `lyricsList`: timed lyrics before plain ones. Null when the song has none.
+  static Lyrics? pick(Object? lyricsList) {
+    final entries = jsonList((lyricsList as Json?)?['structuredLyrics']);
+    final usable = [
+      for (final e in entries)
+        if (jsonList(e['line'])
+            .any((l) => '${l['value'] ?? ''}'.trim().isNotEmpty))
+          e,
+    ];
+    if (usable.isEmpty) return null;
+    return Lyrics(
+      usable.firstWhere((e) => e['synced'] == true, orElse: () => usable.first),
+    );
+  }
+
+  bool get synced => json['synced'] == true;
+  String? get language => json['lang'] as String?;
+
+  /// The lines in order. Times already include the `offset` of the lyrics, which is in milliseconds and makes the lyrics appear sooner when positive.
+  List<LyricLine> get lines {
+    final offset = (json['offset'] as num?)?.toInt() ?? 0;
+    return [
+      for (final l in jsonList(json['line']))
+        LyricLine(
+          '${l['value'] ?? ''}',
+          synced && l['start'] is num
+              ? Duration(
+                  milliseconds: ((l['start'] as num).toInt() - offset).clamp(
+                    0,
+                    1 << 40,
+                  ),
+                )
+              : null,
+        ),
+    ];
+  }
+}
+
+/// The index of the line sung at [position]: the last one that has started, or null before the first. Lines without timing never match.
+int? currentLyricLine(List<LyricLine> lines, Duration position) {
+  int? current;
+  for (var i = 0; i < lines.length; i++) {
+    final start = lines[i].start;
+    if (start == null) continue;
+    if (start > position) break;
+    current = i;
+  }
+  return current;
+}
+
 /// Whether [id] names an item a proxy such as octo-fiesta fetches from an external provider (Deezer, Qobuz, Tidal, …). Such a proxy downloads the song in full from the provider whenever a client requests its audio.
 bool isExternalId(String id) => id.startsWith('ext-');
 

@@ -12,6 +12,7 @@ import 'package:puffer/playback/audio_format.dart';
 import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/features/collection/album_page.dart';
 import 'package:puffer/features/collection/artist_page.dart';
+import 'package:puffer/features/now_playing/lyrics_view.dart';
 import 'package:puffer/features/now_playing/now_playing.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
 import 'package:puffer/playback/playback_controller.dart';
@@ -733,4 +734,60 @@ void main() {
     // The title is centred in the room of its two lines, so its centre is the same too.
     expect(full[0], plain[0]);
   });
+
+  testWidgets(
+    'a tap on the artwork shows the lyrics and a second tap hides them',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+            lyricsProvider.overrideWith(
+              (ref, id) async => const Lyrics({
+                'synced': false,
+                'line': [
+                  {'value': 'Some words'},
+                ],
+              }),
+            ),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Some words'), findsNothing);
+
+      // The tap waits for a possible second one, which would add the song to the library.
+      await tester.tap(find.byType(Hero));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('Some words'), findsOneWidget);
+      expect(prefs.getBool('player.lyricsShown'), isTrue);
+
+      await tester.tap(find.byType(LyricsPanel));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('Some words'), findsNothing);
+    },
+  );
 }

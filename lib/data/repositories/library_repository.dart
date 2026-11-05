@@ -149,6 +149,22 @@ class LibraryRepository {
     decode: (j) => Track(j as Json),
   );
 
+  /// The lyrics of [id], from the cache when the server cannot be reached. Null when the song has none, the server offers none or they were never loaded online.
+  Future<Lyrics?> lyrics(String id) async {
+    if (!isOffline() && !await client.supports('songLyrics')) return null;
+    try {
+      return await _fetch<Lyrics?>(
+        kind: 'lyrics',
+        id: id,
+        remote: () => client.getLyricsBySongId(id),
+        encode: (l) => l?.json ?? const <String, dynamic>{},
+        decode: (j) => (j as Json).isEmpty ? null : Lyrics(j),
+      );
+    } on OfflineException {
+      return null;
+    }
+  }
+
   Future<List<Artist>> artists() => _fetch(
     kind: 'list',
     id: 'artists',

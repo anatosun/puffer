@@ -229,6 +229,11 @@ final trackHeartsProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.trackHearts', true),
 );
 
+/// The artwork of the player is covered by the lyrics of the song. A tap on the artwork toggles it, and the choice stays for the next songs.
+final lyricsShownProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('player.lyricsShown', false),
+);
+
 /// Home greets the person by the time of day; otherwise its title is "Home".
 final greetingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.greeting', true),

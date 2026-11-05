@@ -172,6 +172,12 @@ class SubsonicClient {
     return (body['user'] as Json?)?['adminRole'] == true;
   }
 
+  /// The lyrics of a song, or null when the server has none. Requires the `songLyrics` extension.
+  Future<Lyrics?> getLyricsBySongId(String id) async {
+    final body = await _get('getLyricsBySongId', {'id': id});
+    return Lyrics.pick(body['lyricsList']);
+  }
+
   Future<ScanStatus> getScanStatus() async =>
       ScanStatus(await _get('getScanStatus'));
 
