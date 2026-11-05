@@ -18,7 +18,8 @@ class ServerSettingsPage extends ConsumerWidget {
     final offline = ref.watch(isOfflineProvider);
     final info = ref.watch(serverInfoProvider);
     final active = ref.watch(activeAddressProvider);
-    final extensions = ref.watch(clientProvider)?.extensions ?? const {};
+    final client = ref.watch(clientProvider);
+    final extensions = client?.extensions ?? const {};
     final refresh = ref.watch(cacheRefreshProvider);
     if (credentials == null) return const SizedBox.shrink();
 
@@ -102,17 +103,19 @@ class ServerSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-            const SettingsSection('External sources'),
-            SwitchListTile(
-              secondary: const Icon(Icons.cloud_download_outlined),
-              title: const Text('Skip external songs in the background'),
-              subtitle: const Text(
-                'Songs a proxy like octo-fiesta fetches from outside your library are left out',
+            if (client?.hasOctoFiesta ?? false) ...[
+              const SettingsSection('External sources'),
+              SwitchListTile(
+                secondary: const Icon(Icons.cloud_download_outlined),
+                title: const Text('Skip external songs in the background'),
+                subtitle: const Text(
+                  'Songs a proxy like octo-fiesta fetches from outside your library are left out',
+                ),
+                value: !ref.watch(externalInBackgroundProvider),
+                onChanged: (skip) =>
+                    ref.read(externalInBackgroundProvider.notifier).set(!skip),
               ),
-              value: !ref.watch(externalInBackgroundProvider),
-              onChanged: (skip) =>
-                  ref.read(externalInBackgroundProvider.notifier).set(!skip),
-            ),
+            ],
             const SettingsSection('Library'),
             if (!offline && (ref.watch(isAdminProvider).value ?? false))
               const _ScanTile(),

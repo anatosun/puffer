@@ -348,6 +348,11 @@ class SubsonicClient {
     ];
   }
 
+  /// Whether the server sits behind octo-fiesta, which reports itself through an OpenSubsonic extension whose name contains `octofiesta`, in any case and with or without a hyphen.
+  bool get hasOctoFiesta => extensions.any(
+    (e) => e.toLowerCase().replaceAll('-', '').contains('octofiesta'),
+  );
+
   bool get hasSonicSimilarity => extensions.contains('sonicSimilarity');
 
   /// Whether the server reports the OpenSubsonic extension [name], after the extensions requested by [loadExtensions] have arrived.
