@@ -9,6 +9,7 @@ import '../../downloads/download_manager.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
+import '../../ui/widgets/star_button.dart';
 import 'collection_header.dart';
 import '../../ui/widgets/backdrop.dart';
 

@@ -23,7 +23,7 @@ import '../../ui/widgets/tiles.dart';
 import '../cast/output_sheet.dart';
 import '../collection/album_page.dart';
 import '../collection/artist_page.dart';
-import '../collection/collection_header.dart';
+import '../../ui/widgets/star_button.dart';
 import '../collection/playlist_edit.dart';
 import 'song_info.dart';
 import 'waveform.dart';

@@ -7,7 +7,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
-import '../../features/collection/collection_header.dart';
+import 'star_button.dart';
 import '../../features/collection/playlist_edit.dart';
 import '../../features/now_playing/song_info.dart';
 import '../messages.dart';

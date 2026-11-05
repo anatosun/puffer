@@ -10,7 +10,6 @@ import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
-import '../../features/collection/collection_header.dart';
 import '../messages.dart';
 import '../theme.dart';
 import 'artwork.dart';
@@ -20,6 +19,7 @@ import 'item_actions.dart';
 import 'playing_bars.dart';
 import 'pressable.dart';
 import 'shimmer.dart';
+import 'star_button.dart';
 
 /// A track row. Offline, tracks without a downloaded file are greyed out and cannot be played.
 class TrackTile extends ConsumerWidget {
