@@ -310,6 +310,7 @@ class RatingStars extends StatefulWidget {
     this.alignment = MainAxisAlignment.start,
     this.dense = false,
     this.large = false,
+    this.compact = false,
   });
 
   final int rating;
@@ -324,6 +325,9 @@ class RatingStars extends StatefulWidget {
 
   /// Larger stars with full-size touch targets of 48 pixels, for the player.
   final bool large;
+
+  /// Small stars with 28-pixel touch targets, for the rows of track lists.
+  final bool compact;
 
   @override
   State<RatingStars> createState() => _RatingStarsState();
@@ -341,19 +345,25 @@ class _RatingStarsState extends State<RatingStars> {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: widget.alignment,
-    mainAxisSize: widget.dense || widget.large
+    mainAxisSize: widget.dense || widget.large || widget.compact
         ? MainAxisSize.min
         : MainAxisSize.max,
     children: [
       for (var star = 1; star <= 5; star++)
         IconButton(
           tooltip: '$star stars',
-          iconSize: widget.large ? 30 : null,
+          iconSize: widget.large
+              ? 30
+              : widget.compact
+              ? 18
+              : null,
           visualDensity: widget.large
               ? VisualDensity.standard
               : VisualDensity.compact,
-          padding: widget.dense ? EdgeInsets.zero : null,
-          constraints: widget.dense
+          padding: widget.dense || widget.compact ? EdgeInsets.zero : null,
+          constraints: widget.compact
+              ? const BoxConstraints.tightFor(width: 26, height: 28)
+              : widget.dense
               ? const BoxConstraints.tightFor(width: 30, height: 40)
               : null,
           icon: Icon(

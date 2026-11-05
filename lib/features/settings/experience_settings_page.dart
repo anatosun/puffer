@@ -99,6 +99,12 @@ class ExperienceSettingsPage extends ConsumerWidget {
                     ref.read(coverSizeProvider.notifier).set(s.single),
               ),
             ),
+            const SettingsSection('Lists'),
+            _Switch(
+              provider: trackMarksProvider,
+              title: 'Hearts and stars',
+              subtitle: 'Each song in albums, playlists, search results and the queue shows its heart and rating, which a tap changes',
+            ),
             const SettingsSection('Player'),
             _Switch(
               provider: playerRatingProvider,

@@ -213,6 +213,11 @@ final playerRatingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.playerRating', false),
 );
 
+/// Track lists (albums, playlists, search, the queue) show a heart and the stars on each row.
+final trackMarksProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.trackMarks', false),
+);
+
 /// Home greets the person by the time of day; otherwise its title is "Home".
 final greetingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.greeting', true),

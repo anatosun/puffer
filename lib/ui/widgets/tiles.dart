@@ -10,6 +10,7 @@ import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../../features/collection/collection_header.dart';
 import '../messages.dart';
 import '../theme.dart';
 import 'artwork.dart';
@@ -93,25 +94,31 @@ class TrackTile extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(color: color),
       ),
-      subtitle: Row(
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (downloaded.contains(track.id))
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                Icons.arrow_circle_down,
-                size: 14,
-                color: Theme.of(context).colorScheme.primary,
+          Row(
+            children: [
+              if (downloaded.contains(track.id))
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.arrow_circle_down,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  track.artist ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: context.muted),
+                ),
               ),
-            ),
-          Expanded(
-            child: Text(
-              track.artist ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.muted),
-            ),
+            ],
           ),
+          if (ref.watch(trackMarksProvider)) TrackMarks(track),
         ],
       ),
       trailing: Row(
@@ -139,6 +146,54 @@ class TrackTile extends ConsumerWidget {
     return playable ? tile : Opacity(opacity: 0.35, child: tile);
   }
 }
+
+/// The heart and the stars of a song, under its title in track lists. Offline, the heart stays but cannot change and the stars hide.
+class TrackMarks extends ConsumerWidget {
+  const TrackMarks(this.track, {super.key});
+
+  final Track track;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offline = ref.watch(isOfflineProvider);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StarButton(
+          compact: true,
+          starred: track.starred,
+          trackId: track.id,
+          json: track.json,
+        ),
+        if (!offline)
+          RatingStars(
+            key: ValueKey(track.id),
+            compact: true,
+            rating: track.rating,
+            onChanged: (value) async {
+              if (await rate(ref, track.id, value)) {
+                rememberRating(track.json, value);
+              }
+            },
+          ),
+      ],
+    );
+  }
+}
+
+/// The song behind a queue entry, from the library, or null when the library does not know it.
+final queueTrackProvider = FutureProvider.family<Track?, String>((
+  ref,
+  id,
+) async {
+  final repository = ref.watch(repositoryProvider);
+  if (repository == null) return null;
+  try {
+    return await repository.track(id);
+  } on Exception {
+    return null;
+  }
+});
 
 /// Plays [tracks] from [index], skipping tracks that cannot play offline. With [playlistId], the playlist moves to the top of the recent playlists.
 Future<void> playFrom(

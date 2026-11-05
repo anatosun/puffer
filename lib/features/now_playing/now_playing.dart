@@ -1466,6 +1466,7 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     final current = np?.index ?? 0;
     final controller = ref.read(playbackControllerProvider);
     final downloaded = ref.watch(downloadedTrackIdSetProvider);
+    final marks = ref.watch(trackMarksProvider);
 
     Widget tile(int i, {required bool removable}) {
       final item = queue[i];
@@ -1495,24 +1496,33 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
         ),
         selected: playing,
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Row(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (downloaded.contains(item.id))
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Icon(
-                  Icons.arrow_circle_down,
-                  size: 14,
-                  color: context.colors.primary,
+            Row(
+              children: [
+                if (downloaded.contains(item.id))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.arrow_circle_down,
+                      size: 14,
+                      color: context.colors.primary,
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    item.artist ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            Expanded(
-              child: Text(
-                item.artist ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
+            if (marks)
+              if (ref.watch(queueTrackProvider(item.id)).value
+                  case final track?)
+                TrackMarks(track),
           ],
         ),
         onTap: playing ? null : () => controller.skipTo(i),
