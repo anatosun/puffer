@@ -1,0 +1,2 @@
+- Lyrics: a tap on the artwork of the player shows the lyrics of the song, timed ones following the song, and a second tap hides them
+- Seeking in a transcoded stream restarts the stream at the new position when the server offers the transcodeOffset extension, so a seek past what has loaded no longer waits for the download
