@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/playback_providers.dart';
@@ -70,6 +71,13 @@ class _LinesState extends ConsumerState<_Lines> {
   late List<LyricLine> _lines = widget.lyrics.lines;
   late List<GlobalKey> _keys = [for (final _ in _lines) GlobalKey()];
   int? _shown;
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_Lines old) {
@@ -85,11 +93,14 @@ class _LinesState extends ConsumerState<_Lines> {
     if (current == null || current == _shown) return;
     _shown = current;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final context = _keys[current].currentContext;
-      if (!mounted || context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        alignment: 0.4,
+      final line = _keys[current].currentContext?.findRenderObject();
+      if (!mounted || line == null || !_scroll.hasClients) return;
+      // Only this list scrolls. Scrollable.ensureVisible would also move the page of the player, down to the queue.
+      final target = RenderAbstractViewport.of(line)
+          .getOffsetToReveal(line, 0.4)
+          .offset;
+      _scroll.animateTo(
+        target.clamp(0.0, _scroll.position.maxScrollExtent),
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeOutCubic,
       );
@@ -105,6 +116,7 @@ class _LinesState extends ConsumerState<_Lines> {
         : null;
     _follow(current);
     return SingleChildScrollView(
+      controller: _scroll,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 56),
       child: SizedBox(
         width: double.infinity,

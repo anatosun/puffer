@@ -790,4 +790,53 @@ void main() {
       expect(find.text('Some words'), findsNothing);
     },
   );
+
+  testWidgets('following the lyrics does not scroll the page of the player', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'player.lyricsShown': true});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nowPlayingProvider.overrideWithValue(
+            AsyncData(
+              NowPlaying(
+                track: const Track({'id': 'a', 'title': 'A title'}),
+                title: 'A title',
+                position: const Duration(seconds: 150),
+                positionAt: DateTime.now(),
+                duration: const Duration(minutes: 5),
+              ),
+            ),
+          ),
+          connectivityProvider.overrideWithValue(
+            const AsyncData([ConnectivityResult.wifi]),
+          ),
+          maClientProvider.overrideWithValue(null),
+          playbackControllerProvider.overrideWithValue(_FakeController()),
+          playingFormatProvider.overrideWithValue(null),
+          waveformSupportedProvider.overrideWith((ref) async => false),
+          lyricsProvider.overrideWith(
+            (ref, id) async => Lyrics({
+              'synced': true,
+              'line': [
+                for (var i = 0; i < 60; i++)
+                  {'start': i * 5000, 'value': 'Line $i'},
+              ],
+            }),
+          ),
+        ],
+        child: const MaterialApp(home: NowPlayingPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Line 30'), findsOneWidget);
+    final page = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    expect(page.position.pixels, 0);
+  });
 }
