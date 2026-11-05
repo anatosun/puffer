@@ -140,9 +140,8 @@ void main() {
       },
     );
 
-    test('octo-fiesta is recognised by its extension in any spelling', () {
+    test('octo-fiesta is recognised by its extension', () {
       expect(reportsOctoFiesta({'songWaveform', 'octoFiesta'}), isTrue);
-      expect(reportsOctoFiesta({'octo-fiesta'}), isTrue);
       expect(reportsOctoFiesta({'songWaveform'}), isFalse);
     });
   });

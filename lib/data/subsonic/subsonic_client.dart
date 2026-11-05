@@ -92,10 +92,9 @@ String normaliseBaseUrl(String url) {
   return result;
 }
 
-/// Whether [extensions] include the one octo-fiesta reports: a name that contains `octofiesta`, in any case and with or without a hyphen.
-bool reportsOctoFiesta(Set<String> extensions) => extensions.any(
-  (e) => e.toLowerCase().replaceAll('-', '').contains('octofiesta'),
-);
+/// Whether [extensions] include `octoFiesta`, which the octo-fiesta proxy reports.
+bool reportsOctoFiesta(Set<String> extensions) =>
+    extensions.contains('octoFiesta');
 
 class SubsonicClient {
   SubsonicClient(this.credentials, {http.Client? httpClient, String? baseUrl})
