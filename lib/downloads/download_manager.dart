@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show debugPrint, listEquals;
 
 import '../data/db/database.dart';
 import '../data/subsonic/models.dart';
@@ -229,8 +229,11 @@ class DownloadManager {
           tracks,
           redownloadEvicted: !p.automatic,
         );
-      } catch (_) {
-        // The server is unreachable, the item is gone or its data is malformed; keep the current files and sync the other pins.
+      } catch (e) {
+        // The server is unreachable, the item is gone or its data is malformed; keep the current files and sync the other pins. Only the type of the error is logged, since its text may hold a URL with credentials.
+        debugPrint(
+          'Sync of ${kind.name} pin ${p.itemId} failed: ${e.runtimeType}',
+        );
       }
     }
   }
