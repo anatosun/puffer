@@ -438,7 +438,7 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           item.title,
           stars: showStars && known != null
               ? ratings[item.id] ?? known.rating
-              : -1,
+              : 0,
         ),
         trailing: showHearts && known != null
             ? TrackHeart(item.id, starred: known.starred)
