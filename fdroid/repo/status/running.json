@@ -4,12 +4,12 @@
   "apksigner": "/usr/local/lib/android/sdk/build-tools/37.0.0/apksigner",
   "archivePolicy0": [],
   "commandLine": [
-    "/opt/hostedtoolcache/Python/3.12.15/x64/bin/fdroid update",
+    "/opt/hostedtoolcache/Python/3.12.16/x64/bin/fdroid update",
     "--use-date-from-apk",
     "--pretty"
   ],
   "disabled": [],
-  "endTimestamp": 1793690349191,
+  "endTimestamp": 1793892884969,
   "failedBuilds": {},
   "jarsigner": "/usr/bin/jarsigner",
   "keytool": "/usr/bin/keytool",
@@ -23,14 +23,14 @@
     "io.github.anatosun.puffer"
   ],
   "stages": {
-    "delete_disabled_builds": 1793690342634,
-    "index.make repo": 1793690346332,
-    "prepare_apps repo": 1793690345188,
-    "process_apks": 1793690342634,
-    "read_added_date_from_all_apks": 1793690345188,
-    "remove_apks": 1793690345187,
-    "scan_repo_files": 1793690345187
+    "delete_disabled_builds": 1793892870327,
+    "index.make repo": 1793892879462,
+    "prepare_apps repo": 1793892877771,
+    "process_apks": 1793892870327,
+    "read_added_date_from_all_apks": 1793892877771,
+    "remove_apks": 1793892877770,
+    "scan_repo_files": 1793892877769
   },
-  "startTimestamp": 1793690342000,
+  "startTimestamp": 1793892869000,
   "subcommand": "update"
 }
