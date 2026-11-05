@@ -7,12 +7,16 @@ import 'package:just_audio/just_audio.dart';
 import '../data/subsonic/models.dart';
 import 'crossfade.dart';
 import 'prefetch_cache.dart';
+import 'stream_offset.dart';
 import 'stable_shuffle_order.dart';
 
 /// What the handler needs from the session: where each track's audio and artwork are, and where to report plays.
 abstract class PlaybackSource {
   Future<String?> localPath(String trackId);
   Uri streamUri(Track track);
+
+  /// The stream of [track] starting at [offset], when the server can start a transcoded stream there. Null for original files and for servers without that ability, which the player then seeks itself.
+  Uri? streamUriFrom(Track track, Duration offset);
 
   /// The file of [track] among the songs fetched ahead, when there is one.
   Future<String?> cachedPath(Track track);
@@ -78,6 +82,15 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// The last index the player reported. While it seeks, some backends report no index for a moment, which must not make the current track unknown.
   int? _lastIndex;
 
+  /// Where the stream of the current song starts within the song. Zero unless a seek restarted a transcoded stream on the server.
+  Duration _offset = Duration.zero;
+
+  /// The offset the current song starts with after a queue loads, for the index the player reports first.
+  ({int index, Duration offset})? _startOffset;
+
+  /// The position in the current song. The player counts from the start of its stream, which is [_offset] into the song.
+  Duration get position => player.position + _offset;
+
   /// The tracks of the queue, in queue order.
   List<Track> get tracks => _tracks;
 
@@ -101,6 +114,11 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (index == _lastIndex && _generation == _indexGeneration) return;
       _indexGeneration = _generation;
       _lastIndex = index;
+      _offset = _startOffset?.index == index
+          ? _startOffset!.offset
+          : Duration.zero;
+      _startOffset = null;
+      _restoreStreams();
       _prefetch();
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
@@ -113,10 +131,13 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _maybeCrossfade(position);
       final track = currentTrack;
       if (track == null || _scrobbled == track.id) return;
-      final duration = player.duration ?? track.duration;
+      // A stream that restarted part-way is shorter than the song, so it is measured against the song.
+      final duration = _offset > Duration.zero
+          ? track.duration
+          : player.duration ?? track.duration;
       if (duration == Duration.zero) return;
-      if (position >= duration * 0.5 ||
-          position >= const Duration(minutes: 4)) {
+      final played = position + _offset;
+      if (played >= duration * 0.5 || played >= const Duration(minutes: 4)) {
         _scrobbled = track.id;
         source?.played(track);
       }
@@ -129,6 +150,91 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (path != null) return AudioSource.file(path, tag: track.id);
     return AudioSource.uri(source!.streamUri(track), tag: track.id);
   }
+
+  /// The source of [track] for starting at [position], with the point of the song its stream starts at. A transcoded stream starts on the server at [position], since the player cannot seek in it; anything else starts at its beginning and the player seeks.
+  Future<(AudioSource, Duration)> _sourceFrom(
+    Track track,
+    Duration position,
+  ) async {
+    final normal = await _audioSource(track);
+    if (position < const Duration(seconds: 2) ||
+        normal is! UriAudioSource ||
+        normal.uri.scheme == 'file') {
+      return (normal, Duration.zero);
+    }
+    final uri = source?.streamUriFrom(track, position);
+    return uri == null
+        ? (normal, Duration.zero)
+        : (AudioSource.uri(uri, tag: track.id), position);
+  }
+
+  /// Puts the ordinary stream back in the entries that restarted part-way, once their song is no longer the current one, so they play from their beginning when their turn comes again.
+  void _restoreStreams() {
+    final sources = player.audioSources;
+    for (var i = 0; i < sources.length && i < _tracks.length; i++) {
+      final s = sources[i];
+      if (s is! UriAudioSource ||
+          !s.uri.queryParameters.containsKey('timeOffset') ||
+          i == player.currentIndex) {
+        continue;
+      }
+      final id = _tracks[i].id;
+      final generation = _generation;
+      unawaited(
+        _serial(() async {
+          if (generation != _generation) return;
+          for (var j = 0; j < _tracks.length; j++) {
+            final entry = player.audioSources[j];
+            if (_tracks[j].id != id ||
+                j == player.currentIndex ||
+                entry is! UriAudioSource ||
+                !entry.uri.queryParameters.containsKey('timeOffset')) {
+              continue;
+            }
+            final plain = await _audioSource(_tracks[j]);
+            _swapping = true;
+            try {
+              _order.replacing(j);
+              await player.removeAudioSourceAt(j);
+              await player.insertAudioSource(j, plain);
+            } on Exception {
+              // The entry keeps its stream.
+            } finally {
+              _swapping = false;
+            }
+          }
+        }),
+      );
+    }
+  }
+
+  /// Starts the stream of the current song again at [position] on the server, since the player cannot seek there in a transcoded stream.
+  Future<void> _restartAt(int index, Track track, Duration position) =>
+      _serial(() async {
+        final uri = source?.streamUriFrom(track, position);
+        if (uri == null || player.currentIndex != index) return;
+        final wasPlaying = player.playing;
+        _swapping = true;
+        try {
+          // Paused meanwhile, so the song after it never sounds while the entry is replaced.
+          await player.pause();
+          _order.replacing(index);
+          await player.removeAudioSourceAt(index);
+          await player.insertAudioSource(
+            index,
+            AudioSource.uri(uri, tag: track.id),
+          );
+          await player.seek(Duration.zero, index: index);
+          _offset = position;
+        } on Exception {
+          // The song carries on from where the player is.
+        } finally {
+          _swapping = false;
+        }
+        _broadcastState(player.playbackEvent);
+        // The future of play() ends with the playback, so it is not awaited.
+        if (wasPlaying) unawaited(player.play());
+      });
 
   Future<T> _serial<T>(Future<T> Function() edit) {
     final result = _edits.then((_) => edit());
@@ -378,10 +484,25 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
+    final start = await _startingAt(sources, index, position);
     await _serial(
-      () => _load(sources, initialIndex: index, initialPosition: position),
+      () => _load(sources, initialIndex: index, initialPosition: start),
     );
     _prefetch();
+  }
+
+  /// Swaps the source at [index] for one that starts at [position] when the player cannot seek there, and returns where the player itself starts.
+  Future<Duration> _startingAt(
+    List<AudioSource> sources,
+    int index,
+    Duration position,
+  ) async {
+    if (index >= sources.length || index >= _tracks.length) return position;
+    final (from, offset) = await _sourceFrom(_tracks[index], position);
+    if (offset == Duration.zero) return position;
+    sources[index] = from;
+    _startOffset = (index: index, offset: offset);
+    return Duration.zero;
   }
 
   /// Builds the audio sources of the queue again, for example after the streaming quality changed, and carries on from the same song and position. A song that was playing keeps playing.
@@ -389,11 +510,12 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final index = player.currentIndex;
     if (_tracks.isEmpty || source == null || index == null) return;
     _cancelCrossfade();
-    final position = player.position;
+    final position = this.position;
     final playing = player.playing;
     final sources = await Future.wait(_tracks.map(_audioSource));
+    final start = await _startingAt(sources, index, position);
     await _serial(
-      () => _load(sources, initialIndex: index, initialPosition: position),
+      () => _load(sources, initialIndex: index, initialPosition: start),
     );
     _prefetch();
     if (playing) await player.play();
@@ -458,7 +580,21 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> seek(Duration position) {
     _cancelCrossfade();
-    return player.seek(position);
+    final index = player.currentIndex;
+    final track = currentTrack;
+    if (index != null &&
+        track != null &&
+        _streams(index) &&
+        restartsStream(
+          target: position,
+          offset: _offset,
+          buffered: player.bufferedPosition,
+          restartable: source?.streamUriFrom(track, position) != null,
+        )) {
+      return _restartAt(index, track, position);
+    }
+    final inStream = position - _offset;
+    return player.seek(inStream.isNegative ? Duration.zero : inStream);
   }
 
   @override
@@ -470,9 +606,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToPrevious() async {
     _cancelCrossfade();
-    if (player.position > const Duration(seconds: 3)) {
-      return player.seek(Duration.zero);
-    }
+    if (position > const Duration(seconds: 3)) return seek(Duration.zero);
     return player.seekToPrevious();
   }
 
@@ -536,8 +670,8 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           ProcessingState.completed: AudioProcessingState.completed,
         }[player.processingState]!,
         playing: playing,
-        updatePosition: player.position,
-        bufferedPosition: player.bufferedPosition,
+        updatePosition: position,
+        bufferedPosition: player.bufferedPosition + _offset,
         speed: player.speed,
         queueIndex: event.currentIndex,
         shuffleMode: player.shuffleModeEnabled

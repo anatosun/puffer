@@ -423,9 +423,20 @@ class SubsonicClient {
     });
   }
 
-  /// Streaming URL. [format] and [maxBitRate] request server-side transcoding.
-  Uri streamUri(String id, {String? format, int? maxBitRate}) =>
-      _uri('stream', {'id': id, 'format': format, 'maxBitRate': maxBitRate});
+  /// Streaming URL. [format] and [maxBitRate] request server-side transcoding. With [offset], the transcoded stream starts at that point of the song, which needs the `transcodeOffset` extension and a transcoded stream.
+  Uri streamUri(
+    String id, {
+    String? format,
+    int? maxBitRate,
+    Duration? offset,
+  }) => _uri('stream', {
+    'id': id,
+    'format': format,
+    'maxBitRate': maxBitRate,
+    'timeOffset': offset?.inSeconds,
+  });
+
+  bool get hasTranscodeOffset => extensions.contains('transcodeOffset');
 
   /// Original file when no transcoding is requested, otherwise the transcoded stream.
   Uri downloadUri(String id, {String? format, int? maxBitRate}) =>

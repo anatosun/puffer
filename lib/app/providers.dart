@@ -682,6 +682,23 @@ class SessionPlaybackSource implements PlaybackSource {
         );
   }
 
+  @override
+  Uri? streamUriFrom(Track track, Duration offset) {
+    final quality = ref.read(streamingQualityProvider);
+    final client = ref.read(clientProvider);
+    if (client == null ||
+        !client.hasTranscodeOffset ||
+        (quality.format == null && quality.maxBitRate == null)) {
+      return null;
+    }
+    return client.streamUri(
+      track.id,
+      format: quality.format,
+      maxBitRate: quality.maxBitRate,
+      offset: offset,
+    );
+  }
+
   /// The file name of [track] in the cache, at the streaming quality of the current network.
   String cacheName(Track track) {
     final quality = ref.read(streamingQualityProvider);
@@ -787,7 +804,7 @@ final queuePersistenceProvider = Provider<void>((ref) {
       store.save(
         handler.tracks,
         handler.player.currentIndex ?? 0,
-        handler.player.position,
+        handler.position,
       );
     });
   }

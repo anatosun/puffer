@@ -240,7 +240,7 @@ class LocalPlaybackController implements PlaybackController {
     return QueueSnapshot(
       List.of(handler.tracks),
       handler.player.currentIndex ?? 0,
-      handler.player.position,
+      handler.position,
       playing: handler.player.playing,
     );
   }
