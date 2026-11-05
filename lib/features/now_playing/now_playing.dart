@@ -204,6 +204,16 @@ void openNowPlaying(BuildContext context) =>
       ),
     );
 
+TextStyle? _titleStyle(BuildContext context) =>
+    Theme.of(context).textTheme.headlineSmall
+        ?.copyWith(fontWeight: FontWeight.w800);
+
+/// The height of two lines of the title.
+double _titleHeight(BuildContext context) {
+  final style = _titleStyle(context);
+  return 2 * (style?.fontSize ?? 24) * (style?.height ?? 1.4);
+}
+
 class NowPlayingPage extends ConsumerWidget {
   const NowPlayingPage({super.key});
 
@@ -283,11 +293,9 @@ class NowPlayingPage extends ConsumerWidget {
                               Expanded(
                                 child: LayoutBuilder(
                                   builder: (context, box) {
-                                    // Under the artwork, the stars take 14 pixels and the 48 of their row; without them, the padding keeps the shadow of the artwork clear of the title.
+                                    // Under the artwork, the stars take 14 pixels and the 48 of their row. The row keeps its place when the stars are off or the song is not known, so nothing moves.
                                     const rowsHeight = 48.0;
-                                    final below = showTrackRow
-                                        ? 14 + rowsHeight
-                                        : 22.0;
+                                    const below = 14 + rowsHeight;
                                     final artSize = math.max(
                                       0.0,
                                       math.min(
@@ -375,34 +383,33 @@ class NowPlayingPage extends ConsumerWidget {
                                           dimension: artSize,
                                           child: artwork,
                                         ),
-                                        if (showTrackRow) ...[
-                                          SizedBox(height: 14 + slack / 4),
-                                          SizedBox(
-                                            width: rowWidth,
-                                            height: rowsHeight,
-                                            child: Center(
-                                              child: RatingStars(
-                                                key: ValueKey(track.id),
-                                                rating: track.rating,
-                                                color: highlight,
-                                                large: true,
-                                                onChanged: (value) async {
-                                                  if (await rate(
-                                                    ref,
-                                                    track.id,
-                                                    value,
-                                                  )) {
-                                                    rememberRating(
-                                                      track.json,
-                                                      value,
-                                                    );
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                        ] else
-                                          const SizedBox(height: 22),
+                                        SizedBox(height: 14 + slack / 4),
+                                        SizedBox(
+                                          width: rowWidth,
+                                          height: rowsHeight,
+                                          child: showTrackRow
+                                              ? Center(
+                                                  child: RatingStars(
+                                                    key: ValueKey(track.id),
+                                                    rating: track.rating,
+                                                    color: highlight,
+                                                    large: true,
+                                                    onChanged: (value) async {
+                                                      if (await rate(
+                                                        ref,
+                                                        track.id,
+                                                        value,
+                                                      )) {
+                                                        rememberRating(
+                                                          track.json,
+                                                          value,
+                                                        );
+                                                      }
+                                                    },
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
                                       ],
                                     );
                                   },
@@ -411,19 +418,17 @@ class NowPlayingPage extends ConsumerWidget {
                               const SizedBox(height: 18),
                               // The codec and quality, centred above the title; a tap opens the song info.
                               // The badges keep their height while the format of a new song loads, so the title does not jump.
-                              if (ref.watch(playerFormatProvider)) ...[
-                                SizedBox(
-                                  height: _FormatBadges.height,
-                                  child: format != null && track != null
-                                      ? _FormatBadges(
-                                          format: format,
-                                          track: track,
-                                          color: highlight,
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(height: 6),
-                              ],
+                              SizedBox(
+                                height: _FormatBadges.height,
+                                child: format != null && track != null
+                                    ? _FormatBadges(
+                                        format: format,
+                                        track: track,
+                                        color: highlight,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(height: 6),
                               GestureDetector(
                                 onTap: track?.albumId == null
                                     ? null
@@ -432,15 +437,18 @@ class NowPlayingPage extends ConsumerWidget {
                                         GoRouter.of(context)
                                             .push('/album/${track!.albumId}');
                                       },
-                                child: Text(
-                                  np.title,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                // The room of two lines, so a long title does not push the rest down.
+                                child: SizedBox(
+                                  height: _titleHeight(context),
+                                  child: Center(
+                                    child: Text(
+                                      np.title,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _titleStyle(context),
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -454,6 +462,8 @@ class NowPlayingPage extends ConsumerWidget {
                                       },
                                 child: Text(
                                   np.artist ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: highlight,
                                     fontSize: 17,
@@ -464,11 +474,16 @@ class NowPlayingPage extends ConsumerWidget {
                               const SizedBox(height: 16),
                               _SeekBar(np: np, color: highlight),
                               _Controls(np: np, color: highlight),
-                              if (np.volume != null)
-                                _VolumeSlider(
-                                  volume: np.volume!,
-                                  color: highlight,
-                                ),
+                              // The room of the volume slider stays when this device plays, which has none.
+                              SizedBox(
+                                height: kMinInteractiveDimension,
+                                child: np.volume == null
+                                    ? null
+                                    : _VolumeSlider(
+                                        volume: np.volume!,
+                                        color: highlight,
+                                      ),
+                              ),
                               const SizedBox(height: 8),
                               // "Add to playlist", the next song and the speaker button. The speaker button shows once Music Assistant is set up.
                               _BottomRow(
@@ -998,38 +1013,38 @@ class _BottomRow extends ConsumerWidget {
     final track = np.track;
     // Playlists live on the server, so adding to one needs the connection.
     final addToPlaylist = track != null && !ref.watch(isOfflineProvider);
-    if (!speaker && !upNext && !addToPlaylist) {
-      return const SizedBox(height: 8);
-    }
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: addToPlaylist
-                ? IconButton(
-                    tooltip: 'Add to playlist',
-                    color: context.muted,
-                    icon: const Icon(Icons.playlist_add),
-                    onPressed: () =>
-                        showAddToPlaylist(context, ref, () async => [track]),
-                  )
-                : null,
+    return SizedBox(
+      height: kMinInteractiveDimension,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: addToPlaylist
+                  ? IconButton(
+                      tooltip: 'Add to playlist',
+                      color: context.muted,
+                      icon: const Icon(Icons.playlist_add),
+                      onPressed: () =>
+                          showAddToPlaylist(context, ref, () async => [track]),
+                    )
+                  : null,
+            ),
           ),
-        ),
-        Expanded(flex: 6, child: upNext ? _UpNext(np: np) : const SizedBox()),
-        Expanded(
-          flex: 5,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: speaker
-                // The icon alone, highlighted while a speaker plays.
-                ? OutputButton(activeColor: color, idleColor: context.muted)
-                : null,
+          Expanded(flex: 6, child: upNext ? _UpNext(np: np) : const SizedBox()),
+          Expanded(
+            flex: 5,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: speaker
+                  // The icon alone, highlighted while a speaker plays.
+                  ? OutputButton(activeColor: color, idleColor: context.muted)
+                  : null,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -661,4 +661,76 @@ void main() {
       expect(loaded, loading);
     },
   );
+
+  testWidgets('the parts of the player keep their place whatever shows', (
+    tester,
+  ) async {
+    Future<List<Offset>> placesWith({
+      required Map<String, Object> settings,
+      required String title,
+      int? volume,
+      PlayingFormat? format,
+    }) async {
+      SharedPreferences.setMockInitialValues(settings);
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A'}),
+                  title: title,
+                  artist: 'An artist',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                  volume: volume,
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            playingFormatProvider.overrideWithValue(format),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      return [
+        tester.getCenter(find.text(title).first),
+        tester.getCenter(find.text('An artist')),
+        tester.getCenter(find.byType(Slider).first),
+      ];
+    }
+
+    final plain = await placesWith(
+      settings: {
+        'experience.playerRating': false,
+        'experience.playerFormat': false,
+        'experience.upNext': false,
+      },
+      title: 'Short',
+    );
+    final full = await placesWith(
+      settings: {
+        'experience.playerRating': true,
+        'experience.playerFormat': true,
+        'experience.upNext': true,
+      },
+      title: 'A title long enough to need a second line on a narrow phone',
+      volume: 40,
+      format: (codec: 'FLAC', quality: '16/44.1'),
+    );
+    expect(full[1], plain[1]);
+    expect(full[2], plain[2]);
+    // The title is centred in the room of its two lines, so its centre is the same too.
+    expect(full[0], plain[0]);
+  });
 }
