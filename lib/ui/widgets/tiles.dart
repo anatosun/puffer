@@ -93,7 +93,7 @@ class TrackTile extends ConsumerWidget {
         color: color,
         stars: ref.watch(trackStarsProvider)
             ? ref.watch(ratingOverridesProvider)[track.id] ?? track.rating
-            : 0,
+            : -1,
       ),
       subtitle: Row(
         children: [
@@ -144,14 +144,14 @@ class TrackTile extends ConsumerWidget {
   }
 }
 
-/// The title of a song with its rating as small stars after it. The stars only display, and none show for an unrated song.
+/// The title of a song with its rating as five small stars after it, filled up to the rating. The stars only display. A [stars] below zero hides them.
 class TrackTitle extends StatelessWidget {
-  const TrackTitle(this.title, {super.key, this.color, this.stars = 0});
+  const TrackTitle(this.title, {super.key, this.color, this.stars = -1});
 
   final String title;
   final Color? color;
 
-  /// The rating from 0 to 5.
+  /// The rating from 0 to 5, or -1 for no stars.
   final int stars;
 
   @override
@@ -165,7 +165,7 @@ class TrackTitle extends StatelessWidget {
           style: TextStyle(color: color),
         ),
       ),
-      if (stars > 0) ...[
+      if (stars >= 0) ...[
         const SizedBox(width: 6),
         Semantics(
           label: '$stars stars',
@@ -173,11 +173,13 @@ class TrackTitle extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var i = 0; i < stars; i++)
+              for (var i = 1; i <= 5; i++)
                 Icon(
-                  Icons.star_rounded,
+                  i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
                   size: 12,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: i <= stars
+                      ? Theme.of(context).colorScheme.primary
+                      : context.faint,
                 ),
             ],
           ),
