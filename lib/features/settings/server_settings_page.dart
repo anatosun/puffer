@@ -18,8 +18,7 @@ class ServerSettingsPage extends ConsumerWidget {
     final offline = ref.watch(isOfflineProvider);
     final info = ref.watch(serverInfoProvider);
     final active = ref.watch(activeAddressProvider);
-    final client = ref.watch(clientProvider);
-    final extensions = client?.extensions ?? const {};
+    final extensions = ref.watch(extensionsProvider).value ?? const {};
     final refresh = ref.watch(cacheRefreshProvider);
     if (credentials == null) return const SizedBox.shrink();
 
@@ -103,7 +102,9 @@ class ServerSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-            if (client?.hasOctoFiesta ?? false) ...[
+            // A person who switched the setting on keeps the switch, even when the proxy stops reporting itself.
+            if (reportsOctoFiesta(extensions) ||
+                ref.watch(externalInBackgroundProvider)) ...[
               const SettingsSection('External sources'),
               SwitchListTile(
                 secondary: const Icon(Icons.cloud_download_outlined),

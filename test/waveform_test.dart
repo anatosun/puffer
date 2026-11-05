@@ -116,9 +116,34 @@ void main() {
         _credentials,
         httpClient: MockClient((_) async => throw http.ClientException('down')),
       );
-      final loading = client.loadExtensions();
+      final loading = client.loadExtensions(retryDelays: const []);
       expect(await client.supports('songWaveform'), isFalse);
-      await expectLater(loading, throwsA(isA<http.ClientException>()));
+      expect(await loading, isEmpty);
+    });
+
+    test(
+      'the extensions load again when the server does not answer at first',
+      () async {
+        var calls = 0;
+        final client = SubsonicClient(
+          _credentials,
+          httpClient: MockClient((_) async {
+            if (++calls == 1) throw http.ClientException('down');
+            return _ok(_extensions);
+          }),
+        );
+        final extensions = await client.loadExtensions(
+          retryDelays: const [Duration.zero],
+        );
+        expect(extensions, contains('songWaveform'));
+        expect(calls, 2);
+      },
+    );
+
+    test('octo-fiesta is recognised by its extension in any spelling', () {
+      expect(reportsOctoFiesta({'songWaveform', 'octoFiesta'}), isTrue);
+      expect(reportsOctoFiesta({'octo-fiesta'}), isTrue);
+      expect(reportsOctoFiesta({'songWaveform'}), isFalse);
     });
   });
 

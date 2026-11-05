@@ -13,7 +13,6 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final credentials = ref.watch(credentialsProvider);
-    final client = ref.watch(clientProvider);
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -26,7 +25,7 @@ class SettingsPage extends ConsumerWidget {
               subtitle: Text(
                 [
                   credentials?.username,
-                  if (client != null && client.extensions.isNotEmpty)
+                  if (ref.watch(extensionsProvider).value?.isNotEmpty ?? false)
                     'OpenSubsonic',
                 ].nonNulls.join(' · '),
               ),

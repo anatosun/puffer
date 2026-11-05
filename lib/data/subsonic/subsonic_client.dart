@@ -92,6 +92,11 @@ String normaliseBaseUrl(String url) {
   return result;
 }
 
+/// Whether [extensions] include the one octo-fiesta reports: a name that contains `octofiesta`, in any case and with or without a hyphen.
+bool reportsOctoFiesta(Set<String> extensions) => extensions.any(
+  (e) => e.toLowerCase().replaceAll('-', '').contains('octofiesta'),
+);
+
 class SubsonicClient {
   SubsonicClient(this.credentials, {http.Client? httpClient, String? baseUrl})
     : _http = httpClient ?? http.Client(),
@@ -174,19 +179,32 @@ class SubsonicClient {
   /// Starts a scan of the music folders. Most servers allow it only for administrators.
   Future<ScanStatus> startScan() async => ScanStatus(await _get('startScan'));
 
-  Future<Set<String>> loadExtensions() =>
-      _extensionsLoading = _loadExtensions();
+  /// Requests the extensions of the server once, and returns the same request on later calls. It tries again after each of [retryDelays] when the server does not answer. Never throws: a server that stays silent has none.
+  Future<Set<String>> loadExtensions({
+    List<Duration> retryDelays = const [
+      Duration(seconds: 2),
+      Duration(seconds: 10),
+      Duration(seconds: 30),
+    ],
+  }) => _extensionsLoading ??= _loadExtensions(retryDelays);
 
-  Future<Set<String>> _loadExtensions() async {
-    try {
-      final body = await _get('getOpenSubsonicExtensions');
-      extensions = jsonList(body['openSubsonicExtensions'])
-          .map((e) => e['name'] as String)
-          .toSet();
-    } on SubsonicException {
-      extensions = const {};
+  Future<Set<String>> _loadExtensions(List<Duration> retryDelays) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final body = await _get('getOpenSubsonicExtensions');
+        extensions = jsonList(body['openSubsonicExtensions'])
+            .map((e) => e['name'] as String)
+            .toSet();
+        return extensions;
+      } on SubsonicException {
+        // The server answered without the endpoint: it is not an OpenSubsonic server.
+        extensions = const {};
+        return extensions;
+      } on Exception {
+        if (attempt >= retryDelays.length) return extensions;
+        await Future<void>.delayed(retryDelays[attempt]);
+      }
     }
-    return extensions;
   }
 
   Future<List<Artist>> getArtists() async {
@@ -348,16 +366,11 @@ class SubsonicClient {
     ];
   }
 
-  /// Whether the server sits behind octo-fiesta, which reports itself through an OpenSubsonic extension whose name contains `octofiesta`, in any case and with or without a hyphen.
-  bool get hasOctoFiesta => extensions.any(
-    (e) => e.toLowerCase().replaceAll('-', '').contains('octofiesta'),
-  );
-
   bool get hasSonicSimilarity => extensions.contains('sonicSimilarity');
 
   /// Whether the server reports the OpenSubsonic extension [name], after the extensions requested by [loadExtensions] have arrived.
   Future<bool> supports(String name) async {
-    await _extensionsLoading?.catchError((_) => const <String>{});
+    await _extensionsLoading;
     return extensions.contains(name);
   }
 

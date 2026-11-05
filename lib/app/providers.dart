@@ -141,7 +141,7 @@ final clientProvider = Provider<SubsonicClient?>((ref) {
     disposed = true;
     client.close();
   });
-  unawaited(client.loadExtensions().catchError((_) => const <String>{}));
+  unawaited(client.loadExtensions());
   Future.microtask(() {
     if (!disposed) ref.read(activeAddressProvider.notifier).set(client.baseUrl);
   });
@@ -164,6 +164,12 @@ final clientProvider = Provider<SubsonicClient?>((ref) {
     }, fireImmediately: true);
   }
   return client;
+});
+
+/// The OpenSubsonic extensions of the server, once they have arrived. Widgets watch this instead of reading [SubsonicClient.extensions], which fills in later.
+final extensionsProvider = FutureProvider<Set<String>>((ref) async {
+  final client = ref.watch(clientProvider);
+  return client == null ? const {} : await client.loadExtensions();
 });
 
 // ------------------------------------------------------------ appearance
