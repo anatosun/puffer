@@ -1,0 +1,1 @@
+- Settings, Experience: the start-up animation can be turned off, from the next start
