@@ -1,0 +1,5 @@
+- Playlists, albums, artists and genres open at once from the cache; downloaded ones always open instantly
+- Faster artist pages and queue, and no stutter when a large playlist opens
+- The artwork cache and the lock screen no longer hold server credentials
+- Song rows: the rating shows under the artist, only for rated songs, and icons stand in the same columns
+- Playlist cards show their download state, and counts read "1 song", not "1 songs"
