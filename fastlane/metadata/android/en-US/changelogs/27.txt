@@ -1,0 +1,4 @@
+- Shuffle starts at a random song, not always at the first
+- With octo-fiesta, artist pages and search show the albums and songs of your library first, and a "More" button shows those of the external providers
+- The waveforms of the songs fetched ahead load with them, so the seek bar shows them as soon as each song starts
+- Through Music Assistant, every song of the queue shows its title, artist and artwork from the Subsonic server, including songs other clients added
