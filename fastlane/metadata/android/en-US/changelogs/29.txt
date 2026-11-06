@@ -1,0 +1,5 @@
+- Sleep timer on the player: after 15 to 90 minutes, at the end of the song, or at the end of the album
+- Endless radio: at the end of the queue, songs that sound like the last one are added (needs sonic similarity)
+- The Played tab lists the last five queues, and a tap plays one again where it stopped
+- Playing a top song carries on through the other top songs of the artist
+- The search tab shows your recent searches
