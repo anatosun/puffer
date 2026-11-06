@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:drift/native.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/db/database.dart';
 import 'package:puffer/data/repositories/library_repository.dart';
 import 'package:puffer/data/subsonic/models.dart';
@@ -314,6 +316,63 @@ void main() {
         'al-3',
       ]);
       expect(forBackground(albums, (a) => a, includeExternal: true), albums);
+    });
+
+    test('a page shows the external items only after "More"', () {
+      final albums = ['al-1', 'ext-qobuz-album-2', 'al-3'];
+      final hidden = shownItems(albums, (a) => a, showExternal: false);
+      expect(hidden.items, ['al-1', 'al-3']);
+      expect(hidden.more, isTrue);
+      final shown = shownItems(albums, (a) => a, showExternal: true);
+      expect(shown.items, albums);
+      expect(shown.more, isFalse);
+      final local = shownItems(['al-1'], (a) => a, showExternal: false);
+      expect(local.more, isFalse);
+    });
+
+    test('search results leave the external ones for "More"', () {
+      final result = SearchResult(
+        artists: [
+          const Artist({'id': 'ar-1', 'name': 'A'}),
+        ],
+        albums: [
+          const Album({'id': 'ext-deezer-album-9', 'name': 'B'}),
+        ],
+        tracks: [
+          const Track({'id': 'tr-1', 'title': 'C'}),
+          const Track({'id': 'ext-deezer-song-7', 'title': 'D'}),
+        ],
+      );
+      final hidden = result.shown(showExternal: false);
+      expect(hidden.more, isTrue);
+      expect(hidden.result.artists, hasLength(1));
+      expect(hidden.result.albums, isEmpty);
+      expect([for (final t in hidden.result.tracks) t.id], ['tr-1']);
+      final shown = result.shown(showExternal: true);
+      expect(shown.more, isFalse);
+      expect(shown.result.tracks, hasLength(2));
+    });
+
+    test('external items wait for "More" only on octo-fiesta', () async {
+      ProviderContainer container(Set<String> extensions) {
+        final c = ProviderContainer(
+          overrides: [extensionsProvider.overrideWith((ref) => extensions)],
+        );
+        addTearDown(c.dispose);
+        return c;
+      }
+
+      final octo = container({'octoFiesta'});
+      await octo.read(extensionsProvider.future);
+      final sub = octo.listen(externalShownProvider('artist:1'), (_, _) {});
+      expect(sub.read(), isFalse);
+      octo.read(externalShownProvider('artist:1').notifier).show();
+      expect(sub.read(), isTrue);
+      expect(octo.read(externalShownProvider('artist:2')), isFalse);
+
+      final navidrome = container({'songLyrics'});
+      await navidrome.read(extensionsProvider.future);
+      expect(navidrome.read(externalShownProvider('artist:1')), isTrue);
     });
   });
 }

@@ -29,6 +29,18 @@ final _resultsProvider = FutureProvider.autoDispose<SearchResult?>((ref) async {
   return repository.search(query);
 });
 
+/// The results the page shows. On octo-fiesta the results of external providers wait for "More", which each new query resets.
+final _shownProvider =
+    Provider.autoDispose<AsyncValue<({SearchResult result, bool more})?>>((
+      ref,
+    ) {
+      final query = ref.watch(_queryProvider).trim();
+      final showExternal = ref.watch(externalShownProvider('search:$query'));
+      return ref
+          .watch(_resultsProvider)
+          .whenData((r) => r?.shown(showExternal: showExternal));
+    });
+
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -47,7 +59,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(_resultsProvider);
+    final results = ref.watch(_shownProvider);
     final offline = ref.watch(isOfflineProvider);
     return Backdrop(
       child: Scaffold(
@@ -75,12 +87,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         body: results.when(
           loading: () => const ListPlaceholder(),
           error: (e, _) => MessageView('$e'),
-          data: (r) {
-            if (r == null) {
+          data: (shown) {
+            if (shown == null) {
               return const MessageView('Search your library');
             }
+            final r = shown.result;
+            final more = shown.more
+                ? MoreButton(
+                    onPressed: () => ref
+                        .read(
+                          externalShownProvider(
+                            'search:${ref.read(_queryProvider).trim()}',
+                          ).notifier,
+                        )
+                        .show(),
+                  )
+                : null;
             if (r.artists.isEmpty && r.albums.isEmpty && r.tracks.isEmpty) {
-              return const MessageView('No results');
+              return more == null
+                  ? const MessageView('No results')
+                  : ListView(
+                      children: [
+                        const MessageView('No results in your library'),
+                        more,
+                      ],
+                    );
             }
             return ListView(
               children: [
@@ -97,6 +128,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   for (var i = 0; i < r.tracks.length; i++)
                     TrackTile(tracks: r.tracks, index: i),
                 ],
+                ?more,
                 const SizedBox(height: 24),
               ],
             );

@@ -554,6 +554,25 @@ Future<void> showPlaylistActions(
       (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
 );
 
+/// The button under a page that shows the items of external providers, which a proxy such as octo-fiesta mixes in.
+class MoreButton extends StatelessWidget {
+  const MoreButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+    child: Center(
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.travel_explore),
+        label: const Text('More'),
+      ),
+    ),
+  );
+}
+
 /// Error and empty states of lists, with the pufferfish.
 class MessageView extends StatelessWidget {
   const MessageView(this.message, {super.key, this.onRetry});

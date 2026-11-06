@@ -76,6 +76,17 @@ Iterable<T> forBackground<T>(
   required bool includeExternal,
 }) => includeExternal ? items : items.where((i) => !isExternalId(id(i)));
 
+/// The items a page shows from [items]: all of them with [showExternal], and only those of the library otherwise. [more] tells whether external items were left out, so the page offers to show them.
+({List<T> items, bool more}) shownItems<T>(
+  Iterable<T> items,
+  String Function(T) id, {
+  required bool showExternal,
+}) {
+  if (showExternal) return (items: items.toList(), more: false);
+  final local = items.where((i) => !isExternalId(id(i))).toList();
+  return (items: local, more: local.length < items.length);
+}
+
 List<Json> _list(Object? value) {
   if (value is List) return value.cast<Json>();
   if (value is Map) return [value.cast<String, dynamic>()];
@@ -250,6 +261,17 @@ class SearchResult {
   final List<Artist> artists;
   final List<Album> albums;
   final List<Track> tracks;
+
+  /// The results a page shows: all of them with [showExternal], and only those of the library otherwise. [more] tells whether external results were left out.
+  ({SearchResult result, bool more}) shown({required bool showExternal}) {
+    final a = shownItems(artists, (x) => x.id, showExternal: showExternal);
+    final b = shownItems(albums, (x) => x.id, showExternal: showExternal);
+    final t = shownItems(tracks, (x) => x.id, showExternal: showExternal);
+    return (
+      result: SearchResult(artists: a.items, albums: b.items, tracks: t.items),
+      more: a.more || b.more || t.more,
+    );
+  }
 }
 
 class Starred {

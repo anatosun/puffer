@@ -359,6 +359,26 @@ final externalInBackgroundProvider =
       ExternalInBackgroundNotifier.new,
     );
 
+/// Whether the server is the octo-fiesta proxy, which mixes items from external providers into the artists and the search results of the library.
+final octoFiestaProvider = Provider<bool>(
+  (ref) => reportsOctoFiesta(ref.watch(extensionsProvider).value ?? const {}),
+);
+
+/// Whether the page named by the key (an artist, a search) shows the external items after a tap on "More". On other servers every item shows.
+class ExternalShownNotifier extends Notifier<bool> {
+  ExternalShownNotifier(this.page);
+
+  final String page;
+
+  @override
+  bool build() => !ref.watch(octoFiestaProvider);
+
+  void show() => state = true;
+}
+
+final externalShownProvider = NotifierProvider.autoDispose
+    .family<ExternalShownNotifier, bool, String>(ExternalShownNotifier.new);
+
 // ------------------------------------------------------------ songs fetched ahead
 
 class PrefetchModeNotifier extends Notifier<PrefetchMode> {

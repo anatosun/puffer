@@ -21,13 +21,27 @@ final artistProvider = FutureProvider.autoDispose.family<Artist, String>((
   return ref.watch(repositoryProvider)!.artist(id);
 });
 
-/// Every track of the artist, album by album. Albums that cannot be loaded offline are skipped.
+/// The albums the page of the artist shows, newest first. On octo-fiesta the albums of external providers wait for "More", unless the artist itself comes from one.
+final artistAlbumsProvider = FutureProvider.autoDispose
+    .family<({List<Album> items, bool more}), String>((ref, id) async {
+      final artist = await ref.watch(artistProvider(id).future);
+      final shown = shownItems(
+        artist.albums,
+        (a) => a.id,
+        showExternal:
+            isExternalId(id) || ref.watch(externalShownProvider('artist:$id')),
+      );
+      shown.items.sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
+      return shown;
+    });
+
+/// Every track of the albums the page shows, album by album. Albums that cannot be loaded offline are skipped.
 final artistTracksProvider = FutureProvider.autoDispose
     .family<List<Track>, String>((ref, id) async {
-      final artist = await ref.watch(artistProvider(id).future);
+      final albums = (await ref.watch(artistAlbumsProvider(id).future)).items;
       final repository = ref.watch(repositoryProvider)!;
       final tracks = <Track>[];
-      for (final album in artist.albums) {
+      for (final album in albums) {
         try {
           tracks.addAll((await repository.album(album.id)).songs);
         } on Exception {
@@ -67,8 +81,8 @@ class ArtistPage extends ConsumerWidget {
             ),
           ),
           data: (artist) {
-            final albums = [...artist.albums]
-              ..sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
+            final shown = ref.watch(artistAlbumsProvider(id)).value;
+            final albums = shown?.items ?? const <Album>[];
             final groups = <ReleaseKind, List<Album>>{};
             for (final album in albums) {
               (groups[album.releaseKind] ??= []).add(album);
@@ -139,6 +153,17 @@ class ArtistPage extends ConsumerWidget {
                               ),
                             ),
                           ],
+                        if (shown?.more ?? false)
+                          SliverToBoxAdapter(
+                            child: MoreButton(
+                              onPressed: () => ref
+                                  .read(
+                                    externalShownProvider('artist:$id')
+                                        .notifier,
+                                  )
+                                  .show(),
+                            ),
+                          ),
                       ],
                     );
                   },
