@@ -643,18 +643,27 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
       case PinKind.artist:
         final artist = await repository.artist(id);
         unawaited(art(artist.coverArt));
-        final tracks = <Track>[];
         final external = ref.read(externalInBackgroundProvider);
-        for (final a in forBackground(
-          artist.albums,
-          (a) => a.id,
-          includeExternal: external,
-        )) {
-          final album = await repository.album(a.id);
-          unawaited(art(album.coverArt));
-          tracks.addAll(album.songs);
+        final ids = [
+          for (final a in forBackground(
+            artist.albums,
+            (a) => a.id,
+            includeExternal: external,
+          ))
+            a.id,
+        ];
+        // A few albums at a time. One that fails fails the whole artist, so a sync never releases the tracks of an album it could not load.
+        final albums = <Album>[];
+        const parallel = 4;
+        for (var i = 0; i < ids.length; i += parallel) {
+          albums.addAll(
+            await Future.wait(ids.skip(i).take(parallel).map(repository.album)),
+          );
         }
-        return tracks;
+        for (final album in albums) {
+          unawaited(art(album.coverArt));
+        }
+        return [for (final album in albums) ...album.songs];
     }
   }
 

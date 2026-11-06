@@ -266,4 +266,17 @@ void main() {
     expect(cached.keys.toSet(), albums.keys.toSet());
     await db.close();
   });
+
+  test('large JSON decodes the same in another isolate', () async {
+    final big = {
+      'entry': [
+        for (var i = 0; i < 20000; i++) {'id': 't$i', 'title': 'Song $i'},
+      ],
+    };
+    final text = jsonEncode(big);
+    expect(text.length, greaterThan(256 * 1024));
+    final decoded = await decodeLarge(text) as Map<String, dynamic>;
+    expect((decoded['entry'] as List).length, 20000);
+    expect(await decodeLarge('{"a":1}'), {'a': 1});
+  });
 }

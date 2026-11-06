@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:drift/drift.dart';
 
@@ -31,6 +32,13 @@ bool matchesQuery(String query, Iterable<String?> fields) {
       .where((w) => w.isNotEmpty)
       .every(haystack.contains);
 }
+
+/// Decodes [text], in another isolate when it is large (a playlist of thousands of songs is megabytes of JSON), so the interface does not stutter while a big cached item opens. The decoded value comes back without a copy.
+Future<Object?> decodeLarge(String text) async => text.length < _largeJson
+    ? jsonDecode(text)
+    : Isolate.run(() => jsonDecode(text));
+
+const _largeJson = 256 * 1024;
 
 class OfflineException implements Exception {
   const OfflineException(this.what);
@@ -72,7 +80,7 @@ class LibraryRepository {
     final row = await (db.select(
       db.cachedItems,
     )..where((t) => t.kind.equals(kind) & t.id.equals(id))).getSingleOrNull();
-    return row == null ? null : jsonDecode(row.json);
+    return row == null ? null : decodeLarge(row.json);
   }
 
   Future<T> _fetch<T>({

@@ -216,13 +216,15 @@ class TrackHeart extends ConsumerWidget {
   }
 }
 
-/// The song behind a queue entry, from the library, or null when the library does not know it. Rows that scroll away drop theirs.
+/// The song behind a queue entry, from the cache when the library knows it, or null when it does not. Only songs missing from the cache are asked of the server, so scrolling a long queue sends no request per row. Rows that scroll away drop theirs.
 final queueTrackProvider = FutureProvider.autoDispose.family<Track?, String>((
   ref,
   id,
 ) async {
   final repository = ref.watch(repositoryProvider);
   if (repository == null) return null;
+  final cached = await repository.cachedTracks([id]);
+  if (cached.isNotEmpty) return cached.single;
   try {
     return await repository.track(id);
   } on Exception {
