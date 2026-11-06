@@ -1,6 +1,6 @@
 {
   "repo": {
-    "timestamp": 1794002043000,
+    "timestamp": 1794003644000,
     "version": 20002,
     "name": "Puffer",
     "icon": "icon.png",
@@ -18,13 +18,13 @@
         "Multimedia"
       ],
       "changelog": "https://github.com/anatosun/puffer/releases",
-      "suggestedVersionCode": "4031",
+      "suggestedVersionCode": "4032",
       "issueTracker": "https://github.com/anatosun/puffer/issues",
       "license": "GPL-3.0-or-later",
       "sourceCode": "https://github.com/anatosun/puffer",
-      "added": 1793978857000,
+      "added": 1794002036000,
       "packageName": "io.github.anatosun.puffer",
-      "lastUpdated": 1794002036000,
+      "lastUpdated": 1794003639000,
       "localized": {
         "en-US": {
           "description": "<p>A music player for your own server. Works with any <b>Subsonic</b> or <b>OpenSubsonic</b> compatible server such as Navidrome, Gonic or Airsonic-Advanced.</p>\n\n<p><b>Features</b></p>\n<ul>\n  <li>A full-screen now-playing view coloured by the album artwork</li>\n  <li>Download songs, albums, playlists and artists for offline listening. Downloaded playlists stay in sync automatically</li>\n  <li>Automatic downloads of everything you add to your library, when switched on</li>\n  <li>A downloaded-only view, and an offline mode in which you browse your downloaded library</li>\n  <li>Choose download quality (original or transcoded) and limit downloads to Wi-Fi</li>\n  <li>Play on your speakers through Music Assistant, with synchronized multi-room playback</li>\n  <li>Background playback, lock screen and notification controls</li>\n</ul>\n\n<p>The app connects only to the servers you configure. It has no advertising and no tracking.</p>\n",
@@ -50,6 +50,65 @@
   ],
   "packages": {
     "io.github.anatosun.puffer": [
+      {
+        "added": 1794003639000,
+        "apkName": "puffer-0.1.0-alpha.32-x86_64.apk",
+        "hash": "e4674d9726581861d8c7949e25904e5c93c0ec50642cc482230bed45e6ec7773",
+        "hashType": "sha256",
+        "minSdkVersion": 24,
+        "nativecode": [
+          "x86_64"
+        ],
+        "packageName": "io.github.anatosun.puffer",
+        "sig": "06566612b5f037896ac4ae7a3cf22440",
+        "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
+        "size": 29165409,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "android.permission.ACCESS_NETWORK_STATE",
+            null
+          ],
+          [
+            "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+            null
+          ],
+          [
+            "android.permission.WAKE_LOCK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            null
+          ],
+          [
+            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+            null
+          ],
+          [
+            "android.permission.POST_NOTIFICATIONS",
+            null
+          ],
+          [
+            "android.permission.RECEIVE_BOOT_COMPLETED",
+            null
+          ],
+          [
+            "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 4032,
+        "versionName": "0.1.0-alpha.32"
+      },
       {
         "added": 1794002036000,
         "apkName": "puffer-0.1.0-alpha.31-x86_64.apk",
@@ -110,18 +169,18 @@
         "versionName": "0.1.0-alpha.31"
       },
       {
-        "added": 1793978857000,
-        "apkName": "puffer-0.1.0-alpha.30-x86_64.apk",
-        "hash": "56fe73a00787df60ec1c114e187c6286026a502312a64b403c92ad4b373ca240",
+        "added": 1794003639000,
+        "apkName": "puffer-0.1.0-alpha.32-arm64-v8a.apk",
+        "hash": "6dae846129d2fd8aa03cad2179458dbe71234b5bbf60ea825d41e7835f7eb199",
         "hashType": "sha256",
         "minSdkVersion": 24,
         "nativecode": [
-          "x86_64"
+          "arm64-v8a"
         ],
         "packageName": "io.github.anatosun.puffer",
         "sig": "06566612b5f037896ac4ae7a3cf22440",
         "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
-        "size": 29099833,
+        "size": 27517075,
         "targetSdkVersion": 36,
         "uses-permission": [
           [
@@ -165,8 +224,8 @@
             null
           ]
         ],
-        "versionCode": 4030,
-        "versionName": "0.1.0-alpha.30"
+        "versionCode": 2032,
+        "versionName": "0.1.0-alpha.32"
       },
       {
         "added": 1794002036000,
@@ -228,18 +287,18 @@
         "versionName": "0.1.0-alpha.31"
       },
       {
-        "added": 1793978857000,
-        "apkName": "puffer-0.1.0-alpha.30-arm64-v8a.apk",
-        "hash": "4ef566aca362729bd00e3cf2625363dd565fed21ecadc15426b5c8d2d2c0f516",
+        "added": 1794003639000,
+        "apkName": "puffer-0.1.0-alpha.32-armeabi-v7a.apk",
+        "hash": "639dbdeb9e96e12ce5a7cf6c96c33e05cf208179696567c916d7ee546afd0729",
         "hashType": "sha256",
         "minSdkVersion": 24,
         "nativecode": [
-          "arm64-v8a"
+          "armeabi-v7a"
         ],
         "packageName": "io.github.anatosun.puffer",
         "sig": "06566612b5f037896ac4ae7a3cf22440",
         "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
-        "size": 27451499,
+        "size": 25303007,
         "targetSdkVersion": 36,
         "uses-permission": [
           [
@@ -283,8 +342,8 @@
             null
           ]
         ],
-        "versionCode": 2030,
-        "versionName": "0.1.0-alpha.30"
+        "versionCode": 1032,
+        "versionName": "0.1.0-alpha.32"
       },
       {
         "added": 1794002036000,
@@ -344,65 +403,6 @@
         ],
         "versionCode": 1031,
         "versionName": "0.1.0-alpha.31"
-      },
-      {
-        "added": 1793978857000,
-        "apkName": "puffer-0.1.0-alpha.30-armeabi-v7a.apk",
-        "hash": "de4224ac8d3ee1a034cbeb46d3b9b81a9e9f81991fdf773774a6c4fbf3782e9e",
-        "hashType": "sha256",
-        "minSdkVersion": 24,
-        "nativecode": [
-          "armeabi-v7a"
-        ],
-        "packageName": "io.github.anatosun.puffer",
-        "sig": "06566612b5f037896ac4ae7a3cf22440",
-        "signer": "35918397ede0288f734748323d75add1a98b46321853c2503032a6120e4d8d84",
-        "size": 25237431,
-        "targetSdkVersion": 36,
-        "uses-permission": [
-          [
-            "android.permission.INTERNET",
-            null
-          ],
-          [
-            "android.permission.ACCESS_NETWORK_STATE",
-            null
-          ],
-          [
-            "android.permission.CHANGE_WIFI_MULTICAST_STATE",
-            null
-          ],
-          [
-            "android.permission.WAKE_LOCK",
-            null
-          ],
-          [
-            "android.permission.FOREGROUND_SERVICE",
-            null
-          ],
-          [
-            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-            null
-          ],
-          [
-            "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
-            null
-          ],
-          [
-            "android.permission.POST_NOTIFICATIONS",
-            null
-          ],
-          [
-            "android.permission.RECEIVE_BOOT_COMPLETED",
-            null
-          ],
-          [
-            "io.github.anatosun.puffer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
-            null
-          ]
-        ],
-        "versionCode": 1030,
-        "versionName": "0.1.0-alpha.30"
       }
     ]
   }
