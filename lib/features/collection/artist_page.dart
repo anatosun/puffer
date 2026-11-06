@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,18 +53,21 @@ final artistTracksProvider = FutureProvider.autoDispose
       return tracks;
     });
 
-/// The five most played songs of the artist, on servers with the `topSongsByArtistId` extension. Empty without it, offline, and when the request fails.
+/// The most played songs of the artist, on servers with the `topSongsByArtistId` extension. The page shows [shownTopSongs] of them, and playing one carries on through the rest. Empty without the extension, offline, and when the request fails.
 final artistTopSongsProvider = FutureProvider.autoDispose
     .family<List<Track>, String>((ref, id) async {
       if (!ref.watch(hasTopSongsProvider) || ref.watch(isOfflineProvider)) {
         return const [];
       }
       try {
-        return await ref.watch(repositoryProvider)!.topSongs(id, count: 5);
+        return await ref.watch(repositoryProvider)!.topSongs(id, count: 20);
       } on Exception {
         return const [];
       }
     });
+
+/// The number of top songs the artist page lists.
+const shownTopSongs = 5;
 
 final artistInfoProvider = FutureProvider.autoDispose
     .family<ArtistInfo?, String>((ref, id) async {
@@ -154,7 +159,7 @@ class ArtistPage extends ConsumerWidget {
                             ),
                           ),
                           SliverList.builder(
-                            itemCount: topSongs.length,
+                            itemCount: math.min(shownTopSongs, topSongs.length),
                             itemBuilder: (context, i) =>
                                 TrackTile(tracks: topSongs, index: i),
                           ),
