@@ -44,6 +44,7 @@ Future<void> showItemActions(
         final repository = ref.watch(repositoryProvider);
         final handler = ref.watch(playbackControllerProvider);
         final offline = ref.watch(isOfflineProvider);
+        final canMix = ref.watch(canMixProvider);
         final messenger = ScaffoldMessenger.of(context);
         final router = GoRouter.of(context);
         void close() => Navigator.pop(sheetContext);
@@ -84,7 +85,7 @@ Future<void> showItemActions(
                     ),
                   ),
                 const Divider(height: 1),
-                if (mix != null && !offline)
+                if (mix != null && canMix && !offline)
                   ListTile(
                     leading: const Icon(Icons.radio),
                     title: Text(

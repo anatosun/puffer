@@ -19,6 +19,9 @@ abstract class PlaybackSource {
   /// The stream of [track] starting at [offset], when the server can start a transcoded stream there. Null for original files and for servers without that ability, which the player then seeks itself.
   Uri? streamUriFrom(Track track, Duration offset);
 
+  /// Asks the server how [tracks] should reach this device, so that [streamUri] gives the stream it chose. Without an answer, [streamUri] keeps to the `stream` endpoint.
+  Future<void> decide(List<Track> tracks);
+
   /// The file of [track] among the songs fetched ahead, when there is one.
   Future<String?> cachedPath(Track track);
 
@@ -175,7 +178,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     for (var i = 0; i < sources.length && i < _tracks.length; i++) {
       final s = sources[i];
       if (s is! UriAudioSource ||
-          !s.uri.queryParameters.containsKey('timeOffset') ||
+          !startsPartWay(s.uri) ||
           i == player.currentIndex) {
         continue;
       }
@@ -189,7 +192,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             if (_tracks[j].id != id ||
                 j == player.currentIndex ||
                 entry is! UriAudioSource ||
-                !entry.uri.queryParameters.containsKey('timeOffset')) {
+                !startsPartWay(entry.uri)) {
               continue;
             }
             final plain = await _audioSource(_tracks[j]);
@@ -285,8 +288,12 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         )
         .where((i) => i < _tracks.length);
     final generation = _generation;
-    unawaited(
-      src
+    unawaited(() async {
+      // The server decides how the current song and those ahead reach this device before they are fetched.
+      await _decide([_tracks[current], for (final i in next) _tracks[i]]);
+      if (generation != _generation) return;
+      _upgradeStreams(generation, next);
+      await src
           .prefetch(
             [
               for (final i in next)
@@ -305,8 +312,38 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             ),
             removed: cachedFilesRemoved,
           )
-          .catchError((Object _) {}),
-    );
+          .catchError((Object _) {});
+    }());
+  }
+
+  /// Asks the server how [tracks] reach this device, waiting no more than a few seconds before the songs stream from the `stream` endpoint.
+  Future<void> _decide(List<Track> tracks) async {
+    try {
+      await source?.decide(tracks).timeout(const Duration(seconds: 5));
+    } on Exception {
+      // The songs stream as they would without the answer.
+    }
+  }
+
+  /// Gives the queue entries at [indices] the stream the server chose, where it differs from the one they have.
+  void _upgradeStreams(int generation, Iterable<int> indices) {
+    final src = source;
+    if (src == null) return;
+    for (final i in indices) {
+      if (!_streams(i)) continue;
+      final entry = player.audioSources[i] as UriAudioSource;
+      final track = _tracks[i];
+      final uri = src.streamUri(track);
+      if (uri == entry.uri) continue;
+      unawaited(
+        _replace(
+          generation,
+          track.id,
+          toFile: false,
+          source: AudioSource.uri(uri, tag: track.id),
+        ),
+      );
+    }
   }
 
   /// Songs of the queue whose cached files were deleted stream again.
@@ -464,15 +501,13 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _cancelCrossfade();
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
+    // The shuffle order of just_audio starts with the initial index, so a shuffled queue starts at a random song.
+    final start = shuffle ? Random().nextInt(_tracks.length) : index;
+    if (start < _tracks.length) await _decide([_tracks[start]]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     await player.setShuffleModeEnabled(shuffle);
-    // The shuffle order of just_audio starts with the initial index, so a shuffled queue starts at a random song.
     await _serial(
-      () => _load(
-        sources,
-        initialIndex: shuffle ? Random().nextInt(sources.length) : index,
-        initialPosition: Duration.zero,
-      ),
+      () => _load(sources, initialIndex: start, initialPosition: Duration.zero),
     );
     _prefetch();
     await player.play();
@@ -484,6 +519,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _cancelCrossfade();
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
+    if (index < _tracks.length) await _decide([_tracks[index]]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     final start = await _startingAt(sources, index, position);
     await _serial(
@@ -513,6 +549,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _cancelCrossfade();
     final position = this.position;
     final playing = player.playing;
+    if (index < _tracks.length) await _decide([_tracks[index]]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     final start = await _startingAt(sources, index, position);
     await _serial(

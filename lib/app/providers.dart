@@ -22,6 +22,7 @@ import '../playback/player_handler.dart';
 import '../playback/prefetch_cache.dart';
 import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
+import '../playback/transcode_decider.dart';
 
 // ------------------------------------------------------------ overridden in main()
 
@@ -170,6 +171,30 @@ final clientProvider = Provider<SubsonicClient?>((ref) {
 final extensionsProvider = FutureProvider<Set<String>>((ref) async {
   final client = ref.watch(clientProvider);
   return client == null ? const {} : await client.loadExtensions();
+});
+
+/// Whether the server reports the OpenSubsonic extension [name]. False until the extensions arrive.
+final hasExtensionProvider = Provider.family<bool, String>(
+  (ref, name) => ref.watch(extensionsProvider).value?.contains(name) ?? false,
+);
+
+/// Whether the server finds songs that sound alike, through the OpenSubsonic `sonicSimilarity` extension. Instant mix and radio need it.
+final canMixProvider = Provider<bool>(
+  (ref) => ref.watch(hasExtensionProvider('sonicSimilarity')),
+);
+
+/// Whether the server finds the top songs of an artist by its id, through the OpenSubsonic `topSongsByArtistId` extension.
+final hasTopSongsProvider = Provider<bool>(
+  (ref) => ref.watch(hasExtensionProvider('topSongsByArtistId')),
+);
+
+/// Asks the server how each song should reach this device, on servers with the OpenSubsonic `transcoding` extension. Null on other servers, which get the `format` and `maxBitRate` of the `stream` endpoint instead.
+final transcodeDeciderProvider = Provider<TranscodeDecider?>((ref) {
+  final client = ref.watch(clientProvider);
+  if (client == null || !ref.watch(hasExtensionProvider('transcoding'))) {
+    return null;
+  }
+  return TranscodeDecider(client);
 });
 
 // ------------------------------------------------------------ appearance
@@ -617,11 +642,31 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
     db: ref.watch(databaseProvider),
     backend: ref.watch(_transferBackendProvider),
     resolve: resolve,
-    urlFor: (track, quality) => client.downloadUri(
-      track.id,
-      format: quality.format,
-      maxBitRate: quality.maxBitRate,
-    ),
+    urlFor: (track, quality) async {
+      final original = (
+        url: client.downloadUri(track.id),
+        extension: track.suffix,
+      );
+      if (quality == DownloadQuality.original) return original;
+      final choice = await ref
+          .read(transcodeDeciderProvider)
+          ?.decide(track, quality);
+      if (choice == null) {
+        return (
+          url: client.downloadUri(
+            track.id,
+            format: quality.format,
+            maxBitRate: quality.maxBitRate,
+          ),
+          extension: quality.format ?? track.suffix,
+        );
+      }
+      if (!choice.transcoded) return original;
+      return (
+        url: client.transcodeStreamUri(track.id, choice.transcodeParams!),
+        extension: choice.stream?.extension ?? quality.format ?? track.suffix,
+      );
+    },
     settings: () => ref.read(downloadSettingsProvider),
     fetchArtwork: art,
   );
@@ -709,24 +754,44 @@ class SessionPlaybackSource implements PlaybackSource {
   Future<String?> localPath(String trackId) async =>
       ref.read(downloadManagerProvider)?.localPath(trackId);
 
+  /// The answer of the server on how [track] reaches this device at the streaming quality, when one is at hand.
+  StreamChoice? _choice(Track track) => ref
+      .read(transcodeDeciderProvider)
+      ?.cached(track.id, ref.read(streamingQualityProvider));
+
   @override
   Uri streamUri(Track track) {
+    final client = ref.read(clientProvider)!;
+    final choice = _choice(track);
+    if (choice != null) {
+      return choice.transcoded
+          ? client.transcodeStreamUri(track.id, choice.transcodeParams!)
+          : client.streamUri(track.id);
+    }
     final quality = ref.read(streamingQualityProvider);
-    return ref
-        .read(clientProvider)!
-        .streamUri(
-          track.id,
-          format: quality.format,
-          maxBitRate: quality.maxBitRate,
-        );
+    return client.streamUri(
+      track.id,
+      format: quality.format,
+      maxBitRate: quality.maxBitRate,
+    );
   }
 
   @override
   Uri? streamUriFrom(Track track, Duration offset) {
-    final quality = ref.read(streamingQualityProvider);
     final client = ref.read(clientProvider);
-    if (client == null ||
-        !client.hasTranscodeOffset ||
+    if (client == null) return null;
+    // The original file is seekable, so only a transcoded stream starts again on the server.
+    if (_choice(track) case final choice?) {
+      return choice.transcoded
+          ? client.transcodeStreamUri(
+              track.id,
+              choice.transcodeParams!,
+              offset: offset,
+            )
+          : null;
+    }
+    final quality = ref.read(streamingQualityProvider);
+    if (!client.hasTranscodeOffset ||
         (quality.format == null && quality.maxBitRate == null)) {
       return null;
     }
@@ -738,19 +803,53 @@ class SessionPlaybackSource implements PlaybackSource {
     );
   }
 
-  /// The file name of [track] in the cache, at the streaming quality of the current network.
-  String cacheName(Track track) {
+  @override
+  Future<void> decide(List<Track> tracks) async {
+    final decider = ref.read(transcodeDeciderProvider);
+    if (decider == null || ref.read(isOfflineProvider)) return;
     final quality = ref.read(streamingQualityProvider);
-    return PrefetchCache.fileName(
-      track.id,
-      quality.name,
+    await Future.wait([for (final t in tracks) decider.decide(t, quality)]);
+  }
+
+  /// The extension of the stream of [track]: the one the server transcodes to, or else the format asked of the `stream` endpoint, or else the file itself.
+  String _extension(Track track) {
+    final choice = _choice(track);
+    if (choice != null) {
+      return choice.transcoded
+          ? choice.stream?.extension ?? track.suffix
+          : track.suffix;
+    }
+    return ref.read(streamingQualityProvider).format ?? track.suffix;
+  }
+
+  /// The file name of [track] in the cache, at the streaming quality of the current network.
+  String cacheName(Track track) => PrefetchCache.fileName(
+    track.id,
+    ref.read(streamingQualityProvider).name,
+    _extension(track),
+  );
+
+  /// Every name the file of [track] may have in the cache at the streaming quality, since the server may have chosen another format when it was fetched.
+  Iterable<String> _cacheNames(Track track) {
+    final quality = ref.read(streamingQualityProvider);
+    return {
+      _extension(track),
       quality.format ?? track.suffix,
-    );
+      track.suffix,
+      'opus',
+      'mp3',
+      'flac',
+    }.map((e) => PrefetchCache.fileName(track.id, quality.name, e));
   }
 
   @override
-  Future<String?> cachedPath(Track track) async =>
-      (await ref.read(prefetchCacheProvider).existing(cacheName(track)))?.path;
+  Future<String?> cachedPath(Track track) async {
+    final cache = ref.read(prefetchCacheProvider);
+    for (final name in _cacheNames(track)) {
+      if (await cache.existing(name) case final file?) return file.path;
+    }
+    return null;
+  }
 
   int _prefetchRun = 0;
 
@@ -766,7 +865,7 @@ class SessionPlaybackSource implements PlaybackSource {
     if (mode == PrefetchMode.off || ref.read(isOfflineProvider)) return;
     if (mode == PrefetchMode.wifi && ref.read(onCellularProvider)) return;
     final cache = ref.read(prefetchCacheProvider);
-    final kept = {for (final t in keep) cacheName(t)};
+    final kept = {for (final t in keep) ..._cacheNames(t)};
     final external = ref.read(externalInBackgroundProvider);
     final tracks = forBackground(
       upcoming,

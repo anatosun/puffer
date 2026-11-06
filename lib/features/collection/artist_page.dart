@@ -51,6 +51,19 @@ final artistTracksProvider = FutureProvider.autoDispose
       return tracks;
     });
 
+/// The five most played songs of the artist, on servers with the `topSongsByArtistId` extension. Empty without it, offline, and when the request fails.
+final artistTopSongsProvider = FutureProvider.autoDispose
+    .family<List<Track>, String>((ref, id) async {
+      if (!ref.watch(hasTopSongsProvider) || ref.watch(isOfflineProvider)) {
+        return const [];
+      }
+      try {
+        return await ref.watch(repositoryProvider)!.topSongs(id, count: 5);
+      } on Exception {
+        return const [];
+      }
+    });
+
 final artistInfoProvider = FutureProvider.autoDispose
     .family<ArtistInfo?, String>((ref, id) async {
       try {
@@ -69,6 +82,7 @@ class ArtistPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tracks = ref.watch(artistTracksProvider(id)).value ?? const [];
     final info = ref.watch(artistInfoProvider(id)).value;
+    final topSongs = ref.watch(artistTopSongsProvider(id)).value ?? const [];
     final photo = info?.imageUrl;
     return ref
         .watch(artistProvider(id))
@@ -115,8 +129,36 @@ class ArtistPage extends ConsumerWidget {
                         artistId: artist.id,
                       ),
                       slivers: [
+                        // "More" comes first, where it is in reach without scrolling past the albums.
+                        if (shown?.more ?? false)
+                          SliverToBoxAdapter(
+                            child: MoreButton(
+                              onPressed: () => ref
+                                  .read(
+                                    externalShownProvider('artist:$id')
+                                        .notifier,
+                                  )
+                                  .show(),
+                            ),
+                          ),
                         if (info?.biography case final biography?)
                           SliverToBoxAdapter(child: Biography(biography)),
+                        if (topSongs.isNotEmpty) ...[
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: Text(
+                                'Top songs',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                          ),
+                          SliverList.builder(
+                            itemCount: topSongs.length,
+                            itemBuilder: (context, i) =>
+                                TrackTile(tracks: topSongs, index: i),
+                          ),
+                        ],
                         // Albums, EPs, singles, live recordings and compilations each get a section, with a heading when there is more than one.
                         for (final kind in ReleaseKind.values)
                           if (groups[kind] case final group?) ...[
@@ -153,17 +195,6 @@ class ArtistPage extends ConsumerWidget {
                               ),
                             ),
                           ],
-                        if (shown?.more ?? false)
-                          SliverToBoxAdapter(
-                            child: MoreButton(
-                              onPressed: () => ref
-                                  .read(
-                                    externalShownProvider('artist:$id')
-                                        .notifier,
-                                  )
-                                  .show(),
-                            ),
-                          ),
                       ],
                     );
                   },

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
+import '../../playback/audio_format.dart';
 import '../../ui/theme.dart';
 import 'quality_sheet.dart';
 
-/// What the server reports about [track], as label and value, in reading order. Fields the server leaves out are skipped.
-List<(String, String)> songInfo(Track track) {
+/// What the server reports about [track], as label and value, in reading order. Fields the server leaves out are skipped. With [delivery], the rows describe what this device gets: a transcoded stream or download shows its own format, bit rate and size, and the file on the server moves to an "Original" row.
+List<(String, String)> songInfo(Track track, {Delivery? delivery}) {
   final j = track.json;
   String? text(String key) {
     final value = j[key];
@@ -30,18 +32,40 @@ List<(String, String)> songInfo(Track track) {
   final rate = number('samplingRate');
   final gain = j['replayGain'] as Map<String, dynamic>?;
   final channels = number('channelCount');
+  final transcoded = delivery != null && isTranscoded(track, delivery);
+  final deliveredSize = delivery?.size ?? (transcoded ? null : size);
+  String megabytes(int bytes) =>
+      '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  final original = describeFormat(track);
   return [
-    ('Format', track.suffix.toUpperCase()),
-    if (text('contentType') case final type?) ('Type', type),
-    if (number('bitRate') case final bitRate? when bitRate > 0)
-      ('Bit rate', '$bitRate kbps'),
-    if (rate != null && rate > 0)
+    if (delivery != null)
       (
-        'Sample rate',
-        '${(rate / 1000).toStringAsFixed(rate % 1000 == 0 ? 0 : 1)} kHz',
+        'Source',
+        switch (delivery.source) {
+          PlayingSource.download => 'Downloaded file',
+          PlayingSource.musicAssistant => 'Music Assistant, from the server',
+          PlayingSource.stream when transcoded =>
+            'Stream, transcoded by the server',
+          PlayingSource.stream => 'Stream from the server',
+        },
       ),
-    if (number('bitDepth') case final depth? when depth > 0)
-      ('Bit depth', '$depth-bit'),
+    if (transcoded) ...[
+      ('Format', delivery.format!.toUpperCase()),
+      if (deliveredBitRate(track, delivery) case final bitRate?)
+        ('Bit rate', '$bitRate kbps'),
+    ] else ...[
+      ('Format', track.suffix.toUpperCase()),
+      if (text('contentType') case final type?) ('Type', type),
+      if (number('bitRate') case final bitRate? when bitRate > 0)
+        ('Bit rate', '$bitRate kbps'),
+      if (rate != null && rate > 0)
+        (
+          'Sample rate',
+          '${(rate / 1000).toStringAsFixed(rate % 1000 == 0 ? 0 : 1)} kHz',
+        ),
+      if (number('bitDepth') case final depth? when depth > 0)
+        ('Bit depth', '$depth-bit'),
+    ],
     if (channels != null && channels > 0)
       (
         'Channels',
@@ -51,8 +75,17 @@ List<(String, String)> songInfo(Track track) {
           _ => '$channels',
         },
       ),
-    if (size != null && size > 0)
-      ('Size', '${(size / (1024 * 1024)).toStringAsFixed(1)} MB'),
+    if (deliveredSize != null && deliveredSize > 0)
+      ('Size', megabytes(deliveredSize)),
+    if (transcoded)
+      (
+        'Original',
+        [
+          original.codec,
+          ?original.quality,
+          if (size != null && size > 0) megabytes(size),
+        ].join(' · '),
+      ),
     ('Length', formatDuration(track.duration)),
     if (decibels(gain?['trackGain'] as num?) case final g?) ('Track gain', g),
     if (decibels(gain?['albumGain'] as num?) case final g?) ('Album gain', g),
@@ -65,7 +98,7 @@ List<(String, String)> songInfo(Track track) {
   ];
 }
 
-/// The details of [track], with the streaming quality on top.
+/// The details of [track] as this device gets it, with the streaming quality on top.
 Future<void> showSongInfo(BuildContext context, Track track) =>
     showModalBottomSheet<void>(
       context: context,
@@ -81,7 +114,10 @@ class _SongInfo extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rows = songInfo(track);
+    final rows = songInfo(
+      track,
+      delivery: ref.watch(deliveryProvider(track.id)),
+    );
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(

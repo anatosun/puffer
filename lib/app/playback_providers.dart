@@ -14,6 +14,8 @@ import '../ui/messages.dart';
 import 'providers.dart';
 import 'sendspin_providers.dart';
 
+export '../playback/audio_format.dart' show PlayingSource;
+
 // ------------------------------------------------------------ Music Assistant session
 
 class MaCredentials {
@@ -383,16 +385,58 @@ final followSpeakerProvider = Provider<void>((ref) {
 });
 
 /// Where the audio of the current song comes from, which decides what the streaming quality changes.
-enum PlayingSource { stream, download, musicAssistant }
-
 final playingSourceProvider = Provider.autoDispose<PlayingSource?>((ref) {
-  final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
-  if (track == null) return null;
-  if (ref.watch(outputProvider) != null) return PlayingSource.musicAssistant;
-  final file = ref.watch(trackFileProvider(track.id)).value;
-  return file?.status == FileStatus.complete && file?.path != null
-      ? PlayingSource.download
-      : PlayingSource.stream;
+  final id = ref.watch(nowPlayingProvider.select((s) => s.value?.track?.id));
+  return id == null ? null : ref.watch(deliveryProvider(id)).source;
+});
+
+/// What this device gets of the song [trackId]. Music Assistant fetches the original file for the song it plays. Otherwise the downloaded file plays, whose extension tells whether it was transcoded, or else the stream at the streaming quality.
+final deliveryProvider = Provider.autoDispose.family<Delivery, String>((
+  ref,
+  trackId,
+) {
+  final playingId = ref.watch(
+    nowPlayingProvider.select((s) => s.value?.track?.id),
+  );
+  if (ref.watch(outputProvider) != null && playingId == trackId) {
+    return (
+      source: PlayingSource.musicAssistant,
+      format: null,
+      maxBitRate: null,
+      size: null,
+    );
+  }
+  final file = ref.watch(trackFileProvider(trackId)).value;
+  final path = file?.path;
+  if (file?.status == FileStatus.complete && path != null) {
+    final dot = path.lastIndexOf('.');
+    return (
+      source: PlayingSource.download,
+      format: dot < 0 ? null : path.substring(dot + 1),
+      maxBitRate: null,
+      size: file!.size,
+    );
+  }
+  final quality = ref.watch(streamingQualityProvider);
+  // On servers with the `transcoding` extension, the server chose the stream of the song.
+  final choice = ref.watch(transcodeDeciderProvider)?.cached(trackId, quality);
+  if (choice != null) {
+    final stream = choice.stream;
+    return (
+      source: PlayingSource.stream,
+      format: choice.transcoded ? stream?.extension : null,
+      maxBitRate: choice.transcoded && stream?.audioBitrate != null
+          ? stream!.audioBitrate! ~/ 1000
+          : null,
+      size: null,
+    );
+  }
+  return (
+    source: PlayingSource.stream,
+    format: quality.format,
+    maxBitRate: quality.maxBitRate,
+    size: null,
+  );
 });
 
 /// Sets the streaming quality of the current network. A song streaming on this device reloads at the new quality from where it was.
@@ -408,25 +452,15 @@ final setStreamingQualityProvider =
       },
     );
 
-/// The format of the track that plays, as [describeFormat] puts it. Music Assistant fetches the original file. This device plays the downloaded file, whose extension tells whether it was transcoded, or else streams at the streaming quality.
+/// The format of the track that plays, as [describeFormat] puts it.
 final playingFormatProvider = Provider.autoDispose<PlayingFormat?>((ref) {
   final track = ref.watch(nowPlayingProvider.select((s) => s.value?.track));
   if (track == null) return null;
-  if (ref.watch(outputProvider) != null) return describeFormat(track);
-  final file = ref.watch(trackFileProvider(track.id)).value;
-  final path = file?.path;
-  if (file?.status == FileStatus.complete && path != null) {
-    final dot = path.lastIndexOf('.');
-    return describeFormat(
-      track,
-      format: dot < 0 ? null : path.substring(dot + 1),
-    );
-  }
-  final quality = ref.watch(streamingQualityProvider);
+  final delivery = ref.watch(deliveryProvider(track.id));
   return describeFormat(
     track,
-    format: quality.format,
-    maxBitRate: quality.maxBitRate,
+    format: delivery.format,
+    maxBitRate: deliveredBitRate(track, delivery),
   );
 });
 

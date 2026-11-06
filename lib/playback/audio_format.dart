@@ -12,6 +12,32 @@ const _lossless = {
   'dff',
 };
 
+/// Where the audio of a song comes from on this device.
+enum PlayingSource { stream, download, musicAssistant }
+
+/// What this device gets of a song from [source]. [format] is the extension of the transcoded stream or of the downloaded file, null for the file as it is on the server. [maxBitRate] is the bit rate asked of the server in kbit/s, and [size] the bytes of the downloaded file.
+typedef Delivery = ({
+  PlayingSource source,
+  String? format,
+  int? maxBitRate,
+  int? size,
+});
+
+/// Whether [delivery] is in another format than the file of [track] on the server.
+bool isTranscoded(Track track, Delivery delivery) =>
+    delivery.format != null &&
+    delivery.format!.toLowerCase() != track.suffix.toLowerCase();
+
+/// The bit rate of a transcoded [delivery] in kbit/s: the one asked of the server, or else the average over the downloaded file. Null when neither is known.
+int? deliveredBitRate(Track track, Delivery delivery) {
+  if (delivery.maxBitRate case final rate?) return rate;
+  final size = delivery.size;
+  final ms = track.duration.inMilliseconds;
+  if (size == null || size <= 0 || ms <= 0) return null;
+  // Bytes times 8 over milliseconds is kbit/s.
+  return (size * 8 / ms).round();
+}
+
 /// The format of what plays, as the player shows it in two badges: the [codec], and the [quality] when known.
 typedef PlayingFormat = ({String codec, String? quality});
 

@@ -1,4 +1,4 @@
-/// Whether a seek to [target] in a transcoded stream must start the stream again on the server, for servers with the OpenSubsonic `transcodeOffset` extension.
+/// Whether a seek to [target] in a transcoded stream must start the stream again on the server, which `getTranscodeStream` and the `transcodeOffset` extension allow.
 ///
 /// A transcoded stream has no byte ranges, so the player can only seek inside what it has already received. The stream began at [offset] in the song, and [buffered] of it has arrived. Inside that stretch the player seeks itself; anywhere else, and before the start of the stream, the server starts again at [target]. Without [restartable] the player seeks itself in every case.
 bool restartsStream({
@@ -9,4 +9,10 @@ bool restartsStream({
 }) {
   if (!restartable) return false;
   return target < offset || target > offset + buffered;
+}
+
+/// Whether the stream at [uri] starts part-way into its song: `timeOffset` of the `stream` endpoint, or a non-zero `offset` of `getTranscodeStream`.
+bool startsPartWay(Uri uri) {
+  final query = uri.queryParameters;
+  return query.containsKey('timeOffset') || (query['offset'] ?? '0') != '0';
 }

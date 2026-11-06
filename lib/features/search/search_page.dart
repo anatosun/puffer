@@ -108,13 +108,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ? const MessageView('No results')
                   : ListView(
                       children: [
-                        const MessageView('No results in your library'),
                         more,
+                        const MessageView('No results in your library'),
                       ],
                     );
             }
+            // "More" comes first, where it is in reach without scrolling past the results.
             return ListView(
               children: [
+                ?more,
                 if (r.artists.isNotEmpty) ...[
                   const _Heading('Artists'),
                   for (final a in r.artists) ArtistTile(a),
@@ -128,7 +130,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   for (var i = 0; i < r.tracks.length; i++)
                     TrackTile(tracks: r.tracks, index: i),
                 ],
-                ?more,
                 const SizedBox(height: 24),
               ],
             );

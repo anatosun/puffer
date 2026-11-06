@@ -148,8 +148,11 @@ class BelowTabBar extends ConsumerWidget {
     final selected = ref.watch(belowTabProvider);
     final index = math.max(0, tabs.indexOf(selected));
     final track = below.track;
-    // An instant mix asks the server for similar songs, so it needs the connection.
-    final mix = track != null && !ref.watch(isOfflineProvider);
+    // An instant mix asks the server for songs that sound alike, so it needs the connection and the `sonicSimilarity` extension.
+    final mix =
+        track != null &&
+        ref.watch(canMixProvider) &&
+        !ref.watch(isOfflineProvider);
     return Padding(
       // The right padding matches the player's, so instant mix sits under the speaker button.
       padding: const EdgeInsets.only(top: 8, left: 12, right: 24),

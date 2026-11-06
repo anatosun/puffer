@@ -60,7 +60,8 @@ void main() {
       db: db,
       backend: backend,
       resolve: (kind, id) async => library[(kind, id)]!,
-      urlFor: (t, q) => Uri.parse('http://server/${t.id}'),
+      urlFor: (t, q) async =>
+          (url: Uri.parse('http://server/${t.id}'), extension: t.suffix),
       settings: () => settings,
     );
     await manager.start();
@@ -188,7 +189,8 @@ void main() {
       db: db,
       backend: backend,
       resolve: (kind, id) => listed.future,
-      urlFor: (t, q) => Uri.parse('http://server/${t.id}'),
+      urlFor: (t, q) async =>
+          (url: Uri.parse('http://server/${t.id}'), extension: t.suffix),
       settings: () => settings,
     );
     final states = <PinState>[];

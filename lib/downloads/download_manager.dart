@@ -77,7 +77,13 @@ int? expectedBytes(Track track, DownloadQuality quality) {
 }
 
 typedef TrackResolver = Future<List<Track>> Function(PinKind kind, String id);
-typedef UrlBuilder = Uri Function(Track track, DownloadQuality quality);
+
+/// Where the file of a track in a quality comes from, and the extension it is saved with.
+typedef DownloadSource = ({Uri url, String extension});
+typedef UrlBuilder = Future<DownloadSource> Function(
+  Track track,
+  DownloadQuality quality,
+);
 typedef ArtworkFetcher = Future<void> Function(String coverArt);
 
 /// Keeps the track files on disk in line with the pins.
@@ -297,13 +303,16 @@ class DownloadManager {
     }
   }
 
-  Future<void> _transfer(Track track, DownloadSettings s) => backend.enqueue(
-    id: track.id,
-    url: urlFor(track, s.quality),
-    directory: _directory,
-    filename: '${track.id}.${s.quality.format ?? track.suffix}',
-    expectedBytes: expectedBytes(track, s.quality),
-  );
+  Future<void> _transfer(Track track, DownloadSettings s) async {
+    final source = await urlFor(track, s.quality);
+    await backend.enqueue(
+      id: track.id,
+      url: source.url,
+      directory: _directory,
+      filename: '${track.id}.${source.extension}',
+      expectedBytes: expectedBytes(track, s.quality),
+    );
+  }
 
   /// Holds back or releases the transfers, for "Download over cellular". Holding cancels the transfers in progress and keeps their files queued. Releasing hands every queued file to [backend] again, which also replaces transfers queued by an earlier version with a Wi-Fi constraint.
   Future<void> setHeld(bool held) async {

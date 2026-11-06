@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'transcoding.dart';
 
 const _apiVersion = '1.16.1';
 const clientName = 'Puffer';
@@ -133,6 +134,11 @@ class SubsonicClient {
     Duration timeout = const Duration(seconds: 20),
   ]) async {
     final response = await _http.get(_uri(endpoint, params)).timeout(timeout);
+    return _body(response, endpoint);
+  }
+
+  /// The `subsonic-response` of [response], or the error it reports.
+  Json _body(http.Response response, String endpoint) {
     if (response.statusCode != 200) {
       throw SubsonicException(
         response.statusCode,
@@ -153,6 +159,38 @@ class SubsonicClient {
     }
     return body;
   }
+
+  /// Asks the server whether this client plays [mediaId] as it is or needs it transcoded, given [client]. Requires the OpenSubsonic `transcoding` extension; the endpoint takes POST only.
+  Future<TranscodeDecision> getTranscodeDecision(
+    String mediaId,
+    ClientInfo client,
+  ) async {
+    final response = await _http
+        .post(
+          _uri('getTranscodeDecision', {
+            'mediaId': mediaId,
+            'mediaType': 'song',
+          }),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(client.toJson()),
+        )
+        .timeout(const Duration(seconds: 20));
+    final body = _body(response, 'getTranscodeDecision');
+    return TranscodeDecision(body['transcodeDecision'] as Json? ?? const {});
+  }
+
+  /// The transcoded stream of [mediaId] that a `getTranscodeDecision` answer with [transcodeParams] describes, starting [offset] into the song.
+  Uri transcodeStreamUri(
+    String mediaId,
+    String transcodeParams, {
+    Duration? offset,
+  }) => _uri('getTranscodeStream', {
+    'mediaId': mediaId,
+    'mediaType': 'song',
+    // The server escaped it already; decoding first keeps it from being escaped twice.
+    'transcodeParams': Uri.decodeQueryComponent(transcodeParams),
+    'offset': offset?.inSeconds,
+  });
 
   Future<void> ping({Duration timeout = const Duration(seconds: 20)}) async {
     await _get('ping', const {}, timeout);
@@ -371,7 +409,13 @@ class SubsonicClient {
     ];
   }
 
-  bool get hasSonicSimilarity => extensions.contains('sonicSimilarity');
+  /// The most played songs of the artist [artistId], most played first. Requires the OpenSubsonic `topSongsByArtistId` extension, which lets `id` stand in for the artist name.
+  Future<List<Track>> getTopSongs(String artistId, {int count = 10}) async {
+    final body = await _get('getTopSongs', {'id': artistId, 'count': count});
+    return jsonList((body['topSongs'] as Json?)?['song'])
+        .map(Track.new)
+        .toList();
+  }
 
   /// Whether the server reports the OpenSubsonic extension [name], after the extensions requested by [loadExtensions] have arrived.
   Future<bool> supports(String name) async {
@@ -437,6 +481,8 @@ class SubsonicClient {
   });
 
   bool get hasTranscodeOffset => extensions.contains('transcodeOffset');
+
+  bool get hasTranscoding => extensions.contains('transcoding');
 
   /// Original file when no transcoding is requested, otherwise the transcoded stream.
   Uri downloadUri(String id, {String? format, int? maxBitRate}) =>

@@ -369,14 +369,19 @@ class LibraryRepository {
     return json == null ? null : Album(json as Json);
   }
 
-  /// A mix starting from [seed] and continuing with songs that sound like it: from the sonic analysis of the server when it offers one, otherwise from its similar songs.
+  /// A mix starting from [seed] and continuing with songs that sound like it, from the sonic analysis of the server. Requires the `sonicSimilarity` extension.
   Future<List<Track>> instantMix(Track seed, {int count = 50}) async {
-    final similar = client.hasSonicSimilarity
-        ? await client.getSonicSimilarTracks(seed.id, count: count)
-        : await client.getSimilarSongs(seed.id, count: count);
+    final similar = await client.getSonicSimilarTracks(seed.id, count: count);
     final mix = [seed, ...similar.where((t) => t.id != seed.id)];
     await cacheTracks(mix);
     return mix;
+  }
+
+  /// The most played songs of the artist [artistId]. Requires the `topSongsByArtistId` extension.
+  Future<List<Track>> topSongs(String artistId, {int count = 10}) async {
+    final tracks = await client.getTopSongs(artistId, count: count);
+    await cacheTracks(tracks);
+    return tracks;
   }
 
   /// Songs similar to an album or artist [id], for radio.

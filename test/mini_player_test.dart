@@ -427,6 +427,10 @@ void main() {
             repositoryProvider.overrideWithValue(repository),
             syncAutomaticDownloadsProvider.overrideWithValue(() async {}),
             playbackControllerProvider.overrideWithValue(_FakeController()),
+            // Instant mix shows only on servers with sonic similarity.
+            extensionsProvider.overrideWithValue(
+              const AsyncData({'sonicSimilarity'}),
+            ),
             playingFormatProvider.overrideWithValue(null),
             waveformSupportedProvider.overrideWith((ref) async => false),
           ],
