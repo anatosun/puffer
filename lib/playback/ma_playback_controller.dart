@@ -53,6 +53,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
 
   /// IDs looked up through [lookupTrack], each once.
   final _resolving = <String>{};
+
+  /// The lookups run one after the other, the current item first, so a long queue does not send its requests all at once.
+  Future<void> _lookups = Future.value();
   List<Track> _sent = const [];
   List<MaQueueItem> _items = const [];
   NowPlaying? _current;
@@ -117,13 +120,13 @@ class MusicAssistantPlaybackController implements PlaybackController {
   void _resolve(String id) {
     final lookup = lookupTrack;
     if (lookup == null || !_resolving.add(id)) return;
-    unawaited(
-      lookup(id).then((track) {
-        if (track == null) return;
-        _known[id] = track;
-        _emit();
-      }),
-    );
+    _lookups = _lookups.then((_) async {
+      if (_controller.isClosed) return;
+      final track = await lookup(id);
+      if (track == null) return;
+      _known[id] = track;
+      _emit();
+    });
   }
 
   NowPlaying? _build() {
@@ -160,23 +163,26 @@ class MusicAssistantPlaybackController implements PlaybackController {
       },
       queue: [
         for (final (i, it) in _items.indexed)
-          QueueEntry(
-            id: it.id,
-            title: _trackFor(it, i)?.title ?? it.title,
-            artist: _trackFor(it, i)?.artist ?? it.artist,
-            coverArt:
-                _trackFor(it, i)?.coverArt ??
-                (it.image != null && it.image!.provider == providerInstance
-                    ? it.image!.path
-                    : null),
-            imageUrl: it.image?.url(client.baseUrl, size: 160),
-          ),
+          _entry(it, _trackFor(it, i, resolve: true)),
       ],
       index: queue.currentIndex,
       outputName: thisDevice ? null : _player?.name ?? playerId,
       volume: thisDevice ? null : _player?.sliderVolume,
     );
   }
+
+  /// The row of [item] in the queue, from its Subsonic [track] when there is one.
+  QueueEntry _entry(MaQueueItem item, Track? track) => QueueEntry(
+    id: item.id,
+    title: track?.title ?? item.title,
+    artist: track?.artist ?? item.artist,
+    coverArt:
+        track?.coverArt ??
+        (item.image != null && item.image!.provider == providerInstance
+            ? item.image!.path
+            : null),
+    imageUrl: item.image?.url(client.baseUrl, size: 160),
+  );
 
   String _media(Track t) => providerInstance != null
       ? '$providerInstance://track/${t.id}'

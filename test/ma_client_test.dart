@@ -14,6 +14,9 @@ class FakeServer {
   final commands = <Map<String, dynamic>>[];
   String validToken = 'secret';
 
+  /// The answer to `player_queues/items`, when a test sets one.
+  List<Map<String, Object?>>? queueItems;
+
   Uri get base => Uri.parse('http://127.0.0.1:${_server.port}');
 
   Future<void> start() async {
@@ -32,6 +35,12 @@ class FakeServer {
       ws.listen((raw) {
         final msg = jsonDecode(raw as String) as Map<String, dynamic>;
         commands.add(msg);
+        if (msg['command'] == 'player_queues/items' && queueItems != null) {
+          ws.add(
+            jsonEncode({'message_id': msg['message_id'], 'result': queueItems}),
+          );
+          return;
+        }
         if (msg['command'] == 'player_queues/items') {
           // Long lists arrive in parts.
           ws.add(
@@ -410,6 +419,56 @@ void main() {
     controller.dispose();
     await client.close();
   });
+
+  test(
+    'the queue shows the Subsonic tracks of items another client queued',
+    () async {
+      final client = await connected();
+      Map<String, Object?> item(String id, String name) => {
+        'queue_item_id': 'q-$id',
+        'name': name,
+        'media_item': {
+          'name': name,
+          'uri': 'http://navidrome/rest/stream?u=me&id=$id&v=1.16.1',
+        },
+      };
+      server.queueItems = [item('t1', 'One'), item('t2', 'Two')];
+      final looked = <String>[];
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+        lookupTrack: (id) async {
+          looked.add(id);
+          return Track({'id': id, 'title': 'Looked up $id'});
+        },
+      );
+      final resolved = controller.state.firstWhere(
+        (np) => np?.queue.length == 2 && np!.queue[1].title == 'Looked up t2',
+      );
+      server.send({
+        'event': 'queue_updated',
+        'object_id': 'kitchen',
+        'data': {
+          'queue_id': 'kitchen',
+          'active': true,
+          'state': 'playing',
+          'items': 2,
+          'current_index': 0,
+          'current_item': item('t1', 'One'),
+        },
+      });
+      final np = (await resolved)!;
+      expect(np.title, 'Looked up t1');
+      expect(
+        [for (final e in np.queue) e.title],
+        ['Looked up t1', 'Looked up t2'],
+      );
+      expect(looked, ['t1', 't2']);
+      controller.dispose();
+      await client.close();
+    },
+  );
 
   test(
     'the controller groups players, transfers the queue and stops',
