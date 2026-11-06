@@ -73,6 +73,15 @@ class ExperienceSettingsPage extends ConsumerWidget {
                     : null,
               ),
             ),
+            SwitchListTile(
+              title: const Text('Start-up animation'),
+              subtitle: const Text(
+                'The pufferfish plays when the app opens. Applies at the next start',
+              ),
+              value: ref.watch(launchAnimationProvider),
+              onChanged: (v) =>
+                  ref.read(launchAnimationProvider.notifier).set(v),
+            ),
             const SettingsSection('Layout'),
             ListTile(
               title: const Text('Start on'),

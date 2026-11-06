@@ -334,6 +334,11 @@ final remainingTimeProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.remainingTime', true),
 );
 
+/// The animated pufferfish that plays over the first screen when the app starts cold.
+final launchAnimationProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.launchAnimation', true),
+);
+
 /// Swiping the artwork sideways skips to the next or previous song.
 final swipeToSkipProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.swipeToSkip', true),

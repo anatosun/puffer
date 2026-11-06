@@ -190,8 +190,9 @@ class App extends ConsumerWidget {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: ref.watch(routerProvider),
           scaffoldMessengerKey: messengerKey,
-          // On a cold start, the launch animation plays over the first screen.
+          // On a cold start, the launch animation plays over the first screen, unless the person turned it off. The gate reads it once, so the setting applies at the next start.
           builder: (context, child) => LaunchGate(
+            enabled: ref.read(launchAnimationProvider),
             child: KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
           ),
         );

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:puffer/app/experience.dart';
+import 'package:puffer/app/providers.dart';
 import 'package:puffer/ui/widgets/launch_animation.dart';
 import 'package:puffer/ui/widgets/launch_gate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Widget app() => const MaterialApp(
@@ -50,4 +54,34 @@ void main() {
       expect(find.byType(PufferLaunchAnimation), findsNothing);
     },
   );
+
+  testWidgets('the start-up animation setting turns the animation off', (
+    tester,
+  ) async {
+    Future<void> start(Map<String, Object> stored) async {
+      SharedPreferences.setMockInitialValues(stored);
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: Consumer(
+            builder: (context, ref, _) => MaterialApp(
+              home: LaunchGate(
+                enabled: ref.read(launchAnimationProvider),
+                child: const Scaffold(body: Text('Home')),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await start({});
+    expect(find.byType(PufferLaunchAnimation), findsOneWidget);
+
+    await start({'experience.launchAnimation': false});
+    expect(find.byType(PufferLaunchAnimation), findsNothing);
+    expect(find.text('Home'), findsOneWidget);
+  });
 }
