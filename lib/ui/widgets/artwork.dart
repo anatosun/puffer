@@ -17,8 +17,9 @@ ImageProvider? artworkImage(WidgetRef ref, String? coverArt, {int size = 600}) {
   final client = ref.watch(clientProvider);
   if (client == null) return null;
   return CachedNetworkImageProvider(
-    client.coverArtUri(coverArt, size: size).toString(),
+    client.unsignedCoverArtUri(coverArt, size: size).toString(),
     cacheKey: 'art:$coverArt:$size',
+    cacheManager: ref.watch(artworkCacheProvider),
   );
 }
 

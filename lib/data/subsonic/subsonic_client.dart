@@ -112,9 +112,13 @@ class SubsonicClient {
   Set<String> extensions = const {};
   Future<Set<String>>? _extensionsLoading;
 
-  Uri _uri(String endpoint, [Map<String, Object?> params = const {}]) {
+  Uri _uri(
+    String endpoint, [
+    Map<String, Object?> params = const {},
+    bool signed = true,
+  ]) {
     final query = <String, dynamic>{
-      ...credentials.authParams,
+      if (signed) ...credentials.authParams,
       'v': _apiVersion,
       'c': clientName,
       'f': 'json',
@@ -492,6 +496,10 @@ class SubsonicClient {
 
   Uri coverArtUri(String id, {int? size}) =>
       _uri('getCoverArt', {'id': id, 'size': size});
+
+  /// [coverArtUri] without the credentials, for caches that store the URL. A request to it fails until the credentials are added, as the artwork cache does when it sends it.
+  Uri unsignedCoverArtUri(String id, {int? size}) =>
+      _uri('getCoverArt', {'id': id, 'size': size}, false);
 
   void close() => _http.close();
 }

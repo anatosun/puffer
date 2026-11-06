@@ -33,7 +33,12 @@ abstract class PlaybackSource {
     required void Function(Track track, String path) ready,
     required void Function(Set<String> fileNames) removed,
   });
+
+  /// The artwork of [coverArt] as a local file, when it is at hand.
   Uri? artUri(String? coverArt);
+
+  /// Fetches the artwork of [coverArt] to a local file and returns it, or null when it cannot be fetched.
+  Future<Uri?> fetchArt(String? coverArt);
   Future<void> nowPlaying(Track track);
   Future<void> played(Track track);
 
@@ -130,6 +135,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _prefetch();
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
+      if (queue.value[index].artUri == null) unawaited(_fetchArt(index));
       if (!_handingOver) player.setVolume(source?.volumeFor(track) ?? 1);
       source?.nowPlaying(track);
       _scrobbled = null;
@@ -394,6 +400,17 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
   });
+
+  /// Fetches the artwork of the song at [index] for the system media controls, and shows it if the song still plays and its queue is the same.
+  Future<void> _fetchArt(int index) async {
+    final generation = _generation;
+    final uri = await source?.fetchArt(_tracks[index].coverArt);
+    if (uri == null || generation != _generation) return;
+    if (player.currentIndex != index || index >= queue.value.length) return;
+    final item = queue.value[index].copyWith(artUri: uri);
+    queue.add([...queue.value]..[index] = item);
+    mediaItem.add(item);
+  }
 
   MediaItem _mediaItem(Track track) => MediaItem(
     id: track.id,

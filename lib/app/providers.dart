@@ -4,11 +4,13 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart' show ThemeMode;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/artwork_cache.dart';
 import '../data/artwork_store.dart';
 import '../data/db/database.dart';
 import '../data/repositories/library_repository.dart';
@@ -98,6 +100,8 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
   Future<void> signOut() async {
     await ref.read(downloadManagerProvider)?.removeAll();
     await ref.read(artworkStoreProvider)?.clear();
+    await ref.read(artworkCacheProvider).emptyCache();
+    ref.invalidate(lockScreenArtProvider);
     await ref.read(prefetchCacheProvider).clear();
     await ref.read(queueStoreProvider).clear();
     await ref.read(pastQueuesProvider.notifier).clear();
@@ -566,6 +570,35 @@ final repositoryProvider = Provider<LibraryRepository?>((ref) {
   );
 });
 
+/// The disk cache of the cover images shown in the app and on the lock screen. One for the whole run of the app, since two cache managers must not share a database; it signs each request with the credentials of the current session.
+final artworkCacheProvider = Provider<CacheManager>((ref) {
+  final manager = artworkCacheManager(
+    () => ref.read(clientProvider)?.credentials.authParams,
+  );
+  ref.onDispose(manager.dispose);
+  unawaited(_purgeSignedArtwork(ref.read(sharedPreferencesProvider)));
+  return manager;
+});
+
+const _purgedSignedArtworkKey = 'purgedSignedArtwork';
+
+/// Empties the default image cache once. Versions before the artwork cache stored the cover images there under URLs that held the credentials.
+Future<void> _purgeSignedArtwork(SharedPreferences prefs) async {
+  if (prefs.getBool(_purgedSignedArtworkKey) ?? false) return;
+  try {
+    await DefaultCacheManager().emptyCache();
+    await prefs.setBool(_purgedSignedArtworkKey, true);
+  } on Object {
+    // Tried again at the next start.
+  }
+}
+
+/// Lock-screen artwork of songs that are not downloaded, as files fetched into [artworkCacheProvider], by cover-art ID.
+final lockScreenArtProvider = Provider<Map<String, Uri>>((ref) {
+  ref.watch(clientProvider);
+  return {};
+});
+
 final artworkStoreProvider = Provider<ArtworkStore?>((ref) {
   final client = ref.watch(clientProvider);
   if (client == null) return null;
@@ -919,12 +952,33 @@ class SessionPlaybackSource implements PlaybackSource {
     }
   }
 
+  /// A local file only: the system media session shares the artwork URI with other apps, so a server URL with credentials never goes there.
   @override
   Uri? artUri(String? coverArt) {
     if (coverArt == null) return null;
     final local = ref.read(artworkStoreProvider)?.existing(coverArt);
     if (local != null) return local.uri;
-    return ref.read(clientProvider)?.coverArtUri(coverArt, size: 800);
+    return ref.read(lockScreenArtProvider)[coverArt];
+  }
+
+  @override
+  Future<Uri?> fetchArt(String? coverArt) async {
+    if (coverArt == null) return null;
+    final known = artUri(coverArt);
+    if (known != null) return known;
+    final client = ref.read(clientProvider);
+    if (client == null || ref.read(isOfflineProvider)) return null;
+    try {
+      final file = await ref
+          .read(artworkCacheProvider)
+          .getSingleFile(
+            client.unsignedCoverArtUri(coverArt, size: 800).toString(),
+            key: 'art:$coverArt:800',
+          );
+      return ref.read(lockScreenArtProvider)[coverArt] = file.uri;
+    } on Object {
+      return null;
+    }
   }
 
   @override
