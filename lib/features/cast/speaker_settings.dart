@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/widgets/text_input_dialog.dart';
 import '../../app/sendspin_providers.dart';
 import '../../sendspin/session.dart';
 import '../../ui/messages.dart';
@@ -33,29 +34,11 @@ class SpeakerSettings extends ConsumerWidget {
             subtitle: Text(name),
             trailing: const Icon(Icons.edit_outlined),
             onTap: () async {
-              final controller = TextEditingController(text: name);
-              final value = await showDialog<String>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Speaker name'),
-                  content: TextField(
-                    controller: controller,
-                    autofocus: true,
-                    onSubmitted: (v) => Navigator.pop(context, v),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, controller.text),
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
+              final value = await askText(
+                context,
+                title: 'Speaker name',
+                initial: name,
               );
-              controller.dispose();
               if (value != null) {
                 await ref.read(sendspinNameProvider.notifier).set(value);
               }
