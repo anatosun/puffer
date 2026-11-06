@@ -421,6 +421,25 @@ final prefetchLimitProvider = NotifierProvider<PrefetchLimitNotifier, int>(
 );
 
 /// The songs fetched ahead of playback, in their own folder next to the downloads.
+/// The IDs of the songs fetched ahead of playback, in play order, so that what belongs to them (their waveforms) loads with them.
+class PrefetchedTrackIdsNotifier extends Notifier<List<String>> {
+  @override
+  List<String> build() => const [];
+
+  void set(List<String> ids) {
+    if (ids.length == state.length &&
+        Iterable.generate(ids.length).every((i) => ids[i] == state[i])) {
+      return;
+    }
+    state = ids;
+  }
+}
+
+final prefetchedTrackIdsProvider =
+    NotifierProvider<PrefetchedTrackIdsNotifier, List<String>>(
+      PrefetchedTrackIdsNotifier.new,
+    );
+
 final prefetchCacheProvider = Provider<PrefetchCache>((ref) {
   final cache = PrefetchCache(
     Directory(p.join(ref.watch(supportDirectoryProvider).path, 'prefetch')),
@@ -749,11 +768,15 @@ class SessionPlaybackSource implements PlaybackSource {
     final cache = ref.read(prefetchCacheProvider);
     final kept = {for (final t in keep) cacheName(t)};
     final external = ref.read(externalInBackgroundProvider);
-    for (final track in forBackground(
+    final tracks = forBackground(
       upcoming,
       (t) => t.id,
       includeExternal: external,
-    )) {
+    ).toList();
+    ref.read(prefetchedTrackIdsProvider.notifier).set([
+      for (final t in tracks) t.id,
+    ]);
+    for (final track in tracks) {
       if (run != _prefetchRun) return;
       if (await localPath(track.id) != null) continue;
       try {

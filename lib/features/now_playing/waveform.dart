@@ -32,10 +32,13 @@ final waveformProvider = FutureProvider.autoDispose.family<List<int>?, String>((
   }
 });
 
-/// Loads the waveform of a track as soon as it plays, on this device or on a Music Assistant player, so the player shows it when it opens. The app watches this for the whole session.
+/// Loads the waveform of a track as soon as it plays, on this device or on a Music Assistant player, so the player shows it when it opens, and the waveforms of the songs fetched ahead, so the seek bar has them when their turn comes. The app watches this for the whole session.
 final playingWaveformProvider = Provider<void>((ref) {
   final id = ref.watch(nowPlayingProvider.select((s) => s.value?.track?.id));
   if (id != null) ref.watch(waveformProvider(id));
+  for (final next in ref.watch(prefetchedTrackIdsProvider)) {
+    ref.watch(waveformProvider(next));
+  }
 });
 
 /// Heights from 0 to 1 of [count] bars. Each bar is the quadratic mean of the peaks it covers, because the server sends RMS values, and its height is that value squared relative to the loudest peak, which spreads out the loud range most mastered music sits in.

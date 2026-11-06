@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/subsonic/subsonic_client.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
@@ -77,6 +79,7 @@ Future<ProviderContainer> _container(
   SubsonicClient client, {
   bool offline = false,
   Map<String, Object> settings = const {},
+  List<Override> overrides = const [],
 }) async {
   SharedPreferences.setMockInitialValues(settings);
   final prefs = await SharedPreferences.getInstance();
@@ -85,6 +88,7 @@ Future<ProviderContainer> _container(
       sharedPreferencesProvider.overrideWithValue(prefs),
       clientProvider.overrideWithValue(client),
       isOfflineProvider.overrideWithValue(offline),
+      ...overrides,
     ],
   );
   addTearDown(c.dispose);
@@ -216,6 +220,33 @@ void main() {
       expect(await c.read(waveformProvider('song-1').future), isNull);
       expect(requests, isEmpty);
     });
+  });
+
+  test('the waveforms of the songs fetched ahead load with them', () async {
+    final requests = <Uri>[];
+    final client = _client({
+      'getOpenSubsonicExtensions': _ok(_extensions),
+      'getWaveform': _ok(_waveform),
+    }, requests: requests);
+    client.loadExtensions();
+    final c = await _container(
+      client,
+      overrides: [
+        nowPlayingProvider.overrideWith((ref) => const Stream.empty()),
+      ],
+    );
+    c.listen(playingWaveformProvider, (_, _) {});
+    c.read(prefetchedTrackIdsProvider.notifier).set(['song-2', 'song-3']);
+    c.read(playingWaveformProvider);
+    await Future<void>.delayed(Duration.zero);
+    await c.read(waveformProvider('song-3').future);
+    expect(
+      [
+        for (final u in requests)
+          if (u.pathSegments.last == 'getWaveform') u.queryParameters['id'],
+      ],
+      ['song-2', 'song-3'],
+    );
   });
 
   group('waveformBars', () {
