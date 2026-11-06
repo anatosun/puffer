@@ -1,0 +1,5 @@
+- Save the queue, or an earlier one, as a playlist
+- Playlists: add songs from their page, undo a removal, a warning before adding songs twice, and a description and public switch
+- Playlists without a cover show a mosaic of their albums; sort them by most songs or recently changed
+- Long playlists are saved through a form on servers that support it
+- Fixed: crashes when naming a playlist or the speaker, and in the playlist menu
