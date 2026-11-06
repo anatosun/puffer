@@ -35,11 +35,18 @@ final albumSearchProvider = FutureProvider.autoDispose
           const [];
     });
 
-/// Genres by name.
-final genresProvider = FutureProvider.autoDispose<List<Genre>>((ref) async {
-  final genres = [...?await ref.watch(repositoryProvider)?.genres()];
-  return genres
-    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+/// Genres by name, from the cache at once when there is one, then from the server.
+final genresProvider = StreamProvider.autoDispose<List<Genre>>((ref) {
+  final repository = ref.watch(repositoryProvider);
+  ref.watch(isOfflineProvider);
+  if (repository == null) return Stream.value(const []);
+  List<Genre> sorted(List<Genre> genres) =>
+      [...genres]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  return cachedThenFresh(
+    repository.cachedGenres(),
+    repository.genres,
+  ).map(sorted);
 });
 
 /// The library as Apple Music lays it out: a list of sections, Downloaded and Settings, followed by the recently added albums. With [downloaded], the same list for the downloaded music. Offline, the library shows the downloaded music.

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/library_repository.dart';
 import '../../app/experience.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
@@ -15,42 +16,56 @@ import '../../ui/widgets/star_button.dart';
 import 'collection_header.dart';
 import '../../ui/widgets/backdrop.dart';
 
-final artistProvider = FutureProvider.autoDispose.family<Artist, String>((
+/// An artist with its albums: from the cache at once when there is one, then from the server.
+final artistProvider = StreamProvider.autoDispose.family<Artist, String>((
   ref,
   id,
-) async {
+) {
   ref.watch(isOfflineProvider);
-  return ref.watch(repositoryProvider)!.artist(id);
+  final repository = ref.watch(repositoryProvider)!;
+  return cachedThenFresh(
+    repository.cachedArtist(id),
+    () => repository.artist(id),
+  );
 });
 
 /// The albums the page of the artist shows, newest first. On octo-fiesta the albums of external providers wait for "More", unless the artist itself comes from one.
-final artistAlbumsProvider = FutureProvider.autoDispose
-    .family<({List<Album> items, bool more}), String>((ref, id) async {
-      final artist = await ref.watch(artistProvider(id).future);
-      final shown = shownItems(
-        artist.albums,
-        (a) => a.id,
-        showExternal:
-            isExternalId(id) || ref.watch(externalShownProvider('artist:$id')),
-      );
-      shown.items.sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
-      return shown;
+final artistAlbumsProvider = Provider.autoDispose
+    .family<AsyncValue<({List<Album> items, bool more})>, String>((ref, id) {
+      final showExternal =
+          isExternalId(id) || ref.watch(externalShownProvider('artist:$id'));
+      return ref.watch(artistProvider(id)).whenData((artist) {
+        final shown = shownItems(
+          artist.albums,
+          (a) => a.id,
+          showExternal: showExternal,
+        );
+        shown.items.sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
+        return shown;
+      });
     });
 
-/// Every track of the albums the page shows, album by album. Albums that cannot be loaded offline are skipped.
-final artistTracksProvider = FutureProvider.autoDispose
-    .family<List<Track>, String>((ref, id) async {
-      final albums = (await ref.watch(artistAlbumsProvider(id).future)).items;
+/// Every track of the albums the page shows, album by album: first the cached albums, read in one query, then the albums from the server, a few requests at a time. Albums that cannot be loaded are skipped.
+final artistTracksProvider = StreamProvider.autoDispose
+    .family<List<Track>, String>((ref, id) async* {
+      // Only the album IDs, so the artist arriving from the server after the cache reloads nothing when its albums are the same.
+      final key = ref.watch(
+        artistAlbumsProvider(id)
+            .select((v) => v.value?.items.map((a) => a.id).join('\n')),
+      );
+      if (key == null) return;
       final repository = ref.watch(repositoryProvider)!;
-      final tracks = <Track>[];
-      for (final album in albums) {
-        try {
-          tracks.addAll((await repository.album(album.id)).songs);
-        } on Exception {
-          // Not cached.
-        }
+      final ids = key.isEmpty ? const <String>[] : key.split('\n');
+      List<Track> tracksOf(Map<String, Album> byId) => [
+        for (final id in ids) ...?byId[id]?.songs,
+      ];
+      final cached = await repository.cachedAlbums(ids);
+      if (cached.isNotEmpty) yield tracksOf(cached);
+      if (ref.read(isOfflineProvider)) {
+        if (cached.isEmpty) yield const [];
+        return;
       }
-      return tracks;
+      yield tracksOf({...cached, ...await repository.albums(ids)});
     });
 
 /// The most played songs of the artist, on servers with the `topSongsByArtistId` extension. The page shows [shownTopSongs] of them, and playing one carries on through the rest. Empty without the extension, offline, and when the request fails.

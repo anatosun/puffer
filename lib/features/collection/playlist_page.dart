@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../data/repositories/library_repository.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
 import '../../ui/messages.dart';
@@ -15,12 +16,17 @@ import '../home/home_page.dart';
 import 'playlist_edit.dart';
 import '../../ui/widgets/backdrop.dart';
 
-final playlistProvider = FutureProvider.autoDispose.family<Playlist, String>((
+/// A playlist with its tracks: from the cache at once when there is one, then from the server. Large playlists thus open without waiting for the server, and downloaded ones always do.
+final playlistProvider = StreamProvider.autoDispose.family<Playlist, String>((
   ref,
   id,
-) async {
+) {
   ref.watch(isOfflineProvider);
-  return ref.watch(repositoryProvider)!.playlist(id);
+  final repository = ref.watch(repositoryProvider)!;
+  return cachedThenFresh(
+    repository.cachedPlaylist(id),
+    () => repository.playlist(id),
+  );
 });
 
 class PlaylistPage extends ConsumerWidget {

@@ -16,10 +16,15 @@ bool ownsPlaylist(WidgetRef ref, Playlist playlist) {
   return owner == null || owner == ref.read(credentialsProvider)?.username;
 }
 
-/// Reloads the playlist lists and, when [id] is downloaded, its downloaded tracks.
+/// Reloads the playlist lists and, when [id] is downloaded, its downloaded tracks. The playlist is fetched into the cache before its page reloads, so the page does not show the order from before the edit.
 Future<void> playlistsChanged(WidgetRef ref, [String? id]) async {
   ref.invalidate(playlistsProvider);
   if (id == null) return;
+  try {
+    await ref.read(repositoryProvider)?.playlist(id);
+  } on Exception {
+    // The page reloads from the server anyway.
+  }
   ref.invalidate(playlistProvider(id));
   final manager = ref.read(downloadManagerProvider);
   final pinned =

@@ -35,7 +35,7 @@ void main() {
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
               connectivityProvider.overrideWithValue(const AsyncData([])),
-              albumProvider.overrideWith((ref, id) async => album),
+              albumProvider.overrideWith((ref, id) => Stream.value(album)),
               nowPlayingProvider.overrideWithValue(const AsyncData(null)),
               playbackControllerProvider.overrideWithValue(_FakeController()),
               maClientProvider.overrideWithValue(null),

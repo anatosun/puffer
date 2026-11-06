@@ -252,6 +252,12 @@ class LibraryRepository {
     return json == null ? null : jsonList(json).map(Playlist.new).toList();
   }
 
+  /// The cached playlist [id] with its tracks, without asking the server. A downloaded playlist always has one.
+  Future<Playlist?> cachedPlaylist(String id) async {
+    final json = await _cached('playlist', id);
+    return json == null ? null : Playlist(json as Json);
+  }
+
   Future<ArtistInfo> artistInfo(String id) => _fetch(
     kind: 'artistInfo',
     id: id,
@@ -367,6 +373,42 @@ class LibraryRepository {
   Future<Album?> cachedAlbum(String id) async {
     final json = await _cached('album', id);
     return json == null ? null : Album(json as Json);
+  }
+
+  /// The cached albums among [ids], by ID, read in one query.
+  Future<Map<String, Album>> cachedAlbums(Iterable<String> ids) async {
+    final idList = ids.toList();
+    final rows = await (db.select(
+      db.cachedItems,
+    )..where((t) => t.kind.equals('album') & t.id.isIn(idList))).get();
+    return {for (final r in rows) r.id: Album(jsonDecode(r.json) as Json)};
+  }
+
+  /// The albums [ids] from the server, [parallel] requests at a time, by ID. Albums that cannot be loaded are left out.
+  Future<Map<String, Album>> albums(
+    Iterable<String> ids, {
+    int parallel = 4,
+  }) async {
+    final idList = ids.toList();
+    final result = <String, Album>{};
+    for (var i = 0; i < idList.length; i += parallel) {
+      await Future.wait([
+        for (final id in idList.skip(i).take(parallel))
+          album(id).then<void>((a) => result[id] = a, onError: (Object _) {}),
+      ]);
+    }
+    return result;
+  }
+
+  Future<Artist?> cachedArtist(String id) async {
+    final json = await _cached('artist', id);
+    return json == null ? null : Artist(json as Json);
+  }
+
+  /// The cached genres, without asking the server.
+  Future<List<Genre>?> cachedGenres() async {
+    final json = await _cached('list', 'genres');
+    return json == null ? null : jsonList(json).map(Genre.new).toList();
   }
 
   /// A mix starting from [seed] and continuing with songs that sound like it, from the sonic analysis of the server. Requires the `sonicSimilarity` extension.

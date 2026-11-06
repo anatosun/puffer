@@ -11,14 +11,16 @@ final downloadedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final tracks = await ref.watch(downloadedTracksProvider.future);
   final repository = ref.watch(repositoryProvider);
   if (repository == null) return const [];
-  final albums = <Album>[];
-  for (final entry in groupBy(
+  final byAlbum = groupBy(
     tracks.where((t) => t.albumId != null),
     (Track t) => t.albumId!,
-  ).entries) {
+  );
+  final cached = await repository.cachedAlbums(byAlbum.keys);
+  final albums = <Album>[];
+  for (final entry in byAlbum.entries) {
     final first = entry.value.first;
     albums.add(
-      await repository.cachedAlbum(entry.key) ??
+      cached[entry.key] ??
           Album({
             'id': entry.key,
             'name': first.album,
@@ -57,7 +59,7 @@ final _playlistPinsProvider = StreamProvider((ref) {
       : manager.watchPins(PinKind.playlist);
 });
 
-/// Downloaded playlists, read from the cache.
+/// Downloaded playlists, read from the cache without asking the server. A playlist missing from the cache is fetched.
 final downloadedPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final pins = await ref.watch(_playlistPinsProvider.future);
   final repository = ref.watch(repositoryProvider);
@@ -65,7 +67,10 @@ final downloadedPlaylistsProvider = FutureProvider<List<Playlist>>((ref) async {
   final playlists = <Playlist>[];
   for (final pin in pins) {
     try {
-      playlists.add(await repository.playlist(pin.itemId));
+      playlists.add(
+        await repository.cachedPlaylist(pin.itemId) ??
+            await repository.playlist(pin.itemId),
+      );
     } on Exception {
       // Not cached yet.
     }

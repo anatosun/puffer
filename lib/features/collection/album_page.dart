@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/repositories/library_repository.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
@@ -13,12 +14,17 @@ import '../../ui/widgets/star_button.dart';
 import 'collection_header.dart';
 import '../../ui/widgets/backdrop.dart';
 
-final albumProvider = FutureProvider.autoDispose.family<Album, String>((
+/// An album with its tracks: from the cache at once when there is one, then from the server.
+final albumProvider = StreamProvider.autoDispose.family<Album, String>((
   ref,
   id,
-) async {
+) {
   ref.watch(isOfflineProvider);
-  return ref.watch(repositoryProvider)!.album(id);
+  final repository = ref.watch(repositoryProvider)!;
+  return cachedThenFresh(
+    repository.cachedAlbum(id),
+    () => repository.album(id),
+  );
 });
 
 class AlbumPage extends ConsumerWidget {

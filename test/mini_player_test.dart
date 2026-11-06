@@ -498,24 +498,28 @@ void main() {
             playingFormatProvider.overrideWithValue(null),
             waveformSupportedProvider.overrideWith((ref) async => false),
             albumProvider.overrideWith(
-              (ref, id) async => Album(const {
-                'id': 'al',
-                'name': 'Kind of Blue',
-                'song': [
-                  {'id': 'a', 'title': 'So What'},
-                  {'id': 'b', 'title': 'Blue in Green'},
-                ],
-              }),
+              (ref, id) => Stream.value(
+                Album(const {
+                  'id': 'al',
+                  'name': 'Kind of Blue',
+                  'song': [
+                    {'id': 'a', 'title': 'So What'},
+                    {'id': 'b', 'title': 'Blue in Green'},
+                  ],
+                }),
+              ),
             ),
             artistProvider.overrideWith(
-              (ref, id) async => Artist(const {
-                'id': 'ar',
-                'name': 'Miles Davis',
-                'album': [
-                  {'id': 'al', 'name': 'Kind of Blue'},
-                  {'id': 'bb', 'name': 'Bitches Brew', 'year': 1970},
-                ],
-              }),
+              (ref, id) => Stream.value(
+                Artist(const {
+                  'id': 'ar',
+                  'name': 'Miles Davis',
+                  'album': [
+                    {'id': 'al', 'name': 'Kind of Blue'},
+                    {'id': 'bb', 'name': 'Bitches Brew', 'year': 1970},
+                  ],
+                }),
+              ),
             ),
             artistInfoProvider.overrideWith(
               (ref, id) async => ArtistInfo(const {
