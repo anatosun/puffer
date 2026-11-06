@@ -54,6 +54,9 @@ class TrackTile extends ConsumerWidget {
     final playing =
         current && (ref.watch(nowPlayingProvider).value?.playing ?? false);
     final color = current ? Theme.of(context).colorScheme.primary : null;
+    final stars = ref.watch(trackStarsProvider)
+        ? ref.watch(ratingOverridesProvider)[track.id] ?? track.rating
+        : null;
 
     final tile = ListTile(
       leading: showArtwork
@@ -88,47 +91,15 @@ class TrackTile extends ConsumerWidget {
                     ),
             )
           : null,
-      title: TrackTitle(
-        track.title,
-        color: color,
-        stars: ref.watch(trackStarsProvider)
-            ? ref.watch(ratingOverridesProvider)[track.id] ?? track.rating
-            : 0,
-      ),
-      subtitle: Row(
-        children: [
-          if (downloaded.contains(track.id))
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                Icons.arrow_circle_down,
-                size: 14,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          Expanded(
-            child: Text(
-              track.artist ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.muted),
-            ),
-          ),
-        ],
-      ),
+      title: TrackTitle(track.title, color: color),
+      subtitle: TrackSubtitle(track.artist, stars: stars),
+      isThreeLine: TrackSubtitle.showsStars(stars),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Downloaded tracks carry the mark next to the artist; this shows transfers in progress.
-          TrackDownloadIcon(track.id, hideComplete: true),
+          TrackDownloadIcon(track.id),
           const SizedBox(width: 8),
-          Text(
-            formatDuration(track.duration),
-            style: TextStyle(
-              color: context.faint,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
-          ),
+          TrackDuration(track.duration),
           if (ref.watch(trackHeartsProvider))
             TrackHeart(track.id, starred: track.starred),
           ?handle,
@@ -144,52 +115,101 @@ class TrackTile extends ConsumerWidget {
   }
 }
 
-/// The title of a song with its rating as five small stars after it, filled up to the rating. The stars only display, and none show for an unrated song.
+/// The title of a song, on the first line of its row.
 class TrackTitle extends StatelessWidget {
-  const TrackTitle(this.title, {super.key, this.color, this.stars = 0});
+  const TrackTitle(this.title, {super.key, this.color});
 
   final String title;
   final Color? color;
 
-  /// The rating from 0 to 5.
-  final int stars;
+  @override
+  Widget build(BuildContext context) => Text(
+    title,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(color: color),
+  );
+}
+
+/// The lines under the title of a song row: the artist, then the rating as five small stars when the song is rated. Unrated songs, and rows with the stars turned off ([stars] null), show no stars.
+class TrackSubtitle extends StatelessWidget {
+  const TrackSubtitle(this.artist, {super.key, this.stars});
+
+  final String? artist;
+
+  /// The rating from 0 to 5, or null without stars.
+  final int? stars;
+
+  /// Whether the row shows stars, which takes a third line.
+  static bool showsStars(int? stars) => (stars ?? 0) > 0;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Flexible(
-        child: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: color),
-        ),
+      Text(
+        artist ?? '',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: context.muted),
       ),
-      if (stars > 0) ...[
-        const SizedBox(width: 6),
-        Semantics(
-          label: '$stars stars',
-          excludeSemantics: true,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 1; i <= 5; i++)
-                Icon(
-                  i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                  size: 12,
-                  color: i <= stars
-                      ? Theme.of(context).colorScheme.primary
-                      : context.faint,
-                ),
-            ],
-          ),
+      if (showsStars(stars))
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: TrackStars(stars!),
         ),
-      ],
     ],
   );
 }
 
-/// A filled heart for a song in the library, at the right edge of a row. It only displays, and nothing shows for other songs.
+/// Five small stars, filled up to [stars]. They only display; the menu of the song changes the rating.
+class TrackStars extends StatelessWidget {
+  const TrackStars(this.stars, {super.key});
+
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '$stars stars',
+    excludeSemantics: true,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 1; i <= 5; i++)
+          Icon(
+            i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
+            size: 12,
+            color: i <= stars
+                ? Theme.of(context).colorScheme.primary
+                : context.faint,
+          ),
+      ],
+    ),
+  );
+}
+
+/// The length of a song, right-aligned in a column wide enough for most lengths, so the icons before it line up from row to row.
+class TrackDuration extends StatelessWidget {
+  const TrackDuration(this.duration, {super.key});
+
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minWidth: 40),
+    child: Text(
+      formatDuration(duration),
+      textAlign: TextAlign.right,
+      style: TextStyle(
+        color: context.faint,
+        fontFeatures: [FontFeature.tabularFigures()],
+      ),
+    ),
+  );
+}
+
+/// A filled heart for a song in the library, left of the drag handle when the row has one. It only displays. Other songs keep the space empty, so the icons of all rows stand in the same columns.
 class TrackHeart extends ConsumerWidget {
   const TrackHeart(this.id, {super.key, required this.starred});
 
@@ -203,14 +223,18 @@ class TrackHeart extends ConsumerWidget {
       albumId: null,
       artistId: null,
     ), fallback: starred);
-    if (!on) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(left: 8),
-      child: Icon(
-        Icons.favorite,
-        size: 16,
-        color: Theme.of(context).colorScheme.primary,
-        semanticLabel: 'In your library',
+      child: SizedBox.square(
+        dimension: 16,
+        child: on
+            ? Icon(
+                Icons.favorite,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+                semanticLabel: 'In your library',
+              )
+            : null,
       ),
     );
   }
@@ -287,23 +311,7 @@ class AlbumCard extends ConsumerWidget {
               Stack(
                 children: [
                   Artwork(album.coverArt, size: width),
-                  if (pin.pinned)
-                    Positioned(
-                      right: 6,
-                      bottom: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: DownloadIcon(
-                          displayForPin(pin),
-                          progress: pin.fraction,
-                          size: 16,
-                        ),
-                      ),
-                    ),
+                  if (pin.pinned) CardDownloadBadge(pin),
                 ],
               ),
               const SizedBox(height: 6),
@@ -373,6 +381,27 @@ class AlbumShelf extends ConsumerWidget {
   }
 }
 
+/// The download state in the bottom-right corner of a cover, the same on album and playlist cards.
+class CardDownloadBadge extends StatelessWidget {
+  const CardDownloadBadge(this.pin, {super.key});
+
+  final PinState pin;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    right: 6,
+    bottom: 6,
+    child: Container(
+      padding: const EdgeInsets.all(2),
+      decoration: const BoxDecoration(
+        color: Colors.black54,
+        shape: BoxShape.circle,
+      ),
+      child: DownloadIcon(displayForPin(pin), progress: pin.fraction, size: 16),
+    ),
+  );
+}
+
 class PlaylistCard extends ConsumerWidget {
   const PlaylistCard(this.playlist, {super.key, this.width = 150});
 
@@ -381,6 +410,9 @@ class PlaylistCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pin =
+        ref.watch(pinStateProvider((PinKind.playlist, playlist.id))).value ??
+        PinState.none;
     return Pressable(
       child: SizedBox(
         width: width,
@@ -391,7 +423,16 @@ class PlaylistCard extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Artwork(playlist.coverArt, size: width, icon: Icons.queue_music),
+              Stack(
+                children: [
+                  Artwork(
+                    playlist.coverArt,
+                    size: width,
+                    icon: Icons.queue_music,
+                  ),
+                  if (pin.pinned) CardDownloadBadge(pin),
+                ],
+              ),
               const SizedBox(height: 6),
               Text(
                 playlist.name,
@@ -400,7 +441,7 @@ class PlaylistCard extends ConsumerWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               Text(
-                '${playlist.songCount} songs',
+                countOf(playlist.songCount, 'song'),
                 maxLines: 1,
                 style: TextStyle(color: context.muted, fontSize: 13),
               ),
@@ -487,13 +528,12 @@ class ArtistTile extends ConsumerWidget {
           icon: Icons.person,
         ),
       ),
-      title: Text(artist.name),
-      subtitle: artist.albumCount > 0
-          ? Text(
-              '${artist.albumCount} albums',
-              style: TextStyle(color: context.muted),
-            )
-          : null,
+      title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      // Always a second line, so artist rows are as tall as each other and as song rows.
+      subtitle: Text(
+        artist.albumCount > 0 ? countOf(artist.albumCount, 'album') : 'Artist',
+        style: TextStyle(color: context.muted),
+      ),
       trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
       onTap: () => context.push('/artist/${artist.id}'),
       onLongPress: () => showItemActions(
@@ -527,9 +567,9 @@ class PlaylistTile extends ConsumerWidget {
         radius: 4,
         icon: Icons.queue_music,
       ),
-      title: Text(playlist.name),
+      title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        '${playlist.songCount} songs',
+        countOf(playlist.songCount, 'song'),
         style: TextStyle(color: context.muted),
       ),
       trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
@@ -549,7 +589,7 @@ Future<void> showPlaylistActions(
   kind: PinKind.playlist,
   id: playlist.id,
   title: playlist.name,
-  subtitle: '${playlist.songCount} songs',
+  subtitle: countOf(playlist.songCount, 'song'),
   coverArt: playlist.coverArt,
   playlist: playlist,
   tracks: () async =>

@@ -139,7 +139,7 @@ class ArtistPage extends ConsumerWidget {
                           ? null
                           : CachedNetworkImageProvider(photo),
                       title: artist.name,
-                      details: '${albums.length} albums',
+                      details: countOf(albums.length, 'album'),
                       tracks: tracks,
                       pinKind: PinKind.artist,
                       pinId: artist.id,

@@ -62,7 +62,7 @@ class AlbumPage extends ConsumerWidget {
                   details: [
                     album.genre,
                     album.year,
-                    '${songs.length} songs',
+                    countOf(songs.length, 'song'),
                     formatDuration(album.duration),
                   ].nonNulls.join(' · '),
                   tracks: songs,

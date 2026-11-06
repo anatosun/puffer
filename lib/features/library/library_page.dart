@@ -310,7 +310,7 @@ class _LibrarySectionPageState extends ConsumerState<LibrarySectionPage> {
                 itemBuilder: (_, i) => ListTile(
                   title: Text(shown[i].name),
                   subtitle: Text(
-                    '${shown[i].albumCount} albums',
+                    countOf(shown[i].albumCount, 'album'),
                     style: TextStyle(color: context.muted),
                   ),
                   onTap: () => context.push(

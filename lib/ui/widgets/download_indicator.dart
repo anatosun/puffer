@@ -67,19 +67,29 @@ DownloadDisplay displayForPin(PinState state) {
       : DownloadDisplay.downloading;
 }
 
+/// The download state of an album, playlist or artist, at the end of its row.
+class PinDownloadIcon extends ConsumerWidget {
+  const PinDownloadIcon(this.kind, this.id, {super.key});
+
+  final PinKind kind;
+  final String id;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pin = ref.watch(pinStateProvider((kind, id))).value ?? PinState.none;
+    return DownloadIcon(displayForPin(pin), progress: pin.fraction);
+  }
+}
+
 class TrackDownloadIcon extends ConsumerWidget {
-  const TrackDownloadIcon(this.trackId, {super.key, this.hideComplete = false});
+  const TrackDownloadIcon(this.trackId, {super.key});
 
   final String trackId;
-  final bool hideComplete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final file = ref.watch(trackFileProvider(trackId)).value;
     final display = displayForFile(file);
-    if (hideComplete && display == DownloadDisplay.complete) {
-      return const SizedBox.shrink();
-    }
     return DownloadIcon(display, progress: file?.progress, size: 16);
   }
 }

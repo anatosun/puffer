@@ -118,7 +118,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       kind: PinKind.playlist,
       id: p.id,
       title: p.name,
-      subtitle: '${_entries.length} songs',
+      subtitle: countOf(_entries.length, 'song'),
       coverArt: p.coverArt,
       playlist: p,
       tracks: () async => _entries,
@@ -141,7 +141,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       title: playlist.name,
       subtitle: playlist.owner,
       details:
-          '${_entries.length} songs · ${formatDuration(playlist.duration)}',
+          '${countOf(_entries.length, 'song')} · ${formatDuration(playlist.duration)}',
       tracks: _entries,
       pinKind: PinKind.playlist,
       pinId: playlist.id,

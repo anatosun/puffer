@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/theme.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/subsonic_client.dart';
 import '../../ui/widgets/item_actions.dart';
@@ -181,7 +182,7 @@ String scanStatusLabel(ScanStatus? status) {
   final last = status.lastScan;
   return [
     if (last != null) 'Last scan ${_dateTime(last)}',
-    if (count != null) '$count songs',
+    if (count != null) countOf(count, 'song'),
   ].join(' · ').ifEmpty('Finds new and changed music on the server');
 }
 

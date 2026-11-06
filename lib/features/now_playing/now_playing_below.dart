@@ -14,6 +14,8 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/playing_bars.dart';
 import '../../ui/widgets/item_actions.dart';
+import '../../downloads/download_manager.dart';
+import '../../ui/widgets/download_indicator.dart';
 import '../../ui/widgets/tiles.dart';
 import '../collection/album_page.dart';
 import '../collection/artist_page.dart';
@@ -273,12 +275,15 @@ class BelowContent extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: album.year == null
-                  ? null
-                  : Text(
-                      '${album.year}',
-                      style: TextStyle(color: context.muted),
-                    ),
+              // Always a second line and the download state, as on the other album, playlist and artist rows.
+              subtitle: Text(
+                [
+                  if (album.year != null) '${album.year}',
+                  countOf(album.songCount, 'song'),
+                ].join(' · '),
+                style: TextStyle(color: context.muted),
+              ),
+              trailing: PinDownloadIcon(PinKind.album, album.id),
               onTap: () => open('/album/${album.id}'),
             );
           },
@@ -403,19 +408,25 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     final queue = _moved ?? reported;
     final current = np?.index ?? 0;
     final controller = ref.read(playbackControllerProvider);
-    final downloaded = ref.watch(downloadedTrackIdSetProvider);
     final showStars = ref.watch(trackStarsProvider);
     final showHearts = ref.watch(trackHeartsProvider);
     final ratings = ref.watch(ratingOverridesProvider);
 
     /// A row of the queue. With [dragIndex], it carries a handle that drags it to another place, as in editable playlists.
-    Widget tile(int i, {required bool removable, int? dragIndex}) {
+    /// With [handleSpace], a row without a handle keeps the space of one, so its icons line up with those of the rows that have one.
+    Widget tile(
+      int i, {
+      required bool removable,
+      int? dragIndex,
+      bool handleSpace = false,
+    }) {
       final item = queue[i];
       final playing = i == np?.index;
       // The library knows a song's rating and heart, which the queue entry does not carry.
       final known = showStars || showHearts
           ? ref.watch(queueTrackProvider(item.id)).value
           : null;
+      final stars = showStars ? ratings[item.id] ?? known?.rating : null;
       final row = ListTile(
         leading: Stack(
           alignment: Alignment.center,
@@ -440,47 +451,26 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           ],
         ),
         selected: playing,
-        title: TrackTitle(
-          item.title,
-          stars: showStars && known != null
-              ? ratings[item.id] ?? known.rating
-              : 0,
-        ),
-        trailing: (showHearts && known != null) || dragIndex != null
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showHearts && known != null)
-                    TrackHeart(item.id, starred: known.starred),
-                  if (dragIndex != null)
-                    ReorderableDragStartListener(
-                      index: dragIndex,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Icon(Icons.drag_handle, color: context.faint),
-                      ),
-                    ),
-                ],
-              )
-            : null,
-        subtitle: Row(
+        title: TrackTitle(item.title),
+        subtitle: TrackSubtitle(item.artist, stars: stars),
+        isThreeLine: TrackSubtitle.showsStars(stars),
+        // The same columns on every row: download state, heart, drag handle.
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (downloaded.contains(item.id))
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Icon(
-                  Icons.arrow_circle_down,
-                  size: 14,
-                  color: context.colors.primary,
+            TrackDownloadIcon(item.id),
+            if (showHearts)
+              TrackHeart(item.id, starred: known?.starred ?? false),
+            if (dragIndex != null)
+              ReorderableDragStartListener(
+                index: dragIndex,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(Icons.drag_handle, color: context.faint),
                 ),
-              ),
-            Expanded(
-              child: Text(
-                item.artist ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+              )
+            else if (handleSpace)
+              const SizedBox(width: 8 + 24),
           ],
         ),
         onTap: playing ? null : () => controller.skipTo(i),
@@ -535,7 +525,7 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
         if (j == 0) {
           return KeyedSubtree(
             key: ValueKey('${item.id}-$i'),
-            child: tile(i, removable: false),
+            child: tile(i, removable: false, handleSpace: true),
           );
         }
         return ReorderableDelayedDragStartListener(
@@ -579,7 +569,7 @@ class _PastQueues extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              '${queue.tracks.length} ${queue.tracks.length == 1 ? 'song' : 'songs'} · stopped at ${queue.tracks[queue.index].title}',
+              '${countOf(queue.tracks.length, 'song')} · stopped at ${queue.tracks[queue.index].title}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

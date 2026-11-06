@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/theme.dart';
 import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
@@ -118,7 +119,7 @@ Future<void> showAddToPlaylist(
                   icon: Icons.queue_music,
                 ),
                 title: Text(p.name),
-                subtitle: Text('${p.songCount} songs'),
+                subtitle: Text(countOf(p.songCount, 'song')),
                 onTap: () => Navigator.pop(context, p),
               ),
           ],

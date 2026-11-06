@@ -68,6 +68,9 @@ extension ThemeShades on BuildContext {
   Color get subtle => colors.onSurface.withValues(alpha: 0.24);
 }
 
+/// [n] with [one], or with its plural (`one` + s) unless [n] is 1: "1 song", "12 songs".
+String countOf(int n, String one) => '$n ${n == 1 ? one : '${one}s'}';
+
 String formatDuration(Duration d) {
   final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
   String two(int n) => n.toString().padLeft(2, '0');
