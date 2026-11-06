@@ -1,0 +1,6 @@
+- With the OpenSubsonic transcoding extension, the server picks the stream for this device and transcodes only what it cannot play as it is
+- Artist pages show the top songs of the artist when the server offers them
+- Instant mix and radio show only on servers with sonic similarity
+- Song info shows the format that plays, for transcoded streams and downloads
+- The "More" button of search and artist pages sits at the top
+- The themed icon has a wider margin
