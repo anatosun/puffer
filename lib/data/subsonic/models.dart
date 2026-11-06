@@ -197,6 +197,15 @@ class Playlist {
   int get songCount => json['songCount'] as int? ?? 0;
   Duration get duration => Duration(seconds: json['duration'] as int? ?? 0);
 
+  /// The description the owner wrote, the `comment` of the Subsonic API.
+  String? get comment {
+    final c = (json['comment'] as String?)?.trim();
+    return c == null || c.isEmpty ? null : c;
+  }
+
+  /// Whether other users of the server see the playlist.
+  bool get isPublic => json['public'] as bool? ?? false;
+
   /// When the playlist last changed, as an ISO 8601 date.
   String? get changed =>
       json['changed'] as String? ?? json['created'] as String?;

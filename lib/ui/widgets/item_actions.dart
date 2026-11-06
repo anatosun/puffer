@@ -139,10 +139,10 @@ Future<void> showItemActions(
                     ownsPlaylist(ref, playlist)) ...[
                   ListTile(
                     leading: const Icon(Icons.edit_outlined),
-                    title: const Text('Rename'),
+                    title: const Text('Edit details'),
                     onTap: () {
                       close();
-                      renamePlaylist(context, ref, playlist);
+                      editPlaylistDetails(context, ref, playlist);
                     },
                   ),
                   ListTile(

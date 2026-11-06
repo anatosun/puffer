@@ -241,9 +241,11 @@ class _LibrarySectionPageState extends ConsumerState<LibrarySectionPage> {
 
   Widget _playlists(List<Playlist> playlists) {
     final sort = ref.watch(playlistSortProvider);
-    final sorted = sort == PlaylistSort.name
-        ? byName(playlists)
-        : byRecency(playlists, ref.watch(playlistHistoryProvider));
+    final sorted = sortPlaylists(
+      playlists,
+      sort,
+      ref.watch(playlistHistoryProvider),
+    );
     final shown = _filter(sorted, (p) => [p.name, p.owner]);
     return shown.isEmpty
         ? const MessageView('No matching playlists')

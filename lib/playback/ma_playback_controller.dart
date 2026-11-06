@@ -174,6 +174,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
   /// The row of [item] in the queue, from its Subsonic [track] when there is one.
   QueueEntry _entry(MaQueueItem item, Track? track) => QueueEntry(
     id: item.id,
+    trackId: track?.id,
     title: track?.title ?? item.title,
     artist: track?.artist ?? item.artist,
     coverArt:

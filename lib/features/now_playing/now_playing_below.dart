@@ -19,6 +19,7 @@ import '../../ui/widgets/download_indicator.dart';
 import '../../ui/widgets/tiles.dart';
 import '../collection/album_page.dart';
 import '../collection/artist_page.dart';
+import '../collection/playlist_edit.dart';
 
 /// The Subsonic cover when [coverArt] is known, otherwise the Music Assistant image at [imageUrl].
 class NowPlayingArtwork extends ConsumerWidget {
@@ -423,10 +424,12 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
       final item = queue[i];
       final playing = i == np?.index;
       // The library knows a song's rating and heart, which the queue entry does not carry.
-      final known = showStars || showHearts
-          ? ref.watch(queueTrackProvider(item.id)).value
+      // Entries of Music Assistant that are no Subsonic song have no track ID; their columns stay empty.
+      final trackId = item.trackId;
+      final known = (showStars || showHearts) && trackId != null
+          ? ref.watch(queueTrackProvider(trackId)).value
           : null;
-      final stars = showStars ? ratings[item.id] ?? known?.rating : null;
+      final stars = showStars ? ratings[trackId] ?? known?.rating : null;
       final row = ListTile(
         leading: Stack(
           alignment: Alignment.center,
@@ -458,9 +461,11 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TrackDownloadIcon(item.id),
+            trackId == null
+                ? const DownloadIcon(DownloadDisplay.none, size: 16)
+                : TrackDownloadIcon(trackId),
             if (showHearts)
-              TrackHeart(item.id, starred: known?.starred ?? false),
+              TrackHeart(trackId ?? '', starred: known?.starred ?? false),
             if (dragIndex != null)
               ReorderableDragStartListener(
                 index: dragIndex,
@@ -506,7 +511,9 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     // The current song comes first and stays there; the songs after it can be moved and removed.
     final start = math.min(current, queue.length);
     final count = queue.length - start;
-    return SliverReorderableList(
+    final songIds = [for (final e in queue) ?e.trackId];
+    final canSave = songIds.isNotEmpty && !ref.watch(isOfflineProvider);
+    final list = SliverReorderableList(
       itemCount: count,
       onReorderItem: (from, to) {
         if (from == 0) return;
@@ -534,6 +541,26 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           child: tile(i, removable: true, dragIndex: j),
         );
       },
+    );
+    if (!canSave) return list;
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: TextButton.icon(
+                icon: const Icon(Icons.playlist_add),
+                label: const Text('Save as playlist'),
+                // The whole queue, the songs played included, in its order.
+                onPressed: () => createPlaylistFrom(context, ref, songIds),
+              ),
+            ),
+          ),
+        ),
+        list,
+      ],
     );
   }
 }
@@ -573,6 +600,15 @@ class _PastQueues extends ConsumerWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            trailing: ref.watch(isOfflineProvider)
+                ? null
+                : IconButton(
+                    tooltip: 'Save as playlist',
+                    icon: const Icon(Icons.playlist_add),
+                    onPressed: () => createPlaylistFrom(context, ref, [
+                      for (final t in queue.tracks) t.id,
+                    ], initialName: queue.label),
+                  ),
             onTap: () => runPlayback(() => ref.read(playPastQueueProvider)(i)),
           ),
       ],

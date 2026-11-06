@@ -322,7 +322,7 @@ class SubsonicClient {
     String? playlistId,
     List<String> songIds = const [],
   }) async {
-    await _get('createPlaylist', {
+    await _send('createPlaylist', {
       'name': name,
       'playlistId': playlistId,
       'songId': songIds,
@@ -332,15 +332,32 @@ class SubsonicClient {
   Future<void> updatePlaylist(
     String id, {
     String? name,
+    String? comment,
+    bool? isPublic,
     List<String> songIdsToAdd = const [],
     List<int> songIndexesToRemove = const [],
   }) async {
-    await _get('updatePlaylist', {
+    await _send('updatePlaylist', {
       'playlistId': id,
       'name': name,
+      'comment': comment,
+      'public': isPublic,
       'songIdToAdd': songIdsToAdd,
       'songIndexToRemove': songIndexesToRemove,
     });
+  }
+
+  /// A request that may carry thousands of song IDs. With the OpenSubsonic `formPost` extension the parameters go in a form body, so a long playlist does not exceed the URL length a server or proxy accepts; otherwise they go in the URL.
+  Future<Json> _send(String endpoint, Map<String, Object?> params) async {
+    if (!await supports('formPost')) return _get(endpoint, params);
+    final response = await _http
+        .post(
+          Uri.parse('$baseUrl/rest/$endpoint'),
+          headers: const {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: _uri(endpoint, params).query,
+        )
+        .timeout(const Duration(seconds: 20));
+    return _body(response, endpoint);
   }
 
   Future<void> deletePlaylist(String id) async {

@@ -59,9 +59,36 @@ List<Playlist> byName(List<Playlist> playlists) =>
     [...playlists]
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
+/// [playlists] in the order of [sort]; [played] holds when each was last played on this device.
+List<Playlist> sortPlaylists(
+  List<Playlist> playlists,
+  PlaylistSort sort,
+  Map<String, DateTime> played,
+) {
+  final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime changed(Playlist p) => DateTime.tryParse(p.changed ?? '') ?? epoch;
+  int name(Playlist a, Playlist b) =>
+      a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  // Ties go by name in one comparison, since List.sort is not stable.
+  List<Playlist> by(int Function(Playlist a, Playlist b) first) =>
+      [...playlists]..sort((a, b) {
+        final c = first(a, b);
+        return c != 0 ? c : name(a, b);
+      });
+  return switch (sort) {
+    PlaylistSort.recent => byRecency(playlists, played),
+    PlaylistSort.name => byName(playlists),
+    PlaylistSort.songs => by((a, b) => b.songCount.compareTo(a.songCount)),
+    PlaylistSort.changed => by((a, b) => changed(b).compareTo(changed(a))),
+  };
+}
+
+// Stored by name: new values can go anywhere.
 enum PlaylistSort {
   recent('Recently played or changed'),
-  name('Name');
+  changed('Recently changed'),
+  name('Name'),
+  songs('Most songs');
 
   const PlaylistSort(this.label);
 

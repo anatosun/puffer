@@ -10,13 +10,18 @@ enum Repeat { off, one, all }
 class QueueEntry {
   const QueueEntry({
     required this.id,
+    this.trackId,
     required this.title,
     this.artist,
     this.coverArt,
     this.imageUrl,
   });
 
+  /// The ID of the entry in the queue of the output.
   final String id;
+
+  /// The Subsonic song, when the entry is one. On the phone it is [id]; on Music Assistant the queue has IDs of its own.
+  final String? trackId;
   final String title;
   final String? artist;
   final String? coverArt;
@@ -182,6 +187,7 @@ class LocalPlaybackController implements PlaybackController {
         for (final m in handler.queue.value)
           QueueEntry(
             id: m.id,
+            trackId: m.id,
             title: m.title,
             artist: m.artist,
             coverArt: covers[m.id],

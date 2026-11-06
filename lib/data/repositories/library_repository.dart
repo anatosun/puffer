@@ -40,6 +40,16 @@ Future<Object?> decodeLarge(String text) async => text.length < _largeJson
 
 const _largeJson = 256 * 1024;
 
+/// Up to four different covers of [tracks], in playlist order, for the mosaic of a playlist without a cover of its own.
+List<String> playlistCovers(Iterable<Track> tracks) {
+  final covers = <String>{};
+  for (final t in tracks) {
+    if (t.coverArt case final c?) covers.add(c);
+    if (covers.length == 4) break;
+  }
+  return covers.toList();
+}
+
 class OfflineException implements Exception {
   const OfflineException(this.what);
 
@@ -146,8 +156,18 @@ class LibraryRepository {
     remote: () => client.getPlaylist(id),
     encode: (p) => p.json,
     decode: (j) => Playlist(j as Json),
-    alsoCache: (p) => cacheTracks(p.entries),
+    alsoCache: (p) async {
+      final entries = p.entries;
+      await cacheTracks(entries);
+      await _put('playlistCovers', p.id, playlistCovers(entries));
+    },
   );
+
+  /// The covers of the first albums of a cached playlist, for its mosaic, without reading the whole playlist. Null when the playlist was never loaded.
+  Future<List<String>?> cachedPlaylistCovers(String id) async {
+    final json = await _cached('playlistCovers', id);
+    return json == null ? null : [for (final c in json as List) c as String];
+  }
 
   Future<Track> track(String id) => _fetch(
     kind: 'track',
@@ -328,7 +348,7 @@ class LibraryRepository {
     return [for (final id in idList) ?byId[id]];
   }
 
-  /// Empties the cache except what downloads need offline, then reloads that part from the server. Kept are the tracks with a file, their albums and artists, and the downloaded playlists and artists. [onProgress] receives the number of reloaded items and their total.
+  /// Empties the cache except what downloads need offline, then reloads that part from the server. Kept are the tracks with a file, their albums and artists, and the downloaded playlists (with their mosaic covers) and artists. [onProgress] receives the number of reloaded items and their total.
   Future<void> refreshCache({
     void Function(int done, int total)? onProgress,
   }) async {
@@ -356,7 +376,8 @@ class LibraryRepository {
               (t.kind.equals('track') & t.id.isIn(trackIds)).not() &
               (t.kind.equals('album') & t.id.isIn(albums)).not() &
               (t.kind.equals('artist') & t.id.isIn(artists)).not() &
-              (t.kind.equals('playlist') & t.id.isIn(playlists)).not(),
+              (t.kind.equals('playlist') & t.id.isIn(playlists)).not() &
+              (t.kind.equals('playlistCovers') & t.id.isIn(playlists)).not(),
         ))
         .go();
 

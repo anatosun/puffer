@@ -289,7 +289,13 @@ void main() {
         final rows = await db.select(db.cachedItems).get();
         expect(
           {for (final r in rows) '${r.kind} ${r.id}'},
-          {'track t1', 'album a1', 'artist r1', 'playlist p1'},
+          {
+            'track t1',
+            'album a1',
+            'artist r1',
+            'playlist p1',
+            'playlistCovers p1',
+          },
         );
         expect(
           fetched,

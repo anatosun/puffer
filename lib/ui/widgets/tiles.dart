@@ -9,6 +9,7 @@ import '../../app/playback_providers.dart';
 import '../../app/playlist_history.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
+import '../../features/home/home_page.dart';
 import '../../downloads/download_manager.dart';
 import '../messages.dart';
 import '../theme.dart';
@@ -425,11 +426,7 @@ class PlaylistCard extends ConsumerWidget {
             children: [
               Stack(
                 children: [
-                  Artwork(
-                    playlist.coverArt,
-                    size: width,
-                    icon: Icons.queue_music,
-                  ),
+                  PlaylistArtwork(playlist, size: width, radius: 6),
                   if (pin.pinned) CardDownloadBadge(pin),
                 ],
               ),
@@ -550,6 +547,65 @@ class ArtistTile extends ConsumerWidget {
   }
 }
 
+/// The covers of a playlist's first albums, from the cache. Reloads when the playlists change.
+final playlistCoversProvider = FutureProvider.autoDispose
+    .family<List<String>, String>((ref, id) async {
+      ref.watch(playlistsProvider);
+      return await ref.watch(repositoryProvider)?.cachedPlaylistCovers(id) ??
+          const [];
+    });
+
+/// The cover of a playlist. Without a cover from the server, a 2×2 mosaic of its first four albums, or the cover of its first album when it has fewer. The mosaic needs the playlist to have been opened or downloaded once.
+class PlaylistArtwork extends ConsumerWidget {
+  const PlaylistArtwork(this.playlist, {super.key, this.size, this.radius = 4});
+
+  final Playlist playlist;
+  final double? size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (playlist.coverArt != null) {
+      return Artwork(
+        playlist.coverArt,
+        size: size,
+        radius: radius,
+        icon: Icons.queue_music,
+      );
+    }
+    final covers =
+        ref.watch(playlistCoversProvider(playlist.id)).value ?? const [];
+    if (covers.length < 4) {
+      return Artwork(
+        covers.firstOrNull,
+        size: size,
+        radius: radius,
+        icon: Icons.queue_music,
+      );
+    }
+    // The cells share the box the cover gets, which a list row can make smaller than [size] (a ListTile gives its leading widget at most 48 points of height).
+    final half = size == null ? null : size! / 2;
+    Widget cell(int i) =>
+        Expanded(child: Artwork(covers[i], size: half, radius: 0));
+    Widget row(int first) => Expanded(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [cell(first), cell(first + 1)],
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox.square(
+        dimension: size,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [row(0), row(2)],
+        ),
+      ),
+    );
+  }
+}
+
 class PlaylistTile extends ConsumerWidget {
   const PlaylistTile(this.playlist, {super.key});
 
@@ -561,12 +617,7 @@ class PlaylistTile extends ConsumerWidget {
         ref.watch(pinStateProvider((PinKind.playlist, playlist.id))).value ??
         PinState.none;
     return ListTile(
-      leading: Artwork(
-        playlist.coverArt,
-        size: 52,
-        radius: 4,
-        icon: Icons.queue_music,
-      ),
+      leading: PlaylistArtwork(playlist, size: 52),
       title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         countOf(playlist.songCount, 'song'),

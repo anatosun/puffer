@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +15,7 @@ import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
 import 'collection_header.dart';
 import '../home/home_page.dart';
+import 'add_songs_sheet.dart';
 import 'playlist_edit.dart';
 import '../../ui/widgets/backdrop.dart';
 
@@ -47,7 +50,7 @@ class PlaylistPage extends ConsumerWidget {
             ),
           ),
           data: (playlist) => Backdrop(
-            coverArt: playlist.coverArt,
+            coverArt: playlist.headerCover,
             top: 0.25,
             child: Scaffold(
               backgroundColor: Colors.transparent,
@@ -77,14 +80,22 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     if (old.playlist != widget.playlist) _entries = widget.playlist.entries;
   }
 
-  Future<void> _save(Future<void> Function() edit) async {
-    try {
-      await edit();
-      await playlistsChanged(ref, widget.playlist.id);
-    } on Exception catch (e) {
-      showMessage('$e');
-      setState(() => _entries = widget.playlist.entries);
-    }
+  Future<void> _saving = Future.value();
+
+  /// Sends [edit] after the edits before it, so an undo never reaches the server before the removal it undoes.
+  Future<void> _save(Future<void> Function() edit) {
+    // Taken now: the page may close before the edit is sent.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final id = widget.playlist.id;
+    return _saving = _saving.then((_) async {
+      try {
+        await edit();
+        await playlistsChanged(container, id);
+      } on Exception catch (e) {
+        showMessage('$e');
+        if (mounted) setState(() => _entries = widget.playlist.entries);
+      }
+    });
   }
 
   void _move(int from, int to) {
@@ -94,21 +105,34 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     _save(
       () => ref
           .read(clientProvider)!
-          .createPlaylist(
-            playlistId: widget.playlist.id,
-            songIds: [for (final t in entries) t.id],
-          ),
+          .createPlaylist(playlistId: widget.playlist.id, songIds: entries.ids),
     );
   }
 
   void _remove(int index) {
-    setState(() => _entries = [..._entries]..removeAt(index));
-    _save(
-      () => ref
-          .read(clientProvider)!
-          .updatePlaylist(widget.playlist.id, songIndexesToRemove: [index]),
+    final before = _entries;
+    final client = ref.read(clientProvider)!;
+    final id = widget.playlist.id;
+    setState(() => _entries = [...before]..removeAt(index));
+    _save(() => client.updatePlaylist(id, songIndexesToRemove: [index]));
+    showMessage(
+      'Removed ${before[index].title}',
+      action: 'Undo',
+      onAction: () {
+        // The order before the removal, which puts the song back where it was.
+        Future<void> restore() =>
+            client.createPlaylist(playlistId: id, songIds: before.ids);
+        if (!mounted) {
+          unawaited(_saving.then((_) => restore()).catchError((Object _) {}));
+          return;
+        }
+        setState(() => _entries = before);
+        _save(restore);
+      },
     );
   }
+
+  void _addSongs() => showAddSongs(context, ref, widget.playlist, _entries.ids);
 
   void _showMenu() {
     final p = widget.playlist;
@@ -137,7 +161,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     final editable =
         ownsPlaylist(ref, playlist) && !ref.watch(isOfflineProvider);
     return CollectionView(
-      coverArt: playlist.coverArt,
+      coverArt: playlist.headerCover,
       title: playlist.name,
       subtitle: playlist.owner,
       details:
@@ -146,9 +170,35 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       pinKind: PinKind.playlist,
       pinId: playlist.id,
       actions: [
+        if (editable)
+          IconButton(
+            tooltip: 'Add songs',
+            icon: const Icon(Icons.playlist_add),
+            onPressed: _addSongs,
+          ),
         IconButton(icon: const Icon(Icons.more_vert), onPressed: _showMenu),
       ],
       slivers: [
+        if (playlist.comment case final comment?)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(comment, style: TextStyle(color: context.muted)),
+            ),
+          ),
+        if (_entries.isEmpty && editable)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.playlist_add),
+                  label: const Text('Add songs'),
+                  onPressed: _addSongs,
+                ),
+              ),
+            ),
+          ),
         if (!editable)
           SliverList.builder(
             itemCount: _entries.length,
@@ -190,4 +240,14 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       ],
     );
   }
+}
+
+extension on List<Track> {
+  List<String> get ids => [for (final t in this) t.id];
+}
+
+extension on Playlist {
+  /// The cover of the header: the playlist's own, otherwise that of its first song with one.
+  String? get headerCover =>
+      coverArt ?? entries.map((t) => t.coverArt).nonNulls.firstOrNull;
 }
