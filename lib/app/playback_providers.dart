@@ -8,6 +8,8 @@ import '../data/music_assistant/ma_models.dart';
 import '../data/db/database.dart';
 import '../downloads/download_settings.dart';
 import '../playback/audio_format.dart';
+import '../playback/endless_radio.dart';
+import '../playback/sleep_timer.dart';
 import '../playback/ma_playback_controller.dart';
 import '../playback/playback_controller.dart';
 import '../ui/messages.dart';
@@ -439,6 +441,21 @@ final deliveryProvider = Provider.autoDispose.family<Delivery, String>((
   );
 });
 
+/// Plays the past queue at [index] again from the song and position it had reached, and drops it from the past queues. The queue it replaces takes its place there.
+final playPastQueueProvider = Provider<Future<void> Function(int index)>(
+  (ref) => (index) async {
+    final queues = ref.read(pastQueuesProvider).value ?? const [];
+    if (index >= queues.length) return;
+    final queue = queues[index];
+    await ref.read(pastQueuesProvider.notifier).removeAt(index);
+    final controller = ref.read(playbackControllerProvider);
+    await controller.playTracks(queue.tracks, index: queue.index);
+    if (queue.position > const Duration(seconds: 1)) {
+      await controller.seek(queue.position);
+    }
+  },
+);
+
 /// Sets the streaming quality of the current network. A song streaming on this device reloads at the new quality from where it was.
 final setStreamingQualityProvider =
     Provider<Future<void> Function(DownloadQuality)>(
@@ -462,6 +479,80 @@ final playingFormatProvider = Provider.autoDispose<PlayingFormat?>((ref) {
     format: delivery.format,
     maxBitRate: deliveredBitRate(track, delivery),
   );
+});
+
+/// Pauses playback when the sleep timer ends. After a set time, on this device the volume first fades out over [sleepFade]. At the end of a song or album, playback pauses as the next song or album starts, back at its beginning.
+final sleepTimerRunnerProvider = Provider<void>((ref) {
+  Timer? timer;
+  void stop() => ref.read(sleepTimerProvider.notifier).set(null);
+
+  Future<void> fadeAndPause() async {
+    stop();
+    final controller = ref.read(playbackControllerProvider);
+    if (ref.read(outputProvider) != null) return controller.pause();
+    final player = ref.read(playerHandlerProvider).player;
+    final from = player.volume;
+    const steps = 40;
+    for (var i = 1; i <= steps && player.playing; i++) {
+      await Future<void>.delayed(sleepFade ~/ steps);
+      await player.setVolume(from * (1 - i / steps));
+    }
+    await controller.pause();
+    await player.setVolume(from);
+  }
+
+  ref.listen(sleepTimerProvider, (_, sleep) {
+    timer?.cancel();
+    final end = sleep?.endsAt;
+    if (end == null) return;
+    timer = Timer(
+      end.difference(DateTime.now()),
+      () => unawaited(fadeAndPause()),
+    );
+  }, fireImmediately: true);
+
+  ref.listen(nowPlayingProvider, (_, next) {
+    final sleep = ref.read(sleepTimerProvider);
+    if (sleep == null) return;
+    final np = next.value;
+    if (np == null) return stop();
+    if (!sleep.endsWith(np.track)) return;
+    stop();
+    unawaited(() async {
+      final controller = ref.read(playbackControllerProvider);
+      await controller.pause();
+      await controller.seek(Duration.zero);
+    }());
+  });
+  ref.onDispose(() => timer?.cancel());
+});
+
+/// Endless radio: when the last song of a queue that does not repeat starts, songs that sound like it are added to the queue, on this device and on Music Assistant players alike. Each song extends the queue once.
+final endlessRadioRunnerProvider = Provider<void>((ref) {
+  String? extendedFrom;
+  ref.listen(nowPlayingProvider, (_, next) {
+    final np = next.value;
+    if (np == null || !atQueueEnd(np)) return;
+    final track = np.track!;
+    if (extendedFrom == track.id ||
+        !ref.read(endlessRadioProvider) ||
+        !ref.read(canMixProvider) ||
+        ref.read(isOfflineProvider)) {
+      return;
+    }
+    extendedFrom = track.id;
+    unawaited(() async {
+      try {
+        final mix = await ref.read(repositoryProvider)!.instantMix(track);
+        final more = songsToAdd(mix, [for (final e in np.queue) e.id]);
+        if (more.isNotEmpty) {
+          await ref.read(playbackControllerProvider).addTracks(more);
+        }
+      } on Exception {
+        // The queue ends as it would without endless radio.
+      }
+    }());
+  });
 });
 
 /// Turns crossfade on or off for the queue of the Music Assistant player in use, following the crossfade setting. Music Assistant sets the length of the fade per player, and never fades between songs of the same album.

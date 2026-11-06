@@ -167,6 +167,8 @@ class App extends ConsumerWidget {
     ref.watch(sendspinServiceProvider);
     ref.watch(followSpeakerProvider);
     ref.watch(maCrossfadeProvider);
+    ref.watch(endlessRadioRunnerProvider);
+    ref.watch(sleepTimerRunnerProvider);
     ref.watch(playingWaveformProvider);
     // Once per session: downloaded playlists pick up changes, and automatic downloads follow the starred items.
     ref.watch(startupSyncProvider);

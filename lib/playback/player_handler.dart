@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../data/subsonic/models.dart';
 import 'crossfade.dart';
+import 'past_queues.dart';
 import 'prefetch_cache.dart';
 import 'stream_offset.dart';
 import 'stable_shuffle_order.dart';
@@ -51,6 +52,9 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   final player = AudioPlayer();
   PlaybackSource? source;
+
+  /// Receives the queue that [playTracks] replaces, so it can be played again later.
+  void Function(PastQueue queue)? onReplaced;
 
   List<Track> _tracks = const [];
   String? _scrobbled;
@@ -499,6 +503,16 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     if (tracks.isEmpty || source == null) return;
     _cancelCrossfade();
+    if (_tracks.isNotEmpty && !_sameSongs(_tracks, tracks)) {
+      onReplaced?.call(
+        PastQueue(
+          List.of(_tracks),
+          player.currentIndex ?? 0,
+          position,
+          DateTime.now(),
+        ),
+      );
+    }
     _tracks = List.of(tracks);
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     // The shuffle order of just_audio starts with the initial index, so a shuffled queue starts at a random song.
@@ -724,3 +738,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 }
+
+bool _sameSongs(List<Track> a, List<Track> b) =>
+    a.length == b.length &&
+    Iterable.generate(a.length).every((i) => a[i].id == b[i].id);

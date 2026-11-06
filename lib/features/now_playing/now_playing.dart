@@ -22,6 +22,7 @@ import '../../ui/widgets/star_button.dart';
 import '../collection/playlist_edit.dart';
 import 'lyrics_view.dart';
 import 'now_playing_below.dart';
+import 'sleep_timer_sheet.dart';
 import 'song_info.dart';
 import 'waveform.dart';
 
@@ -277,6 +278,7 @@ class NowPlayingPage extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
+                                  const SleepTimerButton(),
                                   IconButton(
                                     color: context.muted,
                                     icon: const Icon(Icons.more_horiz),

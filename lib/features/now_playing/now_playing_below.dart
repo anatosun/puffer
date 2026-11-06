@@ -134,8 +134,10 @@ List<BelowTab> _available(_Below below, {required bool played}) => [
 ];
 
 /// Whether songs before the current one are in the queue, for the "Played" tab.
+/// Whether the Played tab has something to show: songs before the current one, or queues played before this one.
 bool _hasPlayed(WidgetRef ref) =>
-    (ref.watch(nowPlayingProvider.select((s) => s.value?.index)) ?? 0) > 0;
+    (ref.watch(nowPlayingProvider.select((s) => s.value?.index)) ?? 0) > 0 ||
+    (ref.watch(pastQueuesProvider).value?.isNotEmpty ?? false);
 
 /// The tab bar below the player, with instant mix at its end.
 class BelowTabBar extends ConsumerWidget {
@@ -499,10 +501,15 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     }
 
     if (widget.played) {
-      // Most recent first; a tap plays the song again from the queue.
-      return SliverList.builder(
-        itemCount: math.min(current, queue.length),
-        itemBuilder: (context, j) => tile(current - 1 - j, removable: true),
+      // Most recent first; a tap plays the song again from the queue. The queues played before this one follow.
+      return SliverMainAxisGroup(
+        slivers: [
+          SliverList.builder(
+            itemCount: math.min(current, queue.length),
+            itemBuilder: (context, j) => tile(current - 1 - j, removable: true),
+          ),
+          const _PastQueues(),
+        ],
       );
     }
 
@@ -537,6 +544,48 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           child: tile(i, removable: true, dragIndex: j),
         );
       },
+    );
+  }
+}
+
+/// The queues played before the current one, most recent first. A tap plays one again from where it was.
+class _PastQueues extends ConsumerWidget {
+  const _PastQueues();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queues = ref.watch(pastQueuesProvider).value ?? const [];
+    if (queues.isEmpty) return const SliverToBoxAdapter();
+    return SliverList.list(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            'Earlier queues',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        for (final (i, queue) in queues.indexed)
+          ListTile(
+            leading: NowPlayingArtwork(
+              queue.tracks[queue.index].coverArt,
+              null,
+              size: 44,
+              radius: 4,
+            ),
+            title: Text(
+              queue.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              '${queue.tracks.length} ${queue.tracks.length == 1 ? 'song' : 'songs'} · stopped at ${queue.tracks[queue.index].title}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () => runPlayback(() => ref.read(playPastQueueProvider)(i)),
+          ),
+      ],
     );
   }
 }

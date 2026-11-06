@@ -18,10 +18,12 @@ import '../data/subsonic/subsonic_client.dart';
 import '../downloads/download_manager.dart';
 import '../downloads/download_settings.dart';
 import '../downloads/transfer_backend.dart';
+import '../playback/past_queues.dart';
 import '../playback/player_handler.dart';
 import '../playback/prefetch_cache.dart';
 import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
+import '../playback/sleep_timer.dart';
 import '../playback/transcode_decider.dart';
 
 // ------------------------------------------------------------ overridden in main()
@@ -98,6 +100,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
     await ref.read(artworkStoreProvider)?.clear();
     await ref.read(prefetchCacheProvider).clear();
     await ref.read(queueStoreProvider).clear();
+    await ref.read(pastQueuesProvider.notifier).clear();
     await secureStorage.delete(key: _credentialsKey);
     state = null;
   }
@@ -267,6 +270,23 @@ final greetingProvider = NotifierProvider<BoolSettingNotifier, bool>(
 /// Home opens with the album played last, to resume it.
 final continueListeningProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.continueListening', true),
+);
+
+/// The running sleep timer, or null. [sleepTimerRunnerProvider] pauses playback when it ends.
+class SleepTimerNotifier extends Notifier<SleepTimer?> {
+  @override
+  SleepTimer? build() => null;
+
+  void set(SleepTimer? timer) => state = timer;
+}
+
+final sleepTimerProvider = NotifierProvider<SleepTimerNotifier, SleepTimer?>(
+  SleepTimerNotifier.new,
+);
+
+/// When the last song of the queue plays, songs that sound like it are added, so the music does not stop. Needs the `sonicSimilarity` extension.
+final endlessRadioProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('playback.endlessRadio', false),
 );
 
 /// Plays are reported to the server, which uses them for "Recently played" and "Most played".
@@ -903,7 +923,11 @@ class SessionPlaybackSource implements PlaybackSource {
       replayGainVolume(track, ref.read(replayGainProvider));
 
   @override
-  Duration get crossfade => Duration(seconds: ref.read(crossfadeProvider));
+  Duration get crossfade =>
+      // A sleep timer waiting for the end of a song holds crossfade off, so the next song does not fade in before the pause.
+      ref.read(sleepTimerProvider)?.waitsForSongEnd ?? false
+      ? Duration.zero
+      : Duration(seconds: ref.read(crossfadeProvider));
 
   @override
   Future<void> nowPlaying(Track track) async {
@@ -930,6 +954,34 @@ final queueStoreProvider = Provider<QueueStore>(
     File(p.join(ref.watch(supportDirectoryProvider).path, 'queue.json')),
   ),
 );
+
+/// The queues this device played before others replaced them, most recent first.
+class PastQueuesNotifier extends AsyncNotifier<List<PastQueue>> {
+  PastQueueStore get _store => PastQueueStore(
+    File(p.join(ref.read(supportDirectoryProvider).path, 'past_queues.json')),
+  );
+
+  @override
+  Future<List<PastQueue>> build() => _store.load();
+
+  Future<void> push(PastQueue queue) async {
+    state = AsyncData(await _store.push(queue));
+  }
+
+  Future<void> removeAt(int index) async {
+    state = AsyncData(await _store.removeAt(index));
+  }
+
+  Future<void> clear() async {
+    await _store.clear();
+    state = const AsyncData([]);
+  }
+}
+
+final pastQueuesProvider =
+    AsyncNotifierProvider<PastQueuesNotifier, List<PastQueue>>(
+      PastQueuesNotifier.new,
+    );
 
 /// Restores the queue of this device once per session and saves it when it changes, when playback pauses, and every 15 seconds while playing.
 final queuePersistenceProvider = Provider<void>((ref) {
@@ -983,5 +1035,7 @@ final playbackProvider = Provider<PlayerHandler>((ref) {
   handler.source = ref.read(clientProvider) == null
       ? null
       : SessionPlaybackSource(ref);
+  handler.onReplaced = (queue) =>
+      ref.read(pastQueuesProvider.notifier).push(queue);
   return handler;
 });

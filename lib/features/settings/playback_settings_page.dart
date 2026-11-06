@@ -122,6 +122,17 @@ class PlaybackSettingsPage extends ConsumerWidget {
                 onChanged: (s) => ref.read(crossfadeProvider.notifier).set(s!),
               ),
             ),
+            // Endless radio picks songs that sound alike, which needs the `sonicSimilarity` extension.
+            if (ref.watch(canMixProvider))
+              SwitchListTile(
+                title: const Text('Endless radio'),
+                subtitle: const Text(
+                  'When the queue reaches its last song, songs that sound like it are added',
+                ),
+                value: ref.watch(endlessRadioProvider),
+                onChanged: (v) =>
+                    ref.read(endlessRadioProvider.notifier).set(v),
+              ),
             const SettingsSection('Listening history'),
             SwitchListTile(
               title: const Text('Report plays to the server'),
