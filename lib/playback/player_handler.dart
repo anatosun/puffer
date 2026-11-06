@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -465,14 +466,14 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     queue.add([for (final t in _tracks) _mediaItem(t)]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     await player.setShuffleModeEnabled(shuffle);
+    // The shuffle order of just_audio starts with the initial index, so a shuffled queue starts at a random song.
     await _serial(
       () => _load(
         sources,
-        initialIndex: shuffle ? null : index,
+        initialIndex: shuffle ? Random().nextInt(sources.length) : index,
         initialPosition: Duration.zero,
       ),
     );
-    if (shuffle) await player.shuffle();
     _prefetch();
     await player.play();
   }
