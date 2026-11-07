@@ -28,6 +28,11 @@ enum MaConnectionStatus { connecting, connected, disconnected, unauthorized }
 
 typedef ChannelFactory = WebSocketChannel Function(Uri uri);
 
+/// How long to wait before reconnecting after [attempt] failed attempts: 1, 2, 4, 8, 16 and then 30 seconds, or [MusicAssistantClient.eagerRetryDelay] while a screen waits for the connection.
+Duration maRetryDelay(int attempt, {required bool waiting}) => waiting
+    ? MusicAssistantClient.eagerRetryDelay
+    : Duration(seconds: min(30, 1 << min(attempt, 5)));
+
 /// Base address of a Music Assistant server, with the scheme and port the person most likely means.
 Uri normaliseMaUrl(String input) {
   var text = input.trim();
@@ -115,6 +120,11 @@ class MusicAssistantClient {
   bool _closed = false;
   int _attempt = 0;
   Timer? _retry;
+  bool _connecting = false;
+
+  /// How many screens wait for the connection, such as the open speaker sheet. While any does, a lost connection is retried every [eagerRetryDelay] instead of backing off.
+  int _waiting = 0;
+  static const eagerRetryDelay = Duration(seconds: 2);
 
   final _events = StreamController<MaEvent>.broadcast();
   final _statusController = StreamController<MaConnectionStatus>.broadcast();
@@ -137,14 +147,32 @@ class MusicAssistantClient {
     _statusController.add(value);
   }
 
+  /// A screen that needs Music Assistant opened: an attempt starts now unless one runs or the connection stands, and until [stopWaiting] retries come every [eagerRetryDelay].
+  void startWaiting() {
+    _waiting++;
+    if (_closed || _connecting || status == MaConnectionStatus.connected) {
+      return;
+    }
+    _retry?.cancel();
+    _attempt = 0;
+    unawaited(connect());
+  }
+
+  /// The screen of [startWaiting] closed; retries back off again.
+  void stopWaiting() {
+    if (_waiting > 0) _waiting--;
+  }
+
   Future<void> connect() async {
     if (_closed) return;
+    _connecting = true;
     _setStatus(MaConnectionStatus.connecting);
     final channel = _connect(_wsUri(baseUrl));
     _channel = channel;
     final serverInfoReceived = Completer<void>();
     try {
-      await channel.ready;
+      // An unreachable host can hold the socket open until the system gives up, minutes later.
+      await channel.ready.timeout(const Duration(seconds: 10));
       channel.stream.listen(
         (raw) {
           final message = jsonDecode(raw as String) as MaJson;
@@ -162,9 +190,11 @@ class MusicAssistantClient {
       await serverInfoReceived.future.timeout(const Duration(seconds: 10));
       await command('auth', {'token': token, 'device_name': 'Puffer'});
       _attempt = 0;
+      _connecting = false;
       _setStatus(MaConnectionStatus.connected);
       await refresh();
     } on MaException catch (e) {
+      _connecting = false;
       if (e.code == 20 || e.code == 21 || e.code == 23) {
         _closed = true;
         _setStatus(MaConnectionStatus.unauthorized);
@@ -173,6 +203,7 @@ class MusicAssistantClient {
       }
       _onClosed(channel);
     } on Object {
+      _connecting = false;
       _onClosed(channel);
     }
   }
@@ -207,7 +238,7 @@ class MusicAssistantClient {
     _partial.clear();
     if (_closed) return;
     _setStatus(MaConnectionStatus.disconnected);
-    final delay = Duration(seconds: min(30, 1 << min(_attempt++, 5)));
+    final delay = maRetryDelay(_attempt++, waiting: _waiting > 0);
     _retry?.cancel();
     _retry = Timer(delay, connect);
   }
@@ -282,11 +313,14 @@ class MusicAssistantClient {
     _events.add(event);
   }
 
-  /// Sets the volume of [player] from 0 to 100: of every member when it leads a group.
-  Future<void> setVolume(MaPlayer player, int volume) => command(
-    player.isGroup ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
-    {'player_id': player.id, 'volume_level': volume},
-  );
+  /// Sets the volume of [player] from 0 to 100: of every member when it leads a group, unless [alone], which sets that of the player itself.
+  Future<void> setVolume(MaPlayer player, int volume, {bool alone = false}) =>
+      command(
+        player.isGroup && !alone
+            ? 'players/cmd/group_volume'
+            : 'players/cmd/volume_set',
+        {'player_id': player.id, 'volume_level': volume},
+      );
 
   /// Pauses [player] while it plays and resumes it otherwise, whichever device chose what it plays. With its [queue], the queue toggles, which also resumes a player that went idle with the queue loaded.
   Future<void> playPause(MaPlayer player, [MaQueue? queue]) => queue == null

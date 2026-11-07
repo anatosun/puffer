@@ -27,6 +27,7 @@ import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
 import '../playback/sleep_timer.dart';
 import '../playback/transcode_decider.dart';
+import 'playback_providers.dart';
 
 // ------------------------------------------------------------ overridden in main()
 
@@ -296,6 +297,11 @@ final endlessRadioProvider = NotifierProvider<BoolSettingNotifier, bool>(
 /// Plays are reported to the server, which uses them for "Recently played" and "Most played".
 final scrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('playback.scrobble', true),
+);
+
+/// Plays on a Music Assistant player are reported too. Off by default: what plays on a shared speaker is often not the person's own listening.
+final maScrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('playback.scrobbleMusicAssistant', false),
 );
 
 /// Streaming quality, one setting for Wi-Fi and wired networks and one for cellular.
@@ -992,9 +998,15 @@ class SessionPlaybackSource implements PlaybackSource {
       ? Duration.zero
       : Duration(seconds: ref.read(crossfadeProvider));
 
+  /// Plays of this device are reported only while it is the output; a Music Assistant player reports through [maScrobbleRunnerProvider].
+  bool get _reports =>
+      !ref.read(isOfflineProvider) &&
+      ref.read(scrobblingProvider) &&
+      ref.read(outputProvider) == null;
+
   @override
   Future<void> nowPlaying(Track track) async {
-    if (ref.read(isOfflineProvider) || !ref.read(scrobblingProvider)) return;
+    if (!_reports) return;
     await ref
         .read(clientProvider)
         ?.scrobble(track.id, submission: false)
@@ -1004,7 +1016,7 @@ class SessionPlaybackSource implements PlaybackSource {
   @override
   Future<void> played(Track track) async {
     await ref.read(downloadManagerProvider)?.markPlayed(track.id);
-    if (ref.read(isOfflineProvider) || !ref.read(scrobblingProvider)) return;
+    if (!_reports) return;
     await ref
         .read(clientProvider)
         ?.scrobble(track.id, submission: true)

@@ -17,6 +17,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     this.onError,
     this.lookupTrack,
     this.thisDevice = false,
+    this.startTimeout = const Duration(seconds: 20),
   }) {
     _subscriptions = [
       client.queuesStream.listen((_) => _emit()),
@@ -59,6 +60,13 @@ class MusicAssistantPlaybackController implements PlaybackController {
   List<Track> _sent = const [];
   List<MaQueueItem> _items = const [];
   NowPlaying? _current;
+
+  /// How long a player may take to start before the person is told it did not.
+  final Duration startTimeout;
+
+  /// The song asked to play (null under shuffle, where Music Assistant picks it) and its index, shown as loading until the player plays it. A player can take seconds to start, and without this the screen would keep showing the previous song with nothing happening.
+  ({Track? track, int index})? _pending;
+  Timer? _pendingTimeout;
 
   @override
   NowPlaying? get current => _current ?? _build();
@@ -130,6 +138,75 @@ class MusicAssistantPlaybackController implements PlaybackController {
   }
 
   NowPlaying? _build() {
+    final reported = _buildReported();
+    final pending = _pending;
+    if (pending == null) return reported;
+    final started =
+        reported != null &&
+        reported.playing &&
+        (pending.track == null || reported.track?.id == pending.track!.id);
+    if (started) {
+      _clearPending();
+      return reported;
+    }
+    return _pendingState(pending);
+  }
+
+  /// The song asked to play, as loading, with the queue that was sent.
+  NowPlaying _pendingState(({Track? track, int index}) pending) {
+    final track = pending.track;
+    return NowPlaying(
+      track: track,
+      title: track?.title ?? 'Starting…',
+      artist: track?.artist,
+      album: track?.album,
+      coverArt: track?.coverArt,
+      duration: track?.duration ?? Duration.zero,
+      positionAt: DateTime.now(),
+      buffering: true,
+      queue: [
+        for (final (i, t) in _sent.indexed)
+          QueueEntry(
+            id: 'pending-$i',
+            trackId: t.id,
+            title: t.title,
+            artist: t.artist,
+            coverArt: t.coverArt,
+          ),
+      ],
+      index: track == null ? null : pending.index,
+      outputName: thisDevice ? null : _player?.name ?? playerId,
+      volume: thisDevice ? null : _player?.sliderVolume,
+    );
+  }
+
+  void _startPending(Track? track, int index) {
+    _pendingTimeout?.cancel();
+    _pending = (track: track, index: index);
+    _pendingTimeout = Timer(startTimeout, () {
+      if (_pending == null) return;
+      _pending = null;
+      onError?.call(MaStartTimeout(_player?.name ?? playerId));
+      _emit();
+    });
+    _emit();
+  }
+
+  /// Ends the wait for the start and shows what the player reports.
+  void _settlePending() {
+    if (_pending == null) return;
+    _clearPending();
+    _emit();
+  }
+
+  void _clearPending() {
+    _pendingTimeout?.cancel();
+    _pendingTimeout = null;
+    _pending = null;
+  }
+
+  /// What Music Assistant reports for the queue.
+  NowPlaying? _buildReported() {
     final queue = _queue;
     final index = queue?.currentIndex;
     // A paused queue stays on screen. Many players report idle rather than paused, and some events leave out the current item, which the loaded items still have.
@@ -216,12 +293,34 @@ class MusicAssistantPlaybackController implements PlaybackController {
     _remember(tracks);
     _sent = List.of(tracks);
     final media = tracks.map(_media).toList();
+    final start = index.clamp(0, tracks.length - 1);
+    _startPending(shuffle ? null : tracks[start], start);
+    try {
+      await _sendPlay(media, start, shuffle);
+    } catch (_) {
+      _clearPending();
+      _emit();
+      rethrow;
+    }
+  }
+
+  Future<void> _sendPlay(List<String> media, int index, bool shuffle) async {
+    if (index == 0 || shuffle) {
+      await _queueCommand('play_media', {
+        'media': media,
+        'option': 'replace',
+        'shuffle': shuffle,
+      });
+      return;
+    }
+    // Music Assistant applies `start_item` only to an album, playlist or genre it expands itself; with a list of tracks it ignores it, and `replace` always starts at the first item. So the queue is emptied, filled with `add`, which never starts playback, and started at the chosen song. The songs before it stay in the queue, as on the phone.
+    await _queueCommand('clear');
     await _queueCommand('play_media', {
       'media': media,
-      'option': 'replace',
-      if (index > 0 && !shuffle) 'start_item': media[index],
-      'shuffle': shuffle,
+      'option': 'add',
+      'shuffle': false,
     });
+    await _queueCommand('play_index', {'index': index});
   }
 
   @override
@@ -247,7 +346,12 @@ class MusicAssistantPlaybackController implements PlaybackController {
   @override
   Future<void> play() => _control(_queueCommand('play'));
   @override
-  Future<void> pause() => _control(_queueCommand('pause'));
+  Future<void> pause() {
+    // A pause ends the wait for the start: the person no longer expects it to play.
+    _settlePending();
+    return _control(_queueCommand('pause'));
+  }
+
   @override
   Future<void> next() => _control(_queueCommand('next'));
   @override
@@ -292,6 +396,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
   /// Stops the player and clears its queue, since a queue that is not playing stays on screen.
   @override
   Future<void> stop() async {
+    _settlePending();
     await _control(_queueCommand('stop'));
     await _control(_queueCommand('clear'));
   }
@@ -344,9 +449,20 @@ class MusicAssistantPlaybackController implements PlaybackController {
 
   @override
   void dispose() {
+    _pendingTimeout?.cancel();
     for (final s in _subscriptions) {
       s.cancel();
     }
     _controller.close();
   }
+}
+
+/// A Music Assistant player that did not start playing within [MusicAssistantPlaybackController.startTimeout].
+class MaStartTimeout implements Exception {
+  const MaStartTimeout(this.player);
+
+  final String player;
+
+  @override
+  String toString() => '$player has not started playing';
 }

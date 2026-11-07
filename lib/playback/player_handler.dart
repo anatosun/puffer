@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import '../data/subsonic/models.dart';
 import 'crossfade.dart';
 import 'past_queues.dart';
+import 'playback_controller.dart';
 import 'prefetch_cache.dart';
 import 'stream_offset.dart';
 import 'stable_shuffle_order.dart';
@@ -149,9 +150,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final duration = _offset > Duration.zero
           ? track.duration
           : player.duration ?? track.duration;
-      if (duration == Duration.zero) return;
-      final played = position + _offset;
-      if (played >= duration * 0.5 || played >= const Duration(minutes: 4)) {
+      if (countsAsPlayed(position + _offset, duration)) {
         _scrobbled = track.id;
         source?.played(track);
       }

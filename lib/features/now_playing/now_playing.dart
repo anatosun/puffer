@@ -157,12 +157,24 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                   _StopOnLongPress(
                     child: IconButton(
-                      icon: Icon(
-                        np.playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 32,
-                      ),
+                      // Loading, as when a Music Assistant player is starting.
+                      // The spinner sits in a box the size of the icon, so the mini player keeps its height while loading.
+                      icon: np.buffering && !np.playing
+                          ? const SizedBox.square(
+                              dimension: 32,
+                              child: Padding(
+                                padding: EdgeInsets.all(4),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              np.playing
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 32,
+                            ),
                       onPressed: np.playing
                           ? controller.pause
                           : controller.play,
@@ -1054,7 +1066,7 @@ class _BottomRow extends ConsumerWidget {
                   ? IconButton(
                       tooltip: 'Add to playlist',
                       color: context.muted,
-                      icon: const Icon(Icons.playlist_add),
+                      icon: const Icon(Icons.playlist_add_check),
                       onPressed: () =>
                           showAddToPlaylist(context, ref, () async => [track]),
                     )

@@ -89,9 +89,10 @@ final maCredentialsProvider =
       MaCredentialsNotifier.new,
     );
 
+/// The connection to Music Assistant. It lives while signed in, apart from offline mode: a moment without network (Wi-Fi roaming, the device dozing) must not drop the connection, since the app then plays on this device. The client reconnects by itself, and [OutputNotifier] comes back to this device only when it stays disconnected.
 final maClientProvider = Provider<MusicAssistantClient?>((ref) {
   final credentials = ref.watch(maCredentialsProvider);
-  if (credentials == null || ref.watch(isOfflineProvider)) return null;
+  if (credentials == null || ref.watch(manualOfflineProvider)) return null;
   final client = MusicAssistantClient(credentials.baseUrl, credentials.token);
   unawaited(client.connect());
   ref.onDispose(client.close);
@@ -184,7 +185,7 @@ final movePausedQueueProvider = NotifierProvider<BoolSettingNotifier, bool>(
 /// How long Music Assistant may stay unreachable before playback falls back to this device.
 const maFallbackDelay = Duration(seconds: 30);
 
-/// The Music Assistant player the app plays on, or null for this device. The app starts on this device, and comes back to it when Music Assistant stays unreachable for [maFallbackDelay].
+/// The Music Assistant player the app plays on, or null for this device. The app starts on this device, and comes back to it only when the connection to the player is lost for [maFallbackDelay]: Music Assistant stays unreachable, or the player stays unavailable or gone.
 class OutputNotifier extends Notifier<String?> {
   Timer? _fallback;
 
@@ -193,6 +194,7 @@ class OutputNotifier extends Notifier<String?> {
     // Earlier versions kept the player across restarts.
     unawaited(ref.read(sharedPreferencesProvider).remove('ma.output'));
     ref.listen(maStatusProvider, (_, _) => _watchConnection());
+    ref.listen(maAllPlayersProvider, (_, _) => _watchConnection());
     ref.onDispose(() => _fallback?.cancel());
     return null;
   }
@@ -202,11 +204,17 @@ class OutputNotifier extends Notifier<String?> {
     _watchConnection();
   }
 
-  /// Arms the fallback to this device while a player is selected and Music Assistant is unreachable, and disarms it otherwise.
+  /// Arms the fallback to this device while a player is selected and out of reach, and disarms it otherwise.
   void _watchConnection() {
     final connected =
         ref.read(maStatusProvider).value == MaConnectionStatus.connected;
-    if (connected || state == null) {
+    final players = ref.read(maAllPlayersProvider).value;
+    // An empty list is one not loaded yet, which says nothing about the player.
+    final playerReachable =
+        players == null ||
+        players.isEmpty ||
+        players.any((p) => p.id == state && p.available);
+    if ((connected && playerReachable) || state == null) {
       _fallback?.cancel();
       _fallback = null;
     } else {
@@ -376,11 +384,11 @@ final _playingSpeakerSourceProvider = Provider<String?>((ref) {
   return playing ? ref.watch(speakerSourceProvider) : null;
 });
 
-/// When Music Assistant starts playing on this phone as a speaker while the app plays on this device, the app follows that player, so the mini player and the player show what plays with every control, as for local playback. A player the person picked is left alone.
+/// When Music Assistant starts playing on this phone as a speaker, or puts it in another group, the app follows that player or group, so the mini player and the player show what plays here with every control, as for any output. It follows even when the person had picked another speaker: the phone joined from outside (the Music Assistant interface, another app) is what plays here now. Only a change follows, so a speaker picked afterwards stays picked.
 final followSpeakerProvider = Provider<void>((ref) {
   ref.listen(_playingSpeakerSourceProvider, (previous, source) {
     if (source == null || source == previous) return;
-    if (ref.read(outputProvider) == null) {
+    if (ref.read(outputProvider) != source) {
       ref.read(outputProvider.notifier).select(source);
     }
   });
@@ -553,6 +561,45 @@ final endlessRadioRunnerProvider = Provider<void>((ref) {
       }
     }());
   });
+});
+
+/// Reports plays on the Music Assistant player in use to the Subsonic server, when [maScrobblingProvider] and [scrobblingProvider] are on: "now playing" when a song starts, and a play once it [countsAsPlayed]. Music Assistant does not report them itself.
+final maScrobbleRunnerProvider = Provider<void>((ref) {
+  String? started;
+  String? submitted;
+  Timer? check;
+  bool reports() =>
+      ref.read(outputProvider) != null &&
+      ref.read(maScrobblingProvider) &&
+      ref.read(scrobblingProvider) &&
+      !ref.read(isOfflineProvider);
+
+  void evaluate(NowPlaying? np) {
+    check?.cancel();
+    final track = np?.track;
+    if (np == null || track == null || !reports()) return;
+    final client = ref.read(clientProvider);
+    if (client == null) return;
+    if (np.playing && started != track.id) {
+      started = track.id;
+      unawaited(
+        client.scrobble(track.id, submission: false).catchError((_) {}),
+      );
+    }
+    if (submitted == track.id || !np.playing) return;
+    if (countsAsPlayed(np.positionNow(), np.duration)) {
+      submitted = track.id;
+      unawaited(client.scrobble(track.id, submission: true).catchError((_) {}));
+      return;
+    }
+    // Music Assistant reports the position only now and then, so the threshold is checked again while the song plays.
+    check = Timer(const Duration(seconds: 10), () {
+      evaluate(ref.read(nowPlayingProvider).value);
+    });
+  }
+
+  ref.listen(nowPlayingProvider, (_, next) => evaluate(next.value));
+  ref.onDispose(() => check?.cancel());
 });
 
 /// Turns crossfade on or off for the queue of the Music Assistant player in use, following the crossfade setting. Music Assistant sets the length of the fade per player, and never fades between songs of the same album.

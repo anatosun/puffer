@@ -173,7 +173,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
         if (editable)
           IconButton(
             tooltip: 'Add songs',
-            icon: const Icon(Icons.playlist_add),
+            icon: const Icon(Icons.add),
             onPressed: _addSongs,
           ),
         IconButton(icon: const Icon(Icons.more_vert), onPressed: _showMenu),
@@ -192,7 +192,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
               padding: const EdgeInsets.all(32),
               child: Center(
                 child: FilledButton.tonalIcon(
-                  icon: const Icon(Icons.playlist_add),
+                  icon: const Icon(Icons.add),
                   label: const Text('Add songs'),
                   onPressed: _addSongs,
                 ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:puffer/data/music_assistant/ma_client.dart';
 import 'package:puffer/data/music_assistant/ma_models.dart';
 import 'package:puffer/data/subsonic/models.dart';
@@ -213,7 +214,7 @@ void main() {
       providerInstance: 'opensubsonic--abc',
       streamUri: (t) => Uri.parse('http://subsonic/rest/stream?id=${t.id}'),
     );
-    await withProvider.playTracks(tracks, index: 1);
+    await withProvider.playTracks(tracks);
     final play = server.commands.lastWhere(
       (c) => c['command'] == 'player_queues/play_media',
     );
@@ -221,7 +222,6 @@ void main() {
       'queue_id': 'kitchen',
       'media': ['opensubsonic--abc://track/t1', 'opensubsonic--abc://track/t2'],
       'option': 'replace',
-      'start_item': 'opensubsonic--abc://track/t2',
       'shuffle': false,
     });
 
@@ -243,6 +243,57 @@ void main() {
     withUrls.dispose();
     await client.close();
   });
+
+  test(
+    'a song picked in a list starts playing, with the songs before it kept',
+    () async {
+      final client = await connected();
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        providerInstance: 'opensubsonic--abc',
+        streamUri: (t) => Uri.parse('http://subsonic/rest/stream?id=${t.id}'),
+      );
+      final before = server.commands.length;
+      await controller.playTracks([
+        Track({'id': 't1', 'title': 'One'}),
+        Track({'id': 't2', 'title': 'Two'}),
+        Track({'id': 't3', 'title': 'Three'}),
+      ], index: 1);
+      // The controller also reads the queue in the background; only the playback commands count.
+      const playback = {
+        'player_queues/clear',
+        'player_queues/play_media',
+        'player_queues/play_index',
+        'player_queues/play',
+      };
+      final sent = [
+        for (final c in server.commands.skip(before))
+          if (playback.contains(c['command'])) c,
+      ];
+      expect(
+        [for (final c in sent) c['command']],
+        [
+          'player_queues/clear',
+          'player_queues/play_media',
+          'player_queues/play_index',
+        ],
+      );
+      expect(sent[1]['args'], {
+        'queue_id': 'kitchen',
+        'media': [
+          'opensubsonic--abc://track/t1',
+          'opensubsonic--abc://track/t2',
+          'opensubsonic--abc://track/t3',
+        ],
+        'option': 'add',
+        'shuffle': false,
+      });
+      expect(sent[2]['args'], {'queue_id': 'kitchen', 'index': 1});
+      controller.dispose();
+      await client.close();
+    },
+  );
 
   test('a queue item keeps its track when an update leaves out its provider mappings', () async {
     final client = await connected();
@@ -303,7 +354,8 @@ void main() {
     await controller.playTracks([
       Track({'id': 't1', 'title': 'One', 'coverArt': 'al-1'}),
     ]);
-    final next = controller.state.firstWhere((np) => np != null);
+    // Until the player plays, the song shows as loading.
+    final next = controller.state.firstWhere((np) => np?.playing ?? false);
     server.send({
       'event': 'queue_updated',
       'object_id': 'kitchen',
@@ -333,6 +385,58 @@ void main() {
     expect(np.coverArt, 'al-1');
     expect(np.playing, isTrue);
     expect(np.outputName, 'Kitchen');
+    controller.dispose();
+    await client.close();
+  });
+
+  test('a picked song shows as loading until the player plays it', () async {
+    final client = await connected();
+    final errors = <Object>[];
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      providerInstance: 'opensubsonic--abc',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      onError: errors.add,
+      startTimeout: const Duration(milliseconds: 200),
+    );
+    await controller.playTracks([
+      Track({'id': 't1', 'title': 'One'}),
+      Track({'id': 't2', 'title': 'Two'}),
+    ], index: 1);
+    final loading = controller.current!;
+    expect(loading.buffering, isTrue);
+    expect(loading.playing, isFalse);
+    expect(loading.track?.id, 't2');
+    expect(loading.index, 1);
+    expect(loading.queue.map((e) => e.trackId), ['t1', 't2']);
+
+    // Nothing plays: after the timeout the person is told, and the wait ends.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(errors.single, isA<MaStartTimeout>());
+    expect(controller.current?.buffering ?? false, isFalse);
+    controller.dispose();
+    await client.close();
+  });
+
+  test('pausing ends the wait for the start', () async {
+    final client = await connected();
+    final errors = <Object>[];
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      onError: errors.add,
+      startTimeout: const Duration(milliseconds: 100),
+    );
+    await controller.playTracks([
+      Track({'id': 't1', 'title': 'One'}),
+    ]);
+    expect(controller.current!.buffering, isTrue);
+    await controller.pause();
+    expect(controller.current?.buffering ?? false, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(errors, isEmpty);
     controller.dispose();
     await client.close();
   });
@@ -598,4 +702,44 @@ void main() {
       await client.close();
     },
   );
+
+  test(
+    'reconnecting backs off to half a minute, but not while a screen waits',
+    () {
+      expect(
+        [for (var i = 0; i < 8; i++) maRetryDelay(i, waiting: false).inSeconds],
+        [1, 2, 4, 8, 16, 30, 30, 30],
+      );
+      expect(
+        maRetryDelay(7, waiting: true),
+        MusicAssistantClient.eagerRetryDelay,
+      );
+    },
+  );
+
+  test('a screen waiting for Music Assistant retries at once', () async {
+    // A port nothing listens on: every attempt fails at once.
+    final closed = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = closed.port;
+    await closed.close();
+    var attempts = 0;
+    final client = MusicAssistantClient(
+      Uri.parse('http://127.0.0.1:$port'),
+      't',
+      connect: (uri) {
+        attempts++;
+        return WebSocketChannel.connect(uri);
+      },
+    );
+    await client.connect();
+    expect(attempts, 1);
+    expect(client.status, MaConnectionStatus.disconnected);
+
+    // The next retry would come in a second; the sheet opening tries now.
+    client.startWaiting();
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(attempts, 2);
+    client.stopWaiting();
+    await client.close();
+  });
 }

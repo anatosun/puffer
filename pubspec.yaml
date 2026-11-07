@@ -59,6 +59,7 @@ dependencies:
   bonsoir: ^7.1.6
   package_info_plus: ^10.2.2
   url_launcher: ^6.3.3
+  flutter_svg: ^2.3.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -89,6 +90,8 @@ flutter:
     # Shown on the licences page, next to the licences of the packages.
     - assets/fonts/NotoSans-LICENSE.txt
     - assets/fonts/InterTight-LICENSE.txt
+    # The shared Music Assistant icon set (music-assistant/shared-icons 0.4.0, Apache-2.0, some icons from Lucide under ISC), for the icons of players.
+    - assets/player_icons/
   # Noto Sans by the Noto Project Authors and Inter Tight by the Inter Project Authors, both under the SIL Open Font License 1.1 (assets/fonts/*-LICENSE.txt).
   fonts:
     # The wordmark of the launch animation.

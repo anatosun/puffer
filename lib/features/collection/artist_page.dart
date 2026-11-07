@@ -144,15 +144,18 @@ class ArtistPage extends ConsumerWidget {
                       pinKind: PinKind.artist,
                       pinId: artist.id,
                       circular: true,
-                      trailing: StarButton(
-                        starred: artist.starred,
-                        artistId: artist.id,
-                      ),
-                      slivers: [
-                        // "More" comes first, where it is in reach without scrolling past the albums.
-                        if (shown?.more ?? false)
-                          SliverToBoxAdapter(
-                            child: MoreButton(
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StarButton(
+                            starred: artist.starred,
+                            artistId: artist.id,
+                          ),
+                          // The albums of external providers, right of the heart.
+                          if (shown?.more ?? false)
+                            MoreSourcesButton(
+                              // The size of the heart beside it.
+                              iconSize: 26,
                               onPressed: () => ref
                                   .read(
                                     externalShownProvider('artist:$id')
@@ -160,7 +163,9 @@ class ArtistPage extends ConsumerWidget {
                                   )
                                   .show(),
                             ),
-                          ),
+                        ],
+                      ),
+                      slivers: [
                         if (info?.biography case final biography?)
                           SliverToBoxAdapter(child: Biography(biography)),
                         if (topSongs.isNotEmpty) ...[

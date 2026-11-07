@@ -64,6 +64,57 @@ void main() {
     );
   }
 
+  testWidgets('the mini player keeps its size while a song is loading', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    Future<Size> sizeWith(NowPlaying np) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(AsyncData(np)),
+            connectivityProvider.overrideWithValue(const AsyncData([])),
+            maClientProvider.overrideWithValue(null),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+          ],
+          child: MaterialApp(
+            // As on the Linux desktop: compact, without the padded tap targets of phones, so buttons are sized by their icons and a smaller spinner would shrink the row.
+            theme: ThemeData(platform: TargetPlatform.linux),
+            home: const Scaffold(bottomNavigationBar: MiniPlayer()),
+          ),
+        ),
+      );
+      await tester.pump();
+      return tester.getSize(find.byType(MiniPlayer));
+    }
+
+    final playing = await sizeWith(
+      NowPlaying(
+        title: 'Song',
+        artist: 'Artist',
+        positionAt: DateTime.now(),
+        playing: true,
+      ),
+    );
+    final paused = await sizeWith(
+      NowPlaying(title: 'Song', artist: 'Artist', positionAt: DateTime.now()),
+    );
+    // As while a Music Assistant player starts: no artist yet, a spinner instead of the button's icon.
+    final loading = await sizeWith(
+      NowPlaying(
+        title: 'Starting…',
+        positionAt: DateTime.now(),
+        buffering: true,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(loading, playing);
+    expect(paused, playing);
+  });
+
   for (final (brightness, rating, waveform) in [
     for (final b in Brightness.values) (b, false, false),
     (Brightness.dark, true, false),

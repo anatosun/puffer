@@ -551,7 +551,7 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: TextButton.icon(
-                icon: const Icon(Icons.playlist_add),
+                icon: const Icon(Icons.save_outlined),
                 label: const Text('Save as playlist'),
                 // The whole queue, the songs played included, in its order.
                 onPressed: () => createPlaylistFrom(context, ref, songIds),
@@ -604,7 +604,7 @@ class _PastQueues extends ConsumerWidget {
                 ? null
                 : IconButton(
                     tooltip: 'Save as playlist',
-                    icon: const Icon(Icons.playlist_add),
+                    icon: const Icon(Icons.save_outlined),
                     onPressed: () => createPlaylistFrom(context, ref, [
                       for (final t in queue.tracks) t.id,
                     ], initialName: queue.label),

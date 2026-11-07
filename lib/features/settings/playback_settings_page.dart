@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../downloads/download_settings.dart';
 import '../../playback/prefetch_cache.dart';
@@ -142,6 +143,19 @@ class PlaybackSettingsPage extends ConsumerWidget {
               value: ref.watch(scrobblingProvider),
               onChanged: (v) => ref.read(scrobblingProvider.notifier).set(v),
             ),
+            if (ref.watch(maCredentialsProvider) != null)
+              SwitchListTile(
+                title: const Text('Also on Music Assistant'),
+                subtitle: const Text(
+                  'Reports what plays on Music Assistant speakers as your plays',
+                ),
+                value:
+                    ref.watch(scrobblingProvider) &&
+                    ref.watch(maScrobblingProvider),
+                onChanged: ref.watch(scrobblingProvider)
+                    ? (v) => ref.read(maScrobblingProvider.notifier).set(v)
+                    : null,
+              ),
           ],
         ),
       ),

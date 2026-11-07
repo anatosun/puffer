@@ -5,9 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../app/playback_providers.dart';
 import '../../app/sendspin_providers.dart';
 import '../../ui/theme.dart';
-import 'now_playing.dart';
 
-/// Shown while Music Assistant plays on this phone as a speaker and the app does not follow that player, for example without a Music Assistant sign-in. When it follows, the mini player shows the music instead.
+/// Shown while Music Assistant plays on this phone as a speaker and the app cannot follow that player, which happens without a Music Assistant sign-in: the app then knows what plays but not the queue. Otherwise the app follows the player or group the phone plays in (followSpeakerProvider), and the mini player shows the music instead.
 class SpeakerBar extends ConsumerWidget {
   const SpeakerBar({super.key});
 
@@ -15,23 +14,13 @@ class SpeakerBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(sendspinStatusProvider).value;
     if (status == null || !status.playing) return const SizedBox.shrink();
-    final source = ref.watch(speakerSourceProvider);
-    if (source != null && ref.watch(outputProvider) == source) {
+    if (ref.watch(speakerSourceProvider) != null) {
       return const SizedBox.shrink();
     }
     final title = [status.title, status.artist].nonNulls.join(' — ');
-    // A tap opens the player on what plays here; without a Music Assistant player to follow, it opens the Music Assistant settings, where signing in makes the queue visible.
-    void open() {
-      if (source != null) {
-        ref.read(outputProvider.notifier).select(source);
-        openNowPlaying(context);
-      } else {
-        GoRouter.of(context).push('/settings/music-assistant');
-      }
-    }
-
+    // Without a Music Assistant player to follow, a tap opens the Music Assistant settings, where signing in makes the queue visible.
     return GestureDetector(
-      onTap: open,
+      onTap: () => GoRouter.of(context).push('/settings/music-assistant'),
       child: Container(
         margin: const EdgeInsets.fromLTRB(8, 0, 8, 6),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

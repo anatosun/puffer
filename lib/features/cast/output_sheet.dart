@@ -93,8 +93,43 @@ Future<void> showOutputSheet(BuildContext context) =>
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
-      builder: (_) => const _OutputSheet(),
+      builder: (_) => const _WaitForMusicAssistant(child: _OutputSheet()),
     );
+
+/// Keeps Music Assistant retrying every few seconds while [child] shows, rather than backing off to half a minute, so an unreachable server is found as soon as it answers again. Opening it also retries at once.
+class _WaitForMusicAssistant extends ConsumerStatefulWidget {
+  const _WaitForMusicAssistant({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_WaitForMusicAssistant> createState() =>
+      _WaitForMusicAssistantState();
+}
+
+class _WaitForMusicAssistantState
+    extends ConsumerState<_WaitForMusicAssistant> {
+  MusicAssistantClient? _client;
+
+  void _wait(MusicAssistantClient? client) {
+    if (identical(client, _client)) return;
+    _client?.stopWaiting();
+    _client = client?..startWaiting();
+  }
+
+  @override
+  void dispose() {
+    _client?.stopWaiting();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A new client, as after signing in again, is waited on in turn.
+    _wait(ref.watch(maClientProvider));
+    return widget.child;
+  }
+}
 
 /// A tap on a player moves playback there. While a player is the output, the checkbox of another player adds it to the group or removes it.
 /// Players are listed by group: each player that leads, or plays on its own, followed by the players that follow it. A tap on a player moves playback there, taking a following player out of its group first. While a player is the output, the checkbox of another player adds it to the group or removes it; the unlink button ungroups.
@@ -216,7 +251,23 @@ class _OutputSheet extends ConsumerWidget {
       return null;
     }
 
+    // While another speaker is the output, the phone's own Music Assistant player (this device as a Sendspin speaker) can join it. The players above leave the phone out, so its membership is read from the output itself.
+    final ownSynced =
+        !onThisDevice &&
+        ownPlayer != null &&
+        current != null &&
+        (ownPlayer.syncedTo == current.id ||
+            current.groupMembers.contains(ownPlayer.id));
+    final ownSyncable =
+        !onThisDevice &&
+        ownPlayer != null &&
+        ownPlayer.available &&
+        current != null &&
+        (ownSynced || current.canGroupWith.contains(ownPlayer.id));
+
     final rows = <Widget>[];
+    // Set when This device is listed under a group, which then is its only place in the sheet.
+    var phoneListed = false;
     final followers = {
       for (final p in players)
         if (p.selectable && p.type != 'group') ...membersOf(p).map((m) => m.id),
@@ -236,13 +287,25 @@ class _OutputSheet extends ConsumerWidget {
           state == MaPlaybackState.playing || state == MaPlaybackState.paused;
       // Volume sliders show for the output and for players that have something loaded, so idle speakers keep the list short.
       final showVolume = selected || active;
+      // The phone, as a Sendspin speaker, can follow this group too; the players above leave it out, so it is added here as This device.
+      final phoneInGroup =
+          ownPlayer != null &&
+          ownPlayer.id != leader.id &&
+          (ownPlayer.syncedTo == leader.id ||
+              leader.groupMembers.contains(ownPlayer.id));
+      // A sync group is the speakers listed under it, so its row has no name of its own: the group icon, what it plays, the volume of the group. Idle, it names its speakers so the row is not empty. A fixed group keeps the name it was given in Music Assistant.
+      final syncGroup = (members.isNotEmpty || phoneInGroup) && !fixed;
+      final speakerNames = [
+        leader.name,
+        for (final m in members) m.name,
+        if (phoneInGroup) 'This device',
+      ].join(', ');
       rows.add(
         _OutputTile(
-          icon: playerIcon(leader.icon),
-          title: leader.name,
-          detail: members.isEmpty
-              ? null
-              : 'With ${members.map((m) => m.name).join(', ')}',
+          icon: syncGroup ? 'speakers' : leader.icon,
+          title: syncGroup ? null : leader.name,
+          label: syncGroup ? speakerNames : null,
+          detail: syncGroup && !active ? speakerNames : null,
           state: state,
           media: active ? _describe(queue?.currentItem) : null,
           selected: selected,
@@ -254,28 +317,59 @@ class _OutputSheet extends ConsumerWidget {
           trailing: selected
               ? null
               : groupControl(leader, following: false) ??
-                    (members.isNotEmpty && !fixed
+                    (syncGroup
                         ? IconButton(
                             tooltip: 'Ungroup',
                             icon: const Icon(Icons.link_off),
-                            onPressed: () =>
-                                ungroup([for (final m in members) m.id]),
+                            onPressed: () => ungroup([
+                              for (final m in members) m.id,
+                              if (phoneInGroup) ownPlayer.id,
+                            ]),
                           )
                         : null),
         ),
       );
-      if (fixed) continue;
-      for (final member in members) {
+      if (members.isEmpty && !phoneInGroup) continue;
+      // Every speaker of the group under it, the leading one first, each with a volume of its own, so the balance between them can be set. A fixed group's own player is virtual, so only its members are listed; they cannot be taken out one by one, so a tap plays on the group.
+      for (final p in [if (!fixed) leader, ...members]) {
+        final leads = p.id == leader.id;
         rows.add(
           _OutputTile(
-            icon: playerIcon(member.icon),
-            title: member.name,
-            detail: 'In group with ${leader.name}',
+            icon: p.icon,
+            title: p.name,
             indent: true,
             selected: false,
-            onTap: () => select(member),
-            volume: showVolume ? member : null,
-            trailing: groupControl(member, following: true),
+            onTap: () => select(leads || fixed ? leader : p),
+            volume: showVolume ? p : null,
+            volumeAlone: true,
+            trailing: leads || fixed ? null : groupControl(p, following: true),
+          ),
+        );
+      }
+      if (phoneInGroup) {
+        phoneListed = true;
+        rows.add(
+          _OutputTile(
+            icon: 'smartphone',
+            title: 'This device',
+            indent: true,
+            selected: false,
+            // Plays the group here: the phone follows it as the output.
+            onTap: () => select(leader),
+            volume: showVolume ? ownPlayer : null,
+            volumeAlone: true,
+            trailing: fixed
+                ? null
+                : IconButton(
+                    tooltip: 'Stop syncing this device',
+                    icon: const Icon(Icons.link_off),
+                    onPressed: () => runPlayback(() async {
+                      await client?.command('players/cmd/set_members', {
+                        'target_player': leader.id,
+                        'player_ids_to_remove': [ownPlayer.id],
+                      });
+                    }),
+                  ),
           ),
         );
       }
@@ -312,48 +406,71 @@ class _OutputSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            _OutputTile(
-              icon: Icons.smartphone,
-              title: 'This device',
-              // While the phone is a speaker, the name Music Assistant shows for it.
-              detail: [
-                if (ref.watch(sendspinEnabledProvider))
-                  '"${ref.watch(sendspinNameProvider)}" in Music Assistant',
-                if (onThisDevice && ownPlayer != null)
-                  if (membersOf(ownPlayer) case final members
-                      when members.isNotEmpty)
-                    'with ${members.map((m) => m.name).join(', ')}',
-              ].join(' · ').nullIfEmpty,
-              state: here == null
-                  ? null
-                  : here.playing
-                  ? MaPlaybackState.playing
-                  : MaPlaybackState.paused,
-              media: here == null
-                  ? null
-                  : [here.title, here.artist].nonNulls.join(' · '),
-              selected: onThisDevice,
-              onTap: () => select(null),
-              onPlayPause: here == null
-                  ? null
-                  : () => runPlayback(() {
-                      final controller = ref.read(playbackControllerProvider);
-                      return here.playing
-                          ? controller.pause()
-                          : controller.play();
-                    }),
-            ),
-            // The speakers synced with this phone, under it as under any group leader.
+            // Under a group it follows, This device is listed there only; the group rows show only while Music Assistant is connected.
+            if (!(phoneListed && status == MaConnectionStatus.connected))
+              _OutputTile(
+                icon: 'smartphone',
+                title: 'This device',
+                // While the phone is a speaker, the name Music Assistant shows for it.
+                detail: [
+                  if (ref.watch(sendspinEnabledProvider))
+                    '"${ref.watch(sendspinNameProvider)}" in Music Assistant',
+                  if (onThisDevice && ownPlayer != null)
+                    if (membersOf(ownPlayer) case final members
+                        when members.isNotEmpty)
+                      'with ${members.map((m) => m.name).join(', ')}',
+                ].join(' · ').nullIfEmpty,
+                state: here == null
+                    ? null
+                    : here.playing
+                    ? MaPlaybackState.playing
+                    : MaPlaybackState.paused,
+                media: here == null
+                    ? null
+                    : [here.title, here.artist].nonNulls.join(' · '),
+                selected: onThisDevice,
+                onTap: () => select(null),
+                trailing: ownSyncable && !ownSynced
+                    ? IconButton(
+                        tooltip: ownSynced
+                            ? 'Stop syncing this device'
+                            : 'Sync this device with ${current.name}',
+                        icon: Icon(ownSynced ? Icons.link_off : Icons.link),
+                        onPressed: () => toggleMember(ownPlayer, !ownSynced),
+                      )
+                    : null,
+                onPlayPause: here == null
+                    ? null
+                    : () => runPlayback(() {
+                        final controller = ref.read(playbackControllerProvider);
+                        return here.playing
+                            ? controller.pause()
+                            : controller.play();
+                      }),
+              ),
+            // The speakers synced with this phone, under it as under any group leader, the phone first with a volume of its own.
+            if (ownPlayer != null &&
+                status == MaConnectionStatus.connected &&
+                membersOf(ownPlayer).isNotEmpty)
+              _OutputTile(
+                icon: 'smartphone',
+                title: 'This device',
+                indent: true,
+                selected: false,
+                onTap: () => select(null),
+                volume: onThisDevice ? ownPlayer : null,
+                volumeAlone: true,
+              ),
             if (ownPlayer != null && status == MaConnectionStatus.connected)
               for (final member in membersOf(ownPlayer))
                 _OutputTile(
-                  icon: playerIcon(member.icon),
+                  icon: member.icon,
                   title: member.name,
-                  detail: 'In group with this device',
                   indent: true,
                   selected: false,
                   onTap: () => select(member),
                   volume: onThisDevice ? member : null,
+                  volumeAlone: true,
                   trailing: groupControl(member, following: true),
                 ),
             const SizedBox(height: 4),
@@ -394,7 +511,8 @@ class _OutputSheet extends ConsumerWidget {
 class _OutputTile extends StatelessWidget {
   const _OutputTile({
     required this.icon,
-    required this.title,
+    this.title,
+    this.label,
     this.detail,
     this.state,
     this.media,
@@ -402,12 +520,19 @@ class _OutputTile extends StatelessWidget {
     required this.onTap,
     this.onPlayPause,
     this.volume,
+    this.volumeAlone = false,
     this.trailing,
     this.indent = false,
   });
 
-  final IconData icon;
-  final String title;
+  /// The icon ID of the shared Music Assistant icon set.
+  final String icon;
+
+  /// The name of the player; null for a sync group, which shows no name.
+  final String? title;
+
+  /// What screen readers and tooltips call a row without [title].
+  final String? label;
 
   /// The group the player leads or follows.
   final String? detail;
@@ -423,6 +548,9 @@ class _OutputTile extends StatelessWidget {
 
   /// The player whose volume the slider sets.
   final MaPlayer? volume;
+
+  /// The slider sets the volume of [volume] itself, not that of the group it leads.
+  final bool volumeAlone;
   final Widget? trailing;
 
   /// Indents the row under its group leader.
@@ -433,6 +561,7 @@ class _OutputTile extends StatelessWidget {
     final colors = context.colors;
     final accent = selected ? colors.primary : colors.onSurface;
     final playing = state == MaPlaybackState.playing;
+    final name = title ?? label ?? 'group';
     final left = indent ? 40.0 : 12.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(left, 2, 12, 2),
@@ -459,7 +588,8 @@ class _OutputTile extends StatelessWidget {
                             : colors.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(
+                      alignment: Alignment.center,
+                      child: PlayerIcon(
                         icon,
                         size: 22,
                         color: selected ? colors.onPrimary : colors.onSurface,
@@ -470,16 +600,17 @@ class _OutputTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: accent,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
+                          if (title case final title?)
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: accent,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
                             ),
-                          ),
                           if (media case final media? when media.isNotEmpty)
                             Row(
                               children: [
@@ -515,25 +646,39 @@ class _OutputTile extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (onPlayPause != null)
-                      IconButton(
-                        tooltip: playing ? 'Pause $title' : 'Play $title',
-                        icon: Icon(
-                          playing
-                              ? Icons.pause_circle_filled
-                              : Icons.play_circle_filled,
-                          color: accent,
-                        ),
-                        onPressed: onPlayPause,
-                      ),
-                    // The highlight marks the selected output.
-                    if (!selected) ?trailing,
+                    // Two columns of the same width on every row, play/pause then the chain, so the buttons line up whether a row has them or not.
+                    SizedBox(
+                      width: kMinInteractiveDimension,
+                      child: onPlayPause == null
+                          ? null
+                          : IconButton(
+                              tooltip: playing ? 'Pause $name' : 'Play $name',
+                              icon: Icon(
+                                playing
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_filled,
+                                color: accent,
+                              ),
+                              onPressed: onPlayPause,
+                            ),
+                    ),
+                    SizedBox(
+                      width: kMinInteractiveDimension,
+                      // The highlight marks the selected output.
+                      child: selected ? null : trailing,
+                    ),
                   ],
                 ),
-                if (volume case final player? when player.sliderVolume != null)
+                if (volume case final player?
+                    when (volumeAlone ? player.volume : player.sliderVolume) !=
+                        null)
                   Padding(
                     padding: const EdgeInsets.only(left: 46),
-                    child: _PlayerVolume(player, color: accent),
+                    child: _PlayerVolume(
+                      player,
+                      color: accent,
+                      alone: volumeAlone,
+                    ),
                   ),
               ],
             ),
@@ -546,10 +691,13 @@ class _OutputTile extends StatelessWidget {
 
 /// The volume of a Music Assistant player, or of every member while it leads a group. The value goes to Music Assistant when the drag ends.
 class _PlayerVolume extends ConsumerStatefulWidget {
-  const _PlayerVolume(this.player, {required this.color});
+  const _PlayerVolume(this.player, {required this.color, this.alone = false});
 
   final MaPlayer player;
   final Color color;
+
+  /// The volume of the player itself, even while it leads a group.
+  final bool alone;
 
   @override
   ConsumerState<_PlayerVolume> createState() => _PlayerVolumeState();
@@ -560,7 +708,8 @@ class _PlayerVolumeState extends ConsumerState<_PlayerVolume> {
 
   @override
   Widget build(BuildContext context) {
-    final volume = widget.player.sliderVolume ?? 0;
+    final volume =
+        (widget.alone ? widget.player.volume : widget.player.sliderVolume) ?? 0;
     return Row(
       children: [
         Icon(
@@ -587,7 +736,11 @@ class _PlayerVolumeState extends ConsumerState<_PlayerVolume> {
                 final client = ref.read(maClientProvider);
                 if (client != null) {
                   await runPlayback(
-                    () => client.setVolume(widget.player, v.round()),
+                    () => client.setVolume(
+                      widget.player,
+                      v.round(),
+                      alone: widget.alone,
+                    ),
                   );
                 }
                 if (mounted) setState(() => _dragValue = null);

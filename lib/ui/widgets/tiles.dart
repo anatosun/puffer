@@ -647,22 +647,19 @@ Future<void> showPlaylistActions(
       (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,
 );
 
-/// The button under a page that shows the items of external providers, which a proxy such as octo-fiesta mixes in.
-class MoreButton extends StatelessWidget {
-  const MoreButton({super.key, required this.onPressed});
+/// Shows the items of external providers, which a proxy such as octo-fiesta mixes in. It sits in the bar of the search page and next to the heart of the artist page.
+class MoreSourcesButton extends StatelessWidget {
+  const MoreSourcesButton({super.key, required this.onPressed, this.iconSize});
 
   final VoidCallback onPressed;
+  final double? iconSize;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-    child: Center(
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Icons.travel_explore),
-        label: const Text('More'),
-      ),
-    ),
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'More from other sources',
+    iconSize: iconSize,
+    icon: const Icon(Icons.travel_explore),
+    onPressed: onPressed,
   );
 }
 

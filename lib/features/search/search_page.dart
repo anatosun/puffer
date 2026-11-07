@@ -97,7 +97,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          actions: const [OutputButton()],
+          actions: [
+            // On proxies such as octo-fiesta: the results of external providers, which wait for this button.
+            if (results.value?.more ?? false)
+              MoreSourcesButton(
+                onPressed: () => ref
+                    .read(
+                      externalShownProvider(
+                        'search:${ref.read(_queryProvider).trim()}',
+                      ).notifier,
+                    )
+                    .show(),
+              ),
+            const OutputButton(),
+          ],
           title: TextField(
             controller: _field,
             autofocus: false,
@@ -131,32 +144,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               return _RecentSearches(onPick: _search);
             }
             final r = shown.result;
-            final more = shown.more
-                ? MoreButton(
-                    onPressed: () => ref
-                        .read(
-                          externalShownProvider(
-                            'search:${ref.read(_queryProvider).trim()}',
-                          ).notifier,
-                        )
-                        .show(),
-                  )
-                : null;
             if (r.artists.isEmpty && r.albums.isEmpty && r.tracks.isEmpty) {
-              return more == null
-                  ? const MessageView('No results')
-                  : ListView(
-                      children: [
-                        more,
-                        const MessageView('No results in your library'),
-                      ],
-                    );
+              return MessageView(
+                shown.more ? 'No results in your library' : 'No results',
+              );
             }
-            // "More" comes first, where it is in reach without scrolling past the results.
             return _rememberOnTap(
               ListView(
                 children: [
-                  ?more,
                   if (r.artists.isNotEmpty) ...[
                     const _Heading('Artists'),
                     for (final a in r.artists) ArtistTile(a),

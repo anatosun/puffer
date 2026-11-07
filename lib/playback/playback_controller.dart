@@ -84,6 +84,11 @@ class NowPlaying {
   }
 }
 
+/// Whether a song of [duration] counts as played after [played]: half of it, or four minutes. Plays are reported to the server from this point.
+bool countsAsPlayed(Duration played, Duration duration) =>
+    duration > Duration.zero &&
+    (played >= duration * 0.5 || played >= const Duration(minutes: 4));
+
 class QueueSnapshot {
   const QueueSnapshot(
     this.tracks,

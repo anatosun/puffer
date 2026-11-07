@@ -10,6 +10,7 @@ import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/music_assistant/ma_client.dart';
 import 'package:puffer/data/music_assistant/ma_models.dart';
 import 'package:puffer/playback/ma_playback_controller.dart';
+import 'package:puffer/playback/playback_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeController extends Mock
@@ -41,6 +42,7 @@ Future<(ProviderContainer, _FakeController)> _onKitchen(
         const AsyncData(MaConnectionStatus.connected),
       ),
       maClientProvider.overrideWithValue(client),
+      maAllPlayersProvider.overrideWithValue(const AsyncData([])),
       // The controller depends on the output, as in the app.
       playbackControllerProvider.overrideWith((ref) {
         ref.watch(outputProvider);
@@ -146,5 +148,55 @@ void main() {
       expect(container.read(outputProvider), isNull);
       container.dispose();
     });
+  });
+
+  test('a player out of reach for the fallback delay returns playback to '
+      'this device; a short drop keeps it', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    fakeAsync((async) {
+      final players = StreamController<List<MaPlayer>>();
+      MaPlayer kitchen({required bool available}) => MaPlayer({
+        'player_id': 'kitchen',
+        'name': 'Kitchen',
+        'available': available,
+      });
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          maStatusProvider.overrideWithValue(
+            const AsyncData(MaConnectionStatus.connected),
+          ),
+          maAllPlayersProvider.overrideWith((ref) => players.stream),
+        ],
+      );
+      container.listen(outputProvider, (_, _) {});
+      players.add([kitchen(available: true)]);
+      async.flushMicrotasks();
+      container.read(outputProvider.notifier).select('kitchen');
+
+      players.add([kitchen(available: false)]);
+      async.elapse(const Duration(seconds: 20));
+      players.add([kitchen(available: true)]);
+      async.elapse(maFallbackDelay);
+      expect(container.read(outputProvider), 'kitchen');
+
+      // Gone from Music Assistant altogether.
+      players.add([
+        MaPlayer({'player_id': 'living', 'name': 'Living', 'available': true}),
+      ]);
+      async.elapse(maFallbackDelay);
+      expect(container.read(outputProvider), isNull);
+      container.dispose();
+    });
+  });
+
+  test('a song counts as played after half of it or four minutes', () {
+    const song = Duration(minutes: 3);
+    expect(countsAsPlayed(const Duration(seconds: 89), song), isFalse);
+    expect(countsAsPlayed(const Duration(seconds: 90), song), isTrue);
+    const long = Duration(minutes: 20);
+    expect(countsAsPlayed(const Duration(minutes: 4), long), isTrue);
+    expect(countsAsPlayed(const Duration(minutes: 1), Duration.zero), isFalse);
   });
 }

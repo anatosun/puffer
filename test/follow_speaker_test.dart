@@ -88,8 +88,20 @@ void main() {
     expect(c.read(outputProvider), 'kitchen');
   });
 
-  test('a speaker the person picked stays the output', () async {
-    final (c, status) = await setUp([player('phone'), player('kitchen')]);
+  test('a phone joined to a group from outside shows that group, even over a '
+      'picked speaker; a speaker picked afterwards stays picked', () async {
+    final (c, status) = await setUp([
+      player('phone', syncedTo: 'living'),
+      player('kitchen'),
+      player('living'),
+    ]);
+    c.read(outputProvider.notifier).select('kitchen');
+    // Music Assistant starts the group with the phone in it.
+    status.add(const SendspinStatus(connected: true, playing: true));
+    await settle();
+    expect(c.read(outputProvider), 'living');
+
+    // The person picks another speaker while the phone keeps playing: no pull back.
     c.read(outputProvider.notifier).select('kitchen');
     status.add(const SendspinStatus(connected: true, playing: true));
     await settle();

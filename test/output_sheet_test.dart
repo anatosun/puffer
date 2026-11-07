@@ -9,6 +9,7 @@ import 'package:puffer/data/music_assistant/ma_client.dart';
 import 'package:puffer/data/music_assistant/ma_models.dart';
 import 'package:puffer/features/cast/output_sheet.dart';
 import 'package:puffer/playback/playback_controller.dart';
+import 'package:puffer/ui/player_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeController extends Mock implements PlaybackController {}
@@ -31,6 +32,8 @@ MaPlayer player(
   String state = 'idle',
   String? icon,
   int? volume,
+  int? groupVolume,
+  String? type,
   bool private = false,
 }) => MaPlayer({
   'player_id': id,
@@ -41,6 +44,8 @@ MaPlayer player(
   'group_members': members,
   'icon': ?icon,
   'volume_level': ?volume,
+  'group_volume': ?groupVolume,
+  'type': ?type,
   'private': private,
 });
 
@@ -110,15 +115,71 @@ void main() {
         player('living', syncedTo: 'kitchen'),
       ]);
 
+      // The group has no name: the group icon and, while idle, its speakers. Every speaker follows under it, the leading one included, without a caption.
+      expect(find.text('Kitchen, Living'), findsOneWidget);
       expect(find.text('Kitchen'), findsOneWidget);
-      expect(find.text('With Living'), findsOneWidget);
       expect(find.text('Living'), findsOneWidget);
-      expect(find.text('In group with Kitchen'), findsOneWidget);
+      expect(find.textContaining('group'), findsNothing);
       expect(find.text('Bedroom'), findsOneWidget);
+      expect(
+        tester.widgetList<PlayerIcon>(find.byType(PlayerIcon)).map((i) => i.id),
+        contains('speakers'),
+      );
       // One ungroup button for the group on the leader, one for the follower.
       expect(find.byIcon(Icons.link_off), findsNWidgets(2));
     },
   );
+
+  testWidgets(
+    'every speaker of a playing group has a volume of its own, the leader '
+    'included, beside the volume of the group',
+    (tester) async {
+      final client = _FakeClient();
+      when(() => client.setVolume(any(), any(), alone: any(named: 'alone')))
+          .thenAnswer((_) async {});
+      await openSheet(tester, [
+        player(
+          'kitchen',
+          members: ['kitchen', 'living'],
+          state: 'playing',
+          volume: 30,
+          groupVolume: 45,
+        ),
+        player('living', syncedTo: 'kitchen', volume: 60),
+      ], client: client);
+      // The group, the leader alone and the follower.
+      expect(find.byType(Slider), findsNWidgets(3));
+      expect(find.text('45'), findsOneWidget);
+      expect(find.text('30'), findsOneWidget);
+      expect(find.text('60'), findsOneWidget);
+
+      // The leader's own slider, second in the list, sets its volume alone.
+      final leaderSlider = find.byType(Slider).at(1);
+      await tester.drag(leaderSlider, const Offset(40, 0));
+      await tester.pump();
+      final sent = verify(
+        () => client.setVolume(
+          captureAny(),
+          any(),
+          alone: captureAny(named: 'alone'),
+        ),
+      ).captured;
+      expect((sent[0] as MaPlayer).id, 'kitchen');
+      expect(sent[1], isTrue);
+    },
+  );
+
+  testWidgets('the speakers of a fixed group show under it', (tester) async {
+    await openSheet(tester, [
+      player('party', type: 'group', members: ['kitchen', 'living']),
+      player('kitchen'),
+      player('living'),
+    ]);
+    // A fixed group keeps the name it has in Music Assistant; its speakers follow under it, and on rows of their own further down.
+    expect(find.text('Party'), findsOneWidget);
+    expect(find.text('Kitchen'), findsNWidgets(2));
+    expect(find.text('Living'), findsNWidgets(2));
+  });
 
   testWidgets('players show their icon, what they play and their volume', (
     tester,
@@ -149,8 +210,11 @@ void main() {
       },
     );
 
-    expect(find.byIcon(Icons.kitchen), findsOneWidget);
-    expect(find.byIcon(Icons.tv), findsOneWidget);
+    // Icons of the shared Music Assistant set; an old server's MDI name goes through the set's legacy map.
+    Iterable<String> icons() => tester
+        .widgetList<PlayerIcon>(find.byType(PlayerIcon))
+        .map((i) => playerIconId(i.id));
+    expect(icons(), containsAll(['kitchen', 'tv', 'smartphone']));
     expect(find.text('Song · Band'), findsOneWidget);
     // Only the playing speaker has a slider; the idle one keeps its row short.
     expect(find.byType(Slider), findsOneWidget);
@@ -198,6 +262,99 @@ void main() {
     expect((sent[1] as MaQueue).id, 'kitchen');
     // The sheet stays open, so the output does not change.
     expect(find.text('Play on'), findsOneWidget);
+  });
+
+  testWidgets(
+    'This device, advertised in Music Assistant, can sync with the speaker '
+    'in use',
+    (tester) async {
+      final client = _FakeClient();
+      when(() => client.command(any(), any())).thenAnswer((_) async => null);
+      await openSheet(
+        tester,
+        [
+          player('phone'),
+          MaPlayer({
+            'player_id': 'kitchen',
+            'name': 'Kitchen',
+            'available': true,
+            'playback_state': 'playing',
+            'can_group_with': ['phone'],
+          }),
+        ],
+        client: client,
+        ownSpeaker: 'phone',
+        output: 'kitchen',
+      );
+      await tester.tap(find.byTooltip('Sync this device with Kitchen'));
+      await tester.pump();
+      final sent = verify(
+        () => client.command('players/cmd/set_members', captureAny()),
+      ).captured.single;
+      expect(sent, {
+        'target_player': 'kitchen',
+        'player_ids_to_add': ['phone'],
+      });
+    },
+  );
+
+  testWidgets('synced with the speaker in use, This device can leave it', (
+    tester,
+  ) async {
+    await openSheet(
+      tester,
+      [
+        player('phone', syncedTo: 'kitchen'),
+        player('kitchen', members: ['kitchen', 'phone'], state: 'playing'),
+      ],
+      ownSpeaker: 'phone',
+      output: 'kitchen',
+    );
+    // Listed under the group it follows, as This device, with the chain to leave it, and nowhere else.
+    expect(find.text('This device'), findsOneWidget);
+    expect(find.byTooltip('Stop syncing this device'), findsOneWidget);
+    expect(find.byTooltip('Sync this device with Kitchen'), findsNothing);
+    final underGroup = tester.getTopLeft(find.text('This device'));
+    final kitchen = tester.getTopLeft(find.text('Kitchen'));
+    expect(underGroup.dy, greaterThan(kitchen.dy));
+    expect(underGroup.dx, kitchen.dx, reason: 'indented like the speakers');
+  });
+
+  testWidgets('play/pause buttons stand in the same column, with or '
+      'without a chain beside them', (tester) async {
+    final client = _FakeClient();
+    MaPlayer playing(String id, {List<String> groupable = const []}) =>
+        MaPlayer({
+          'player_id': id,
+          'name': id[0].toUpperCase() + id.substring(1),
+          'available': true,
+          'playback_state': 'playing',
+          'can_group_with': groupable,
+        });
+    MaQueue queue(String id) => MaQueue({
+      'queue_id': id,
+      'state': 'playing',
+      'current_item': {'queue_item_id': 'q-$id', 'name': 'Song'},
+    });
+    await openSheet(
+      tester,
+      [
+        // The output, which can sync with Living but not with Kitchen.
+        playing('office', groupable: ['living']),
+        playing('kitchen'),
+        playing('living'),
+      ],
+      queues: {
+        for (final id in ['office', 'kitchen', 'living']) id: queue(id),
+      },
+      client: client,
+      output: 'office',
+    );
+    expect(find.byTooltip('Sync Living with Office'), findsOneWidget);
+    expect(find.byTooltip('Sync Kitchen with Office'), findsNothing);
+    final withChain = tester.getCenter(find.byTooltip('Pause Living'));
+    final withoutChain = tester.getCenter(find.byTooltip('Pause Kitchen'));
+    expect(withChain.dx, withoutChain.dx);
   });
 
   testWidgets('the phone as a speaker is the This device row', (tester) async {
