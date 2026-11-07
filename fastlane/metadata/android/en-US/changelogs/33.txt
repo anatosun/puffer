@@ -1,0 +1,5 @@
+- Music Assistant: a song picked in an album or playlist plays first, and a spinner shows until the speaker starts
+- Plays on Music Assistant are reported only if you turn it on
+- The app returns to this device only when the speaker is lost, and follows the group the phone joins
+- Speaker sheet: every speaker of a group with its own volume, Music Assistant icons, and syncing this device
+- The More button sits in the bar
