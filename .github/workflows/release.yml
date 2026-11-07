@@ -1,12 +1,20 @@
 name: Release
 
-# A tag `vX.Y.Z` matching the pubspec version builds signed Android APKs and an unsigned iOS IPA, and publishes them as a GitHub release.
+# A tag `vX.Y.Z` matching the pubspec version builds signed Android APKs and an iOS IPA, and publishes them as a GitHub release. The version is three integers without a suffix, the only form App Store Connect accepts.
 #
 # Required repository secrets:
 #   ANDROID_KEYSTORE_BASE64   base64 of the upload/release .jks
 #   ANDROID_KEYSTORE_PASSWORD
 #   ANDROID_KEY_ALIAS
 #   ANDROID_KEY_PASSWORD
+#
+# Secrets for a signed iOS build uploaded to TestFlight. Without IOS_DIST_CERT_P12 and IOS_PROFILE the IPA is built unsigned; without the three ASC_* secrets it is signed but not uploaded.
+#   IOS_DIST_CERT_P12         base64 of the Apple Distribution certificate with its private key, as .p12
+#   IOS_DIST_CERT_PASSWORD    password of the .p12
+#   IOS_PROFILE               base64 of the App Store provisioning profile for io.github.anatosun.puffer
+#   ASC_KEY_ID                App Store Connect API key (App Manager role): key ID
+#   ASC_ISSUER_ID             issuer ID
+#   ASC_KEY_P8                contents of the AuthKey_<id>.p8 file
 
 on:
   push:
@@ -29,6 +37,11 @@ jobs:
           tag_version="${GITHUB_REF_NAME#v}"
           if [ "$pubspec_version" != "$tag_version" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec_version"
+            exit 1
+          fi
+          # App Store Connect takes at most three integers; a suffix such as -alpha.1 would be refused at upload.
+          if ! [[ "$pubspec_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version $pubspec_version is not X.Y.Z"
             exit 1
           fi
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
@@ -86,6 +99,11 @@ jobs:
   ios:
     needs: verify-version
     runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.verify-version.outputs.version }}
+      # Signing starts once its secrets exist; the upload once the App Store Connect key exists too.
+      SIGNED: ${{ secrets.IOS_DIST_CERT_P12 != '' && secrets.IOS_PROFILE != '' }}
+      UPLOAD: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_ISSUER_ID != '' && secrets.ASC_KEY_P8 != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -96,14 +114,101 @@ jobs:
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - run: flutter build ios --release --no-codesign
 
-      - name: Package unsigned IPA
+      - name: Build unsigned IPA
+        if: env.SIGNED != 'true'
         run: |
-          v=${{ needs.verify-version.outputs.version }}
+          flutter build ios --release --no-codesign
           mkdir -p dist Payload
           cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qr "dist/puffer-$v-unsigned.ipa" Payload
+          zip -qr "dist/puffer-$VERSION-unsigned.ipa" Payload
+
+      - name: Install the distribution certificate and profile
+        if: env.SIGNED == 'true'
+        env:
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROFILE }}
+        run: |
+          # A keychain of its own for this run, deleted at the end.
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -hex 16)
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+          profile="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$PROFILE" | base64 --decode > "$profile"
+          security cms -D -i "$profile" > "$RUNNER_TEMP/profile.plist"
+          uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")
+          team=$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$profile" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+          echo "PROFILE_NAME=$name" >> "$GITHUB_ENV"
+          echo "TEAM_ID=$team" >> "$GITHUB_ENV"
+
+      - name: Sign the app with the distribution profile
+        if: env.SIGNED == 'true'
+        # The project signs automatically for development; the release archive signs by hand with the profile, for the Runner target only.
+        run: |
+          fastlane run update_code_signing_settings \
+            path:ios/Runner.xcodeproj \
+            use_automatic_signing:false \
+            targets:Runner \
+            build_configurations:Release \
+            team_id:"$TEAM_ID" \
+            code_sign_identity:"Apple Distribution" \
+            profile_name:"$PROFILE_NAME" \
+            bundle_identifier:io.github.anatosun.puffer
+
+      - name: Build signed IPA
+        if: env.SIGNED == 'true'
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>io.github.anatosun.puffer</key><string>$PROFILE_NAME</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+          mkdir -p dist
+          cp build/ios/ipa/*.ipa "dist/puffer-$VERSION.ipa"
+
+      - name: Upload to TestFlight
+        if: env.SIGNED == 'true' && env.UPLOAD == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          # altool looks for the key under this name in this folder.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          xcrun altool --upload-app --type ios \
+            --file "dist/puffer-$VERSION.ipa" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Remove the signing keychain and key
+        if: always() && env.SIGNED == 'true'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -rf "$HOME/.appstoreconnect/private_keys"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -133,4 +238,5 @@ jobs:
           files: dist/*
           body_path: ${{ steps.changelog.outputs.file }}
           generate_release_notes: ${{ steps.changelog.outputs.file == '' }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          # Releases stay pre-releases while the major version is 0.
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
