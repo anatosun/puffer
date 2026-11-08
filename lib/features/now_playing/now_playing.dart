@@ -960,7 +960,7 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(Icons.volume_down, color: context.muted, size: 20),
+      _VolumeEnd(Icons.volume_down),
       Expanded(
         child: Slider(
           value: _dragValue ?? widget.volume.toDouble(),
@@ -974,8 +974,25 @@ class _VolumeSliderState extends ConsumerState<_VolumeSlider> {
           },
         ),
       ),
-      Icon(Icons.volume_up, color: context.muted, size: 20),
+      _VolumeEnd(Icons.volume_up),
     ],
+  );
+}
+
+/// An icon at an end of the volume slider, in the box of an icon button so it stands above the first or last button of the toolbar at any density.
+class _VolumeEnd extends StatelessWidget {
+  const _VolumeEnd(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: IconButton(
+      onPressed: null,
+      iconSize: 20,
+      disabledColor: context.muted,
+      icon: Icon(icon),
+    ),
   );
 }
 

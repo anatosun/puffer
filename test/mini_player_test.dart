@@ -796,6 +796,47 @@ void main() {
     expect(full[0], plain[0]);
   });
 
+  testWidgets('the volume icons stand above the first and last buttons of '
+      'the toolbar', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nowPlayingProvider.overrideWithValue(
+            AsyncData(
+              NowPlaying(
+                track: const Track({'id': 'a', 'title': 'A'}),
+                title: 'A',
+                positionAt: DateTime.now(),
+                duration: const Duration(minutes: 3),
+                volume: 40,
+              ),
+            ),
+          ),
+          connectivityProvider.overrideWithValue(
+            const AsyncData([ConnectivityResult.wifi]),
+          ),
+          maClientProvider.overrideWithValue(null),
+          playbackControllerProvider.overrideWithValue(_FakeController()),
+          playingFormatProvider.overrideWithValue(null),
+          waveformSupportedProvider.overrideWith((ref) async => false),
+        ],
+        // Desktop density, where icon buttons are narrower than on a phone.
+        child: MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.linux),
+          home: const NowPlayingPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    double x(IconData icon) => tester.getCenter(find.byIcon(icon)).dx;
+    expect(x(Icons.volume_down), x(Icons.queue_music));
+    expect(x(Icons.volume_up), x(Icons.repeat));
+  });
+
   testWidgets(
     'a tap on the artwork shows the lyrics and a second tap hides them',
     (tester) async {
