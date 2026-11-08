@@ -27,7 +27,7 @@ Future<void> showItemActions(
   Future<List<Track>> Function()? tracks,
   Future<List<Track>> Function()? mix,
   String? albumId,
-  String? artistId,
+  List<ArtistLink> artists = const [],
   Playlist? playlist,
   int? rating,
   void Function(int rating)? onRated,
@@ -245,13 +245,18 @@ Future<void> showItemActions(
                       router.push('/album/$albumId');
                     },
                   ),
-                if (artistId != null && kind != PinKind.artist)
+                // One entry per artist the item credits, named so a song by several artists leads to each of them. The menu of an artist leads to its own page.
+                for (final artist in artists)
                   ListTile(
                     leading: const Icon(Icons.person_outline),
-                    title: const Text('Go to artist'),
+                    title: Text(
+                      artist.name.isEmpty
+                          ? 'Go to artist'
+                          : 'Go to ${artist.name}',
+                    ),
                     onTap: () {
                       close();
-                      router.push('/artist/$artistId');
+                      router.push('/artist/${artist.id}');
                     },
                   ),
               ],
@@ -297,7 +302,7 @@ Future<void> showTrackActions(
   onRated: (value) => rememberRating(track.json, value),
   mix: () => ref.read(repositoryProvider)!.instantMix(track),
   albumId: track.albumId,
-  artistId: track.artistId,
+  artists: track.artists,
   info: () => showSongInfo(context, track),
   extras: extras,
 );

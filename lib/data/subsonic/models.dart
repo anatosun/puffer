@@ -93,6 +93,25 @@ List<Json> _list(Object? value) {
   return const [];
 }
 
+/// An artist a song or an album credits, which the menu offers to open.
+typedef ArtistLink = ({String id, String name});
+
+/// The artists of a song or an album: the OpenSubsonic `artists` list when the server sends one, the single `artistId` otherwise. Entries without an id are left out, and each artist shows once.
+List<ArtistLink> _artistLinks(Json json) {
+  final seen = <String>{};
+  final links = <ArtistLink>[
+    for (final a in _list(json['artists']))
+      if (a['id'] case final String id when seen.add(id))
+        (id: id, name: a['name'] as String? ?? ''),
+  ];
+  if (links.isEmpty) {
+    if (json['artistId'] case final String id) {
+      links.add((id: id, name: json['artist'] as String? ?? ''));
+    }
+  }
+  return links;
+}
+
 class Track {
   const Track(this.json);
   factory Track.fromJson(Json json) => Track(json);
@@ -105,6 +124,7 @@ class Track {
   String? get albumId => json['albumId'] as String?;
   String? get artist => json['artist'] as String?;
   String? get artistId => json['artistId'] as String?;
+  List<ArtistLink> get artists => _artistLinks(json);
   int? get trackNumber => json['track'] as int?;
   int get discNumber => json['discNumber'] as int? ?? 1;
   Duration get duration => Duration(seconds: json['duration'] as int? ?? 0);
@@ -128,6 +148,7 @@ class Album {
       json['name'] as String? ?? json['title'] as String? ?? 'Unknown album';
   String? get artist => json['artist'] as String?;
   String? get artistId => json['artistId'] as String?;
+  List<ArtistLink> get artists => _artistLinks(json);
   String? get coverArt => json['coverArt'] as String?;
   int get songCount => json['songCount'] as int? ?? 0;
   Duration get duration => Duration(seconds: json['duration'] as int? ?? 0);

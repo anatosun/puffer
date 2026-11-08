@@ -354,7 +354,7 @@ Future<void> showAlbumActions(
   mix: () => ref.read(repositoryProvider)!.radio(albumId: album.id),
   rating: album.rating,
   onRated: (value) => rememberRating(album.json, value),
-  artistId: album.artistId,
+  artists: album.artists,
 );
 
 /// A horizontal row of album cards at the cover size the person picked.
@@ -542,6 +542,7 @@ class ArtistTile extends ConsumerWidget {
         coverArt: artist.coverArt,
         starred: artist.starred,
         mix: () => ref.read(repositoryProvider)!.radio(artistId: artist.id),
+        artists: [(id: artist.id, name: artist.name)],
       ),
     );
   }
