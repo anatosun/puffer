@@ -1,0 +1,4 @@
+- Puffer runs on macOS and Windows
+- On the desktop, downloads can go to a folder of your choice, with an M3U8 file for each downloaded playlist and an iTunes library for other players and DJ software
+- Song and album menus lead to each of their artists, and artist menus to the artist
+- The volume icons line up with the buttons below them
