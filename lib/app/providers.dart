@@ -48,7 +48,10 @@ final initialCredentialsProvider = Provider<ServerCredentials?>((ref) => null);
 // ------------------------------------------------------------ session
 
 const _credentialsKey = 'credentials';
-const secureStorage = FlutterSecureStorage();
+// On macOS the data protection keychain needs a team entitlement, which an app built without a paid signing identity lacks; the login keychain needs none.
+const secureStorage = FlutterSecureStorage(
+  mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+);
 
 Future<ServerCredentials?> loadCredentials() async {
   try {

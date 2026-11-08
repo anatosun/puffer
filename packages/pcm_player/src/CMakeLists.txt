@@ -16,6 +16,11 @@ set_target_properties(pcm_player PROPERTIES
 
 target_compile_definitions(pcm_player PUBLIC DART_SHARED_LIB)
 
+if (MSVC)
+  # C11 atomics, which MSVC compiles only with these flags (Visual Studio 2022 17.5 and later).
+  target_compile_options(pcm_player PRIVATE /std:c11 /experimental:c11atomics)
+endif()
+
 if (ANDROID)
   # Support Android 15 16k page size
   target_link_options(pcm_player PRIVATE "-Wl,-z,max-page-size=16384")

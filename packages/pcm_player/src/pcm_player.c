@@ -36,6 +36,14 @@ int64_t pcm_now_ns(void) {
   static mach_timebase_info_data_t timebase;
   if (timebase.denom == 0) mach_timebase_info(&timebase);
   return (int64_t)(mach_absolute_time() * timebase.numer / timebase.denom);
+#elif defined(_WIN32)
+  // miniaudio includes windows.h on Windows.
+  static LARGE_INTEGER frequency;
+  if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
+  LARGE_INTEGER counter;
+  QueryPerformanceCounter(&counter);
+  return (int64_t)(counter.QuadPart / frequency.QuadPart * 1000000000LL +
+                   counter.QuadPart % frequency.QuadPart * 1000000000LL / frequency.QuadPart);
 #else
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);

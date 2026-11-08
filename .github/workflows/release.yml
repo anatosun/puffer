@@ -1,6 +1,6 @@
 name: Release
 
-# A tag `vX.Y.Z` matching the pubspec version builds signed Android APKs and an iOS IPA, and publishes them as a GitHub release. The version is three integers without a suffix, the only form App Store Connect accepts.
+# A tag `vX.Y.Z` matching the pubspec version builds signed Android APKs, an iOS IPA, a macOS app and a Windows build, and publishes them as a GitHub release. The macOS app is signed ad hoc, not with a Developer ID, so macOS asks to confirm it on first launch. The version is three integers without a suffix, the only form App Store Connect accepts.
 #
 # Required repository secrets:
 #   ANDROID_KEYSTORE_BASE64   base64 of the upload/release .jks
@@ -215,8 +215,72 @@ jobs:
           name: ios
           path: dist/*
 
+  macos:
+    needs: verify-version
+    runs-on: macos-latest
+    # A failed desktop build leaves its download out of the release rather than holding back the phones.
+    continue-on-error: true
+    env:
+      VERSION: ${{ needs.verify-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter build macos --release
+
+      - name: Zip the app
+        run: |
+          mkdir -p dist
+          # ditto keeps the symbolic links and extended attributes of the bundle, which zip would break.
+          ditto -c -k --keepParent build/macos/Build/Products/Release/Puffer.app "dist/puffer-$VERSION-macos.zip"
+          cd dist && shasum -a 256 *.zip > SHA256SUMS-macos.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  windows:
+    needs: verify-version
+    runs-on: windows-latest
+    # A failed desktop build leaves its download out of the release rather than holding back the phones.
+    continue-on-error: true
+    env:
+      VERSION: ${{ needs.verify-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter build windows --release
+
+      - name: Zip the build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $zip = "dist/puffer-$env:VERSION-windows-x64.zip"
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $zip -Leaf)" | Out-File -Encoding ascii dist/SHA256SUMS-windows.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
   publish:
-    needs: [verify-version, android, ios]
+    needs: [verify-version, android, ios, macos, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

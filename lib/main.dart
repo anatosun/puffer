@@ -14,8 +14,8 @@ import 'playback/player_handler.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // just_audio has no Linux backend; media_kit (libmpv) provides one for development on the desktop.
-  JustAudioMediaKit.ensureInitialized(linux: true, windows: false);
+  // just_audio has no Linux or Windows backend; media_kit (libmpv) provides one. macOS uses just_audio's own.
+  JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
   registerFontLicences();
 
   final handler = await _initAudio();

@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-A music player for iOS and Android for Subsonic and OpenSubsonic servers (Navidrome, Gonic, Airsonic-Advanced, …). The interface follows Plexamp, downloads follow Apple Music, and multi-room playback goes through [Music Assistant](https://music-assistant.io).
+A music player for Android, iOS, macOS and Windows for Subsonic and OpenSubsonic servers (Navidrome, Gonic, Airsonic-Advanced, …). The interface follows Plexamp, downloads follow Apple Music, and multi-room playback goes through [Music Assistant](https://music-assistant.io).
 
 The app is in early development.
 
@@ -60,6 +60,8 @@ The app connects only to the servers a person configures. It has no advertising,
 
 - Android: APKs are on [GitHub Releases](https://github.com/anatosun/puffer/releases) and in the F-Droid repository at [anatosun.github.io/puffer/fdroid/repo](https://anatosun.github.io/puffer/fdroid/repo?fingerprint=BEF73814AF9AAA087C0D1E1585B92777674363B35CBE50D125C04846593D8ECF), signed with the key of fingerprint `BEF73814AF9AAA087C0D1E1585B92777674363B35CBE50D125C04846593D8ECF`.
 - iOS: not yet published.
+- macOS: a zipped app on [GitHub Releases](https://github.com/anatosun/puffer/releases). It is not signed with an Apple Developer ID, so the first launch needs System Settings → Privacy & Security → Open Anyway.
+- Windows: a zipped folder on [GitHub Releases](https://github.com/anatosun/puffer/releases); unzip it and run `puffer.exe`. Windows SmartScreen may warn on the first launch, as the build is not signed.
 
 ## Build
 
@@ -72,7 +74,7 @@ flutter test
 flutter run
 ```
 
-The Linux build plays audio through media_kit and needs the development packages of libsecret and mpv (`libsecret-devel` and `mpv-devel` on Fedora). iOS builds need macOS and Xcode.
+The Linux and Windows builds play audio through media_kit. Linux needs the development packages of libsecret and mpv (`libsecret-devel` and `mpv-devel` on Fedora); the Windows build fetches mpv itself and needs Visual Studio 2022 with the C++ workload. iOS and macOS builds need a Mac with Xcode.
 
 To build the Android APKs:
 
