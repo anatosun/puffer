@@ -1,0 +1,4 @@
+- A calmer player built around the artwork, with shuffle, repeat, endless radio and the menu in a toolbar
+- The sleep timer and saving or clearing the queue are in the player's menu
+- On Music Assistant, Play album keeps the song playing, and endless radio uses the speaker's Autoplay
+- While repeat is on, endless radio is off
