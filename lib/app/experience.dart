@@ -344,11 +344,6 @@ final swipeToSkipProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.swipeToSkip', true),
 );
 
-/// The next song, under the controls of the player.
-final upNextProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.upNext', true),
-);
-
 /// How the seek bar draws the loudness of the song, when the server offers waveforms.
 enum WaveformStyle {
   smooth('Smooth'),

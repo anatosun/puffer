@@ -18,6 +18,9 @@ class FakeServer {
   /// The answer to `player_queues/items`, when a test sets one.
   List<Map<String, Object?>>? queueItems;
 
+  /// Commands answered with an error, as a server too old to know them does.
+  final rejected = <String>{};
+
   Uri get base => Uri.parse('http://127.0.0.1:${_server.port}');
 
   Future<void> start() async {
@@ -70,6 +73,9 @@ class FakeServer {
 
   Map<String, dynamic> _answer(Map<String, dynamic> msg) {
     final id = msg['message_id'];
+    if (rejected.contains(msg['command'])) {
+      return {'message_id': id, 'error_code': 1, 'details': 'Invalid command'};
+    }
     final args = msg['args'] as Map<String, dynamic>? ?? const {};
     switch (msg['command']) {
       case 'auth':
@@ -741,5 +747,165 @@ void main() {
     expect(attempts, 2);
     client.stopWaiting();
     await client.close();
+  });
+
+  test('Play album on a speaker replaces only what follows the song that plays', () async {
+    final client = await connected();
+    final controller = MusicAssistantPlaybackController(
+      client,
+      'kitchen',
+      providerInstance: 'opensubsonic--abc',
+      streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+    );
+    final before = server.commands.length;
+    await controller.continueWith([
+      Track({'id': 't1', 'title': 'One'}),
+      Track({'id': 't2', 'title': 'Two'}),
+      Track({'id': 't3', 'title': 'Three'}),
+    ], 1);
+    final sent = [
+      for (final c in server.commands.skip(before))
+        if ((c['command'] as String).startsWith('player_queues/') &&
+            c['command'] != 'player_queues/items')
+          c,
+    ];
+    // One command, which leaves the song playing and what came before it alone.
+    expect(sent.single['command'], 'player_queues/play_media');
+    expect(sent.single['args'], {
+      'queue_id': 'kitchen',
+      'media': ['opensubsonic--abc://track/t3'],
+      'option': 'replace_next',
+      'shuffle': false,
+    });
+    controller.dispose();
+    await client.close();
+  });
+
+  test(
+    'Play album from its last song drops what was queued after it',
+    () async {
+      final client = await connected();
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      );
+      // The queue plays its first item, with one more after it.
+      server.send({
+        'event': 'queue_updated',
+        'object_id': 'kitchen',
+        'data': {
+          'queue_id': 'kitchen',
+          'state': 'playing',
+          'items': 2,
+          'current_index': 0,
+          'current_item': {'queue_item_id': 'a', 'name': 'Last of the album'},
+        },
+      });
+      server.send({'event': 'queue_items_updated', 'object_id': 'kitchen'});
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final before = server.commands.length;
+      await controller.continueWith([
+        Track({'id': 't1', 'title': 'First'}),
+        Track({'id': 't2', 'title': 'Last of the album'}),
+      ], 1);
+      final deletes = [
+        for (final c in server.commands.skip(before))
+          if (c['command'] == 'player_queues/delete_item') c['args'],
+      ];
+      expect(deletes, [
+        {'queue_id': 'kitchen', 'item_id_or_index': 'b'},
+      ]);
+      expect(
+        server.commands
+            .skip(before)
+            .where((c) => c['command'] == 'player_queues/play_media'),
+        isEmpty,
+      );
+      controller.dispose();
+      await client.close();
+    },
+  );
+
+  group('Autoplay', () {
+    Future<MusicAssistantPlaybackController> playingQueue(
+      MusicAssistantClient client,
+    ) async {
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      );
+      server.send({
+        'event': 'queue_updated',
+        'object_id': 'kitchen',
+        'data': {
+          'queue_id': 'kitchen',
+          'state': 'playing',
+          'items': 1,
+          'current_index': 0,
+          'repeat_mode': 'off',
+          'autoplay_enabled': false,
+          'current_item': {'queue_item_id': 'q1', 'name': 'Song'},
+        },
+      });
+      await controller.state.firstWhere((np) => np != null);
+      return controller;
+    }
+
+    List<Map<String, dynamic>> sentSince(int before) => [
+      for (final c in server.commands.skip(before))
+        if ({
+          'player_queues/repeat',
+          'player_queues/autoplay',
+          'player_queues/dont_stop_the_music',
+        }.contains(c['command']))
+          c,
+    ];
+
+    test(
+      'the queue reports its Autoplay, and turning it on is one command',
+      () async {
+        final client = await connected();
+        final controller = await playingQueue(client);
+        expect(controller.current!.autoplay, isFalse);
+
+        final before = server.commands.length;
+        await controller.setAutoplay(true);
+        final sent = sentSince(before);
+        // Repeat is left alone: the player offers no Autoplay while it is on.
+        expect(
+          [for (final c in sent) c['command']],
+          ['player_queues/autoplay'],
+        );
+        expect((sent.single['args'] as Map)['autoplay_enabled'], isTrue);
+        controller.dispose();
+        await client.close();
+      },
+    );
+
+    test('an older server gets the command under its former name', () async {
+      server.rejected.add('player_queues/autoplay');
+      final client = await connected();
+      final errors = <Object>[];
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+        onError: errors.add,
+      );
+      final before = server.commands.length;
+      await controller.setAutoplay(false);
+      final sent = sentSince(before);
+      expect(sent.last['command'], 'player_queues/dont_stop_the_music');
+      expect(
+        (sent.last['args'] as Map)['dont_stop_the_music_enabled'],
+        isFalse,
+      );
+      expect(errors, isEmpty);
+      controller.dispose();
+      await client.close();
+    });
   });
 }

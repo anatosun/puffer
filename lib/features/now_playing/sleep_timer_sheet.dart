@@ -14,22 +14,6 @@ Future<void> showSleepTimerSheet(BuildContext context) =>
       builder: (_) => const _SleepTimerSheet(),
     );
 
-/// The sleep timer button of the player, filled while a timer runs.
-class SleepTimerButton extends ConsumerWidget {
-  const SleepTimerButton({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final running = ref.watch(sleepTimerProvider) != null;
-    return IconButton(
-      tooltip: 'Sleep timer',
-      color: running ? context.colors.primary : context.muted,
-      icon: Icon(running ? Icons.bedtime : Icons.bedtime_outlined),
-      onPressed: () => showSleepTimerSheet(context),
-    );
-  }
-}
-
 class _SleepTimerSheet extends ConsumerWidget {
   const _SleepTimerSheet();
 

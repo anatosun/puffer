@@ -238,7 +238,7 @@ class BelowContent extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               onTap: () => open('/album/${album.id}'),
-              // The queue becomes the album, carrying on from the song and position that play.
+              // The queue becomes the album, carrying on with the song that plays; an album without it starts from its first song.
               trailing: FilledButton.tonalIcon(
                 icon: const Icon(Icons.queue_music),
                 label: const Text('Play album'),
@@ -246,11 +246,8 @@ class BelowContent extends ConsumerWidget {
                   final np = ref.read(nowPlayingProvider).value;
                   final at = songs.indexWhere((t) => t.id == np?.track?.id);
                   final controller = ref.read(playbackControllerProvider);
-                  await controller.playTracks(songs, index: math.max(0, at));
-                  final position = np?.positionNow() ?? Duration.zero;
-                  if (at >= 0 && position > const Duration(seconds: 1)) {
-                    await controller.seek(position);
-                  }
+                  if (at < 0) return controller.playTracks(songs);
+                  await controller.continueWith(songs, at);
                 }),
               ),
             ),
@@ -545,17 +542,20 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
     if (!canSave) return list;
     return SliverMainAxisGroup(
       slivers: [
+        // A header like the one of the Album tab: what the list is on the left, its action as a tonal button on the right.
         SliverToBoxAdapter(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: TextButton.icon(
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Save as playlist'),
-                // The whole queue, the songs played included, in its order.
-                onPressed: () => createPlaylistFrom(context, ref, songIds),
-              ),
+          child: ListTile(
+            title: Text(
+              countOf(queue.length, 'song'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            trailing: FilledButton.tonalIcon(
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Save as playlist'),
+              // The whole queue, the songs played included, in its order.
+              onPressed: () => createPlaylistFrom(context, ref, songIds),
             ),
           ),
         ),

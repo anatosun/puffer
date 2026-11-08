@@ -14,6 +14,7 @@ import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/audio_format.dart';
 import '../../playback/playback_controller.dart';
+import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/item_actions.dart';
@@ -218,16 +219,6 @@ void openNowPlaying(BuildContext context) =>
       ),
     );
 
-TextStyle? _titleStyle(BuildContext context) =>
-    Theme.of(context).textTheme.headlineSmall
-        ?.copyWith(fontWeight: FontWeight.w800);
-
-/// The height of two lines of the title.
-double _titleHeight(BuildContext context) {
-  final style = _titleStyle(context);
-  return 2 * (style?.fontSize ?? 24) * (style?.height ?? 1.4);
-}
-
 class NowPlayingPage extends ConsumerWidget {
   const NowPlayingPage({super.key});
 
@@ -245,12 +236,14 @@ class NowPlayingPage extends ConsumerWidget {
     final lyricsShown = ref.watch(lyricsShownProvider);
     final showRating =
         track != null && ref.watch(playerRatingProvider) && online;
-    // The format badges sit centred above the title.
     final format = ref.watch(playerFormatProvider)
         ? ref.watch(playingFormatProvider)
         : null;
-    // Under the artwork, only the stars.
-    final showTrackRow = showRating;
+    void open(String path) {
+      Navigator.pop(context);
+      GoRouter.of(context).push(path);
+    }
+
     return _CloseWhenEmpty(
       child: Scaffold(
         backgroundColor: background,
@@ -260,256 +253,164 @@ class NowPlayingPage extends ConsumerWidget {
           child: SafeArea(
             child: np == null
                 ? const SizedBox.shrink()
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      return _PlayerScroll(
-                        player: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    color: context.muted,
-                                    icon: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      size: 32,
+                : _PlayerScroll(
+                    // One focal point, the artwork, as in Plexamp; what is rarely needed lives in the menu of the toolbar.
+                    player: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: LayoutBuilder(
+                        builder: (context, box) {
+                          // The artwork sits near the top and takes what the rest leaves, up to the width of the page; the leftover height is shared between the rows below rather than gathered around the artwork, as in Plexamp.
+                          final artSize = math.max(
+                            0.0,
+                            math.min(
+                              box.maxWidth,
+                              box.maxHeight - _belowArtwork(context),
+                            ),
+                          );
+                          final artwork = _CoverGestures(
+                            swipeToSkip: ref.watch(swipeToSkipProvider),
+                            onNext: controller.next,
+                            onPrevious: controller.previous,
+                            // A double tap adds the song to the library; it needs the connection.
+                            onDoubleTap: track != null && online
+                                ? () => saveStar(
+                                    ref,
+                                    (
+                                      trackId: track.id,
+                                      albumId: null,
+                                      artistId: null,
                                     ),
-                                    onPressed: () => Navigator.pop(context),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      np.album ?? '',
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: context.colors.onSurface
-                                            .withValues(alpha: 0.7),
-                                        fontWeight: FontWeight.w600,
+                                    true,
+                                    json: track.json,
+                                  )
+                                : null,
+                            onTap: track == null
+                                ? null
+                                : () => ref
+                                      .read(lyricsShownProvider.notifier)
+                                      .set(!lyricsShown),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Hero(
+                                  tag: _artworkHeroTag,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 300),
+                                    transitionBuilder: fadeWithoutKey,
+                                    child: DecoratedBox(
+                                      key: ValueKey(
+                                        np.title + (np.album ?? ''),
                                       ),
-                                    ),
-                                  ),
-                                  const SleepTimerButton(),
-                                  IconButton(
-                                    color: context.muted,
-                                    icon: const Icon(Icons.more_horiz),
-                                    onPressed: track == null
-                                        ? null
-                                        : () => showTrackActions(
-                                            context,
-                                            ref,
-                                            track,
-                                          ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              // The artwork takes the height the rest leaves, up to the width of the page. The bottom padding keeps its shadow clear of what follows.
-                              Expanded(
-                                child: LayoutBuilder(
-                                  builder: (context, box) {
-                                    // Under the artwork, the stars take 14 pixels and the 48 of their row. The row keeps its place when the stars are off or the song is not known, so nothing moves.
-                                    const rowsHeight = 48.0;
-                                    const below = 14 + rowsHeight;
-                                    final artSize = math.max(
-                                      0.0,
-                                      math.min(
-                                        box.maxWidth,
-                                        box.maxHeight - below,
-                                      ),
-                                    );
-                                    // The stars span the artwork, or 300 pixels when the artwork is narrower, so they keep full-size touch targets.
-                                    final rowWidth = math.max(
-                                      artSize,
-                                      math.min(box.maxWidth, 300.0),
-                                    );
-                                    final artwork = _CoverGestures(
-                                      swipeToSkip: ref.watch(
-                                        swipeToSkipProvider,
-                                      ),
-                                      onNext: controller.next,
-                                      onPrevious: controller.previous,
-                                      // A double tap adds the song to the library; it needs the connection.
-                                      onDoubleTap: track != null && online
-                                          ? () => saveStar(
-                                              ref,
-                                              (
-                                                trackId: track.id,
-                                                albumId: null,
-                                                artistId: null,
-                                              ),
-                                              true,
-                                              json: track.json,
-                                            )
-                                          : null,
-                                      onTap: track == null
-                                          ? null
-                                          : () => ref
-                                                .read(
-                                                  lyricsShownProvider.notifier,
-                                                )
-                                                .set(!lyricsShown),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Hero(
-                                            tag: _artworkHeroTag,
-                                            child: AnimatedSwitcher(
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              transitionBuilder: fadeWithoutKey,
-                                              child: DecoratedBox(
-                                                key: ValueKey(
-                                                  np.title + (np.album ?? ''),
-                                                ),
-                                                // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withValues(
-                                                            alpha:
-                                                                Theme.of(
-                                                                      context,
-                                                                    ).brightness ==
-                                                                    Brightness
-                                                                        .dark
-                                                                ? 0.35
-                                                                : 0.15,
-                                                          ),
-                                                      blurRadius: 20,
-                                                      spreadRadius: -4,
-                                                      offset: const Offset(
-                                                        0,
-                                                        8,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: NowPlayingArtwork(
-                                                  np.coverArt,
-                                                  np.imageUrl,
-                                                  size: artSize,
-                                                  radius: 10,
-                                                ),
-                                              ),
+                                      // The shadow follows the rounded corners of the artwork and sits slightly inside its edges, so no square shows behind it.
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha:
+                                                  Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? 0.35
+                                                  : 0.15,
                                             ),
+                                            blurRadius: 20,
+                                            spreadRadius: -4,
+                                            offset: const Offset(0, 8),
                                           ),
-                                          if (lyricsShown)
-                                            Positioned.fill(
-                                              child: LyricsPanel(np: np),
-                                            ),
                                         ],
                                       ),
-                                    );
-                                    // Half the free height goes above the artwork; the rest is shared around the row, so it sits halfway between the artwork and the title.
-                                    final slack = math.max(
-                                      0.0,
-                                      box.maxHeight - artSize - below,
-                                    );
-                                    return Column(
-                                      children: [
-                                        SizedBox(height: slack / 2),
-                                        // Held to the size of the artwork: while it cross-fades to the next song, the outgoing artwork keeps the size it had, which no longer fits if the window shrank meanwhile.
-                                        SizedBox.square(
-                                          dimension: artSize,
-                                          child: artwork,
-                                        ),
-                                        SizedBox(height: 14 + slack / 4),
-                                        SizedBox(
-                                          width: rowWidth,
-                                          height: rowsHeight,
-                                          child: showTrackRow
-                                              ? Center(
-                                                  child: RatingStars(
-                                                    key: ValueKey(track.id),
-                                                    rating: track.rating,
-                                                    color: highlight,
-                                                    large: true,
-                                                    onChanged: (value) async {
-                                                      if (await rate(
-                                                        ref,
-                                                        track.id,
-                                                        value,
-                                                      )) {
-                                                        rememberRating(
-                                                          track.json,
-                                                          value,
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                                )
-                                              : null,
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              // The codec and quality, centred above the title; a tap opens the song info.
-                              // The badges keep their height while the format of a new song loads, so the title does not jump.
-                              SizedBox(
-                                height: _FormatBadges.height,
-                                child: format != null && track != null
-                                    ? _FormatBadges(
-                                        format: format,
-                                        track: track,
-                                        color: highlight,
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              GestureDetector(
-                                onTap: track?.albumId == null
-                                    ? null
-                                    : () {
-                                        Navigator.pop(context);
-                                        GoRouter.of(context)
-                                            .push('/album/${track!.albumId}');
-                                      },
-                                // The room of two lines, so a long title does not push the rest down.
-                                child: SizedBox(
-                                  height: _titleHeight(context),
-                                  child: Center(
-                                    child: Text(
-                                      np.title,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: _titleStyle(context),
+                                      child: NowPlayingArtwork(
+                                        np.coverArt,
+                                        np.imageUrl,
+                                        size: artSize,
+                                        radius: 10,
+                                      ),
                                     ),
                                   ),
                                 ),
+                                if (lyricsShown)
+                                  Positioned.fill(child: LyricsPanel(np: np)),
+                              ],
+                            ),
+                          );
+                          return Column(
+                            children: [
+                              const _DragHandle(),
+                              // Held to the size of the artwork: while it cross-fades to the next song, the outgoing artwork keeps the size it had, which no longer fits if the window shrank meanwhile.
+                              SizedBox.square(
+                                dimension: artSize,
+                                child: artwork,
                               ),
-                              const SizedBox(height: 4),
-                              GestureDetector(
-                                onTap: track?.artistId == null
+                              const SizedBox(height: _minGap),
+                              const Spacer(),
+                              _SeekBar(np: np, color: highlight),
+                              const SizedBox(height: _minGap),
+                              const Spacer(),
+                              _TrackText(
+                                np: np,
+                                onArtist: track?.artistId == null
                                     ? null
-                                    : () {
-                                        Navigator.pop(context);
-                                        GoRouter.of(context)
-                                            .push('/artist/${track!.artistId}');
-                                      },
-                                child: Text(
-                                  np.artist ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: highlight,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
+                                    : () => open('/artist/${track!.artistId}'),
+                                onAlbum: track?.albumId == null
+                                    ? null
+                                    : () => open('/album/${track!.albumId}'),
+                              ),
+                              const SizedBox(height: 8),
+                              // The codec, the rating and the quality on one line, which keeps its height while the format of a new song loads, so nothing below jumps.
+                              SizedBox(
+                                height: _FormatBadges.height,
+                                // On a narrow screen the whole line scales down together rather than overflowing.
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (format != null && track != null)
+                                        _FormatBadges(
+                                          format: format,
+                                          track: track,
+                                          color: highlight,
+                                          part: _BadgePart.codec,
+                                        ),
+                                      if (showRating)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: RatingStars(
+                                            key: ValueKey(track.id),
+                                            rating: track.rating,
+                                            color: highlight,
+                                            dense: true,
+                                            onChanged: (value) async {
+                                              if (await rate(
+                                                ref,
+                                                track.id,
+                                                value,
+                                              )) {
+                                                rememberRating(
+                                                  track.json,
+                                                  value,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      if (format != null && track != null)
+                                        _FormatBadges(
+                                          format: format,
+                                          track: track,
+                                          color: highlight,
+                                          part: _BadgePart.quality,
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              _SeekBar(np: np, color: highlight),
-                              _Controls(np: np, color: highlight),
+                              const SizedBox(height: _minGap),
+                              const Spacer(),
+                              _Transport(np: np, color: highlight),
                               // The room of the volume slider stays when this device plays, which has none.
                               SizedBox(
                                 height: kMinInteractiveDimension,
@@ -520,24 +421,113 @@ class NowPlayingPage extends ConsumerWidget {
                                         color: highlight,
                                       ),
                               ),
-                              const SizedBox(height: 8),
-                              // "Add to playlist", the next song and the speaker button. The speaker button shows once Music Assistant is set up.
-                              _BottomRow(
-                                np: np,
-                                color: highlight,
-                                speaker:
-                                    ref.watch(maCredentialsProvider) != null,
-                                upNext: ref.watch(upNextProvider),
-                              ),
+                              _Toolbar(np: np, color: highlight),
                             ],
-                          ),
-                        ),
-                      );
-                    },
+                          );
+                        },
+                      ),
+                    ),
                   ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The smallest space between the rows of the player; the spacers share what is left beyond it.
+const _minGap = 12.0;
+
+/// The height the player needs below the top of the page besides the artwork: the handle, the waveform, the three lines of text at the person's text size, the badges, the controls, the volume slot, the toolbar and the gaps between them.
+double _belowArtwork(BuildContext context) {
+  final scale = MediaQuery.textScalerOf(context);
+  // Line heights of the artist, the title and the album, with the spacing of the font.
+  final text = (scale.scale(16) * 2 + scale.scale(20)) * 1.4 + 4;
+  return 32 + // handle
+      40 + // waveform
+      text +
+      8 +
+      30 + // badges and stars
+      72 + // transport
+      kMinInteractiveDimension + // volume slot
+      kMinInteractiveDimension + // toolbar
+      4 * _minGap;
+}
+
+/// The handle at the top of the player, which closes it on a tap; a swipe down anywhere closes it too.
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Close the player',
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.pop(context),
+      child: SizedBox(
+        height: 32,
+        child: Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: context.subtle,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The artist, the title and the album with its year, on three centred lines. The artist and the album open their pages.
+class _TrackText extends StatelessWidget {
+  const _TrackText({required this.np, this.onArtist, this.onAlbum});
+
+  final NowPlaying np;
+  final VoidCallback? onArtist;
+  final VoidCallback? onAlbum;
+
+  @override
+  Widget build(BuildContext context) {
+    final year = np.track?.year;
+    final album = [
+      if (np.album case final album? when album.isNotEmpty) album,
+      if (year != null) '($year)',
+    ].join(' ');
+    Widget line(String text, TextStyle style, VoidCallback? onTap) =>
+        GestureDetector(
+          onTap: onTap,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        );
+    return Column(
+      children: [
+        line(
+          np.artist ?? '',
+          TextStyle(color: context.colors.onSurface, fontSize: 16),
+          onArtist,
+        ),
+        const SizedBox(height: 2),
+        line(
+          np.title,
+          TextStyle(
+            color: context.colors.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+          null,
+        ),
+        const SizedBox(height: 2),
+        line(album, TextStyle(color: context.muted, fontSize: 16), onAlbum),
+      ],
     );
   }
 }
@@ -660,58 +650,63 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
         },
       ),
     );
-    return Column(
+    final remaining = ref.watch(remainingTimeProvider);
+    // The times sit at either end of the waveform, in columns of a fixed width so the waveform does not shift as they change.
+    return Row(
       children: [
-        // The seek bar always takes the height of the waveform, so the layout stays the same with a waveform, without one, and while one loads.
         SizedBox(
-          height: _waveformHeight,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Without a thumb the slider track spans the full width, as the bars do.
-              if (peaks != null)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: WaveformPainter(
-                      peaks: peaks,
-                      progress: max == 0 ? 0 : value / max,
-                      played: widget.color,
-                      smooth:
-                          ref.watch(waveformStyleProvider) ==
-                          WaveformStyle.smooth,
-                      unplayed: context.subtle,
-                    ),
-                  ),
-                ),
-              slider,
-            ],
+          width: 44,
+          child: Text(
+            formatDuration(Duration(milliseconds: value.round())),
+            style: style,
           ),
         ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Text(
-              formatDuration(Duration(milliseconds: value.round())),
-              style: style,
+        // The seek bar always takes the height of the waveform, so the layout stays the same with a waveform, without one, and while one loads.
+        Expanded(
+          child: SizedBox(
+            height: _waveformHeight,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Without a thumb the slider track spans the full width, as the bars do.
+                if (peaks != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: WaveformPainter(
+                        peaks: peaks,
+                        progress: max == 0 ? 0 : value / max,
+                        played: widget.color,
+                        smooth:
+                            ref.watch(waveformStyleProvider) ==
+                            WaveformStyle.smooth,
+                        unplayed: context.subtle,
+                      ),
+                    ),
+                  ),
+                slider,
+              ],
             ),
-            const Spacer(),
-            // A tap switches between the time that remains and the length of the song.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => ref
-                  .read(remainingTimeProvider.notifier)
-                  .set(!ref.read(remainingTimeProvider)),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
-                child: Text(
-                  ref.watch(remainingTimeProvider)
-                      ? '-${formatDuration(duration - Duration(milliseconds: value.round()))}'
-                      : formatDuration(duration),
-                  style: style,
-                ),
+          ),
+        ),
+        // A tap switches between the time that remains and the length of the song.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => ref
+              .read(remainingTimeProvider.notifier)
+              .set(!ref.read(remainingTimeProvider)),
+          child: SizedBox(
+            width: 48,
+            height: _waveformHeight,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                remaining
+                    ? '-${formatDuration(duration - Duration(milliseconds: value.round()))}'
+                    : formatDuration(duration),
+                style: style,
               ),
             ),
-          ],
+          ),
         ),
       ],
     );
@@ -814,7 +809,9 @@ class _CoverGesturesState extends State<_CoverGestures>
   );
 }
 
-/// The codec and quality badges of what plays. A tap opens the song info, with the streaming quality on top.
+enum _BadgePart { codec, quality }
+
+/// The codec or the quality badge of what plays, either side of the rating. A tap opens the song info, with the streaming quality on top.
 class _FormatBadges extends StatelessWidget {
   /// The height of the badges with their touch padding, which the player keeps while they load.
   static const height = 30.0;
@@ -823,34 +820,34 @@ class _FormatBadges extends StatelessWidget {
     required this.format,
     required this.track,
     required this.color,
+    required this.part,
   });
 
   final PlayingFormat format;
   final Track track;
   final Color color;
+  final _BadgePart part;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Song info',
-    child: InkWell(
-      borderRadius: BorderRadius.circular(4),
-      onTap: () => showSongInfo(context, track),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Badge(format.codec, color: color),
-            if (format.quality case final quality?) ...[
-              const SizedBox(width: 6),
-              _Badge(quality, color: color),
-            ],
-          ],
+  Widget build(BuildContext context) {
+    final text = switch (part) {
+      _BadgePart.codec => format.codec,
+      _BadgePart.quality => format.quality,
+    };
+    if (text == null) return const SizedBox.shrink();
+    return Semantics(
+      button: true,
+      label: 'Song info',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: () => showSongInfo(context, track),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: _Badge(text, color: color),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// A small outlined label for the format of what plays.
@@ -880,47 +877,48 @@ class _Badge extends StatelessWidget {
   );
 }
 
-/// Shuffle, previous, play, next and repeat.
-class _Controls extends ConsumerWidget {
-  const _Controls({required this.np, required this.color});
+/// Previous, play and next. Shuffle and repeat live in the toolbar below.
+class _Transport extends ConsumerWidget {
+  const _Transport({required this.np, required this.color});
 
   final NowPlaying np;
 
-  /// The colour of shuffle and repeat while they are on.
+  /// The colour of the artwork, which tints the play button.
   final Color color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(playbackControllerProvider);
+    final onSurface = context.colors.onSurface;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          tooltip: 'Shuffle',
-          color: np.shuffle ? color : context.muted,
-          icon: const Icon(Icons.shuffle),
-          onPressed: () => controller.setShuffle(!np.shuffle),
-        ),
-        IconButton(
+          tooltip: 'Previous',
           iconSize: 44,
-          color: context.colors.onSurface,
+          color: onSurface,
           icon: const Icon(Icons.skip_previous_rounded),
           onPressed: controller.previous,
         ),
+        const SizedBox(width: 28),
         _StopOnLongPress(
           child: SizedBox.square(
-            dimension: 80,
+            dimension: 72,
+            // A soft circle tinted by the artwork rather than a stark one, so the artwork stays the focal point.
             child: IconButton.filled(
-              iconSize: 48,
+              iconSize: 44,
               style: IconButton.styleFrom(
-                backgroundColor: context.colors.onSurface,
-                foregroundColor: context.colors.surface,
+                backgroundColor: Color.alphaBlend(
+                  color.withValues(alpha: 0.35),
+                  context.colors.surfaceContainerHighest.withValues(alpha: 0.6),
+                ),
+                foregroundColor: onSurface,
               ),
               icon: np.buffering && !np.playing
                   ? SizedBox.square(
-                      dimension: 32,
+                      dimension: 30,
                       child: CircularProgressIndicator(
-                        color: context.colors.surface,
+                        color: onSurface,
                         strokeWidth: 3,
                       ),
                     )
@@ -933,21 +931,13 @@ class _Controls extends ConsumerWidget {
             ),
           ),
         ),
+        const SizedBox(width: 28),
         IconButton(
+          tooltip: 'Next',
           iconSize: 44,
-          color: context.colors.onSurface,
+          color: onSurface,
           icon: const Icon(Icons.skip_next_rounded),
           onPressed: controller.next,
-        ),
-        IconButton(
-          tooltip: 'Repeat',
-          color: np.repeat == Repeat.off ? context.muted : color,
-          icon: Icon(np.repeat == Repeat.one ? Icons.repeat_one : Icons.repeat),
-          onPressed: () => controller.setRepeat(switch (np.repeat) {
-            Repeat.off => Repeat.all,
-            Repeat.all => Repeat.one,
-            Repeat.one => Repeat.off,
-          }),
         ),
       ],
     );
@@ -1033,106 +1023,136 @@ class _PlayerScrollState extends State<_PlayerScroll> {
   );
 }
 
-/// The last row of the player: "Add to playlist" on the far left, the next song in the middle and the speaker button on the far right. The sides have equal widths, so the next song stays centred; the speaker button shrinks to its icon when its name does not fit.
-class _BottomRow extends ConsumerWidget {
-  const _BottomRow({
-    required this.np,
-    required this.speaker,
-    required this.upNext,
-    required this.color,
-  });
+/// The last row of the player, small icons on either side of the menu: the queue, endless radio and shuffle on the left; repeat and the speaker on the right. Toggles stay faint unless on.
+class _Toolbar extends ConsumerWidget {
+  const _Toolbar({required this.np, required this.color});
 
   final NowPlaying np;
-  final bool speaker;
-  final bool upNext;
 
-  /// The colour of the speaker button while a speaker plays.
+  /// The colour of the toggles that are on, and of the speaker button while a speaker plays.
   final Color color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(playbackControllerProvider);
     final track = np.track;
-    // Playlists live on the server, so adding to one needs the connection.
-    final addToPlaylist = track != null && !ref.watch(isOfflineProvider);
-    return SizedBox(
-      height: kMinInteractiveDimension,
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: addToPlaylist
-                  ? IconButton(
-                      tooltip: 'Add to playlist',
-                      color: context.muted,
-                      icon: const Icon(Icons.playlist_add_check),
-                      onPressed: () =>
-                          showAddToPlaylist(context, ref, () async => [track]),
-                    )
-                  : null,
-            ),
+    final faint = context.muted;
+    // On a Music Assistant player, its Autoplay.
+    final radio = ref.watch(outputEndlessRadioProvider);
+    final speaker = ref.watch(maCredentialsProvider) != null;
+    // The left group hugs the left edge and the right group the right edge, with the menu centred between them, as in Plexamp.
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Queue',
+                color: faint,
+                icon: const Icon(Icons.queue_music),
+                onPressed: () =>
+                    showQueue(context, ProviderScope.containerOf(context)),
+              ),
+              // Greyed out while repeat is on: a queue that repeats never runs out, so there is nothing to extend.
+              if (radio.available)
+                IconButton(
+                  tooltip: radio.blocked
+                      ? 'Endless radio is off while repeat is on'
+                      : radio.on
+                      ? 'Endless radio on'
+                      : 'Endless radio off',
+                  color: radio.on ? color : faint,
+                  icon: const Icon(Icons.all_inclusive),
+                  onPressed: radio.blocked
+                      ? null
+                      : () => runPlayback(
+                          () => ref.read(setEndlessRadioProvider)(!radio.on),
+                        ),
+                ),
+              IconButton(
+                tooltip: 'Shuffle',
+                color: np.shuffle ? color : faint,
+                icon: const Icon(Icons.shuffle),
+                onPressed: () => controller.setShuffle(!np.shuffle),
+              ),
+            ],
           ),
-          Expanded(flex: 6, child: upNext ? _UpNext(np: np) : const SizedBox()),
-          Expanded(
-            flex: 5,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: speaker
-                  // The icon alone, highlighted while a speaker plays.
-                  ? OutputButton(activeColor: color, idleColor: context.muted)
-                  : null,
-            ),
+        ),
+        _PlayerMenuButton(np: np, track: track),
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: 'Repeat',
+                color: np.repeat == Repeat.off ? faint : color,
+                icon: Icon(
+                  np.repeat == Repeat.one ? Icons.repeat_one : Icons.repeat,
+                ),
+                onPressed: () => controller.setRepeat(switch (np.repeat) {
+                  Repeat.off => Repeat.all,
+                  Repeat.all => Repeat.one,
+                  Repeat.one => Repeat.off,
+                }),
+              ),
+              if (speaker) OutputButton(activeColor: color, idleColor: faint),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _UpNext extends ConsumerWidget {
-  const _UpNext({required this.np});
+/// The menu of the player: the actions of the song, then the sleep timer and the queue. A running sleep timer marks the button.
+class _PlayerMenuButton extends ConsumerWidget {
+  const _PlayerMenuButton({required this.np, required this.track});
 
   final NowPlaying np;
+  final Track? track;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final index = np.index;
-    final next = index != null && index + 1 < np.queue.length
-        ? np.queue[index + 1]
-        : null;
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => showQueue(context, ProviderScope.containerOf(context)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.keyboard_arrow_up,
-              size: 22,
-              color: context.muted,
-              semanticLabel: next == null ? 'Queue' : 'Up next',
-            ),
-            if (next != null) ...[
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  next.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.muted,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+    final sleep = ref.watch(sleepTimerProvider);
+    final track = this.track;
+    final songIds = [for (final e in np.queue) ?e.trackId];
+    final online = !ref.watch(isOfflineProvider);
+    return IconButton(
+      tooltip: sleep == null ? 'More' : 'More, sleep timer on',
+      color: context.muted,
+      icon: Badge(
+        isLabelVisible: sleep != null,
+        smallSize: 7,
+        child: const Icon(Icons.more_horiz),
       ),
+      onPressed: track == null
+          ? null
+          : () => showTrackActions(
+              context,
+              ref,
+              track,
+              extras: [
+                (
+                  icon: sleep == null ? Icons.bedtime_outlined : Icons.bedtime,
+                  label: 'Sleep timer',
+                  detail: sleep == null ? null : 'On',
+                  onTap: () => showSleepTimerSheet(context),
+                ),
+                if (online && songIds.isNotEmpty)
+                  (
+                    icon: Icons.save_outlined,
+                    label: 'Save queue as playlist',
+                    detail: null,
+                    onTap: () => createPlaylistFrom(context, ref, songIds),
+                  ),
+                (
+                  icon: Icons.clear_all,
+                  label: 'Clear queue',
+                  detail: null,
+                  onTap: () => ref.read(playbackControllerProvider).stop(),
+                ),
+              ],
+            ),
     );
   }
 }

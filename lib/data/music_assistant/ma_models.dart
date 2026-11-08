@@ -152,6 +152,12 @@ class MaQueue {
   int? get currentIndex => json['current_index'] as int?;
   int get itemCount => json['items'] as int? ?? 0;
   bool get shuffle => json['shuffle_enabled'] as bool? ?? false;
+
+  /// Whether Music Assistant adds similar songs when the queue runs out; older servers call it Don't Stop the Music.
+  bool get autoplay =>
+      json['autoplay_enabled'] as bool? ??
+      json['dont_stop_the_music_enabled'] as bool? ??
+      false;
   MaRepeatMode get repeat =>
       MaRepeatMode.values.asNameMap()[json['repeat_mode']] ?? MaRepeatMode.off;
   MaQueueItem? get currentItem => json['current_item'] == null

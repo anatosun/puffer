@@ -535,12 +535,51 @@ final sleepTimerRunnerProvider = Provider<void>((ref) {
   ref.onDispose(() => timer?.cancel());
 });
 
-/// Endless radio: when the last song of a queue that does not repeat starts, songs that sound like it are added to the queue, on this device and on Music Assistant players alike. Each song extends the queue once.
+/// Endless radio for the output in use. On a Music Assistant player it is the player's Autoplay, which Music Assistant fills itself from its providers; on this device it is the app's own, which needs sonic similarity on the server.
+///
+/// A queue that repeats never runs out, so while repeat is on endless radio is off and blocked. Music Assistant switches Autoplay off itself then; on this device the setting stays, and endless radio comes back with repeat off.
+final outputEndlessRadioProvider =
+    Provider<({bool available, bool on, bool blocked})>((ref) {
+      final repeat = ref.watch(
+        nowPlayingProvider.select((s) => s.value?.repeat ?? Repeat.off),
+      );
+      final blocked = repeat != Repeat.off;
+      if (ref.watch(playbackControllerProvider)
+          is MusicAssistantPlaybackController) {
+        final on = ref.watch(
+          nowPlayingProvider.select((s) => s.value?.autoplay ?? false),
+        );
+        return (available: true, on: on && !blocked, blocked: blocked);
+      }
+      return (
+        available: ref.watch(canMixProvider),
+        on: ref.watch(endlessRadioProvider) && !blocked,
+        blocked: blocked,
+      );
+    });
+
+/// Turns endless radio on or off for the output in use: the Autoplay of a Music Assistant player, or the setting of this device.
+final setEndlessRadioProvider = Provider<Future<void> Function(bool on)>(
+  (ref) => (on) async {
+    final controller = ref.read(playbackControllerProvider);
+    if (controller is MusicAssistantPlaybackController) {
+      await controller.setAutoplay(on);
+    } else {
+      await ref.read(endlessRadioProvider.notifier).set(on);
+    }
+  },
+);
+
+/// Endless radio on this device: when the last song of a queue that does not repeat starts, songs that sound like it are added to the queue. Each song extends the queue once. A Music Assistant player fills its queue itself through Autoplay, so it is left alone.
 final endlessRadioRunnerProvider = Provider<void>((ref) {
   String? extendedFrom;
   ref.listen(nowPlayingProvider, (_, next) {
     final np = next.value;
     if (np == null || !atQueueEnd(np)) return;
+    if (ref.read(playbackControllerProvider)
+        is MusicAssistantPlaybackController) {
+      return;
+    }
     final track = np.track!;
     if (extendedFrom == track.id ||
         !ref.read(endlessRadioProvider) ||

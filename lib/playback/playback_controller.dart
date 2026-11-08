@@ -50,6 +50,7 @@ class NowPlaying {
     this.index,
     this.outputName,
     this.volume,
+    this.autoplay,
   });
 
   /// The Subsonic track, when known.
@@ -76,6 +77,9 @@ class NowPlaying {
 
   /// Volume from 0 to 100 of the Music Assistant player.
   final int? volume;
+
+  /// Whether the Music Assistant queue fills itself with similar songs (its Autoplay); null on this device, whose endless radio is a setting of the app.
+  final bool? autoplay;
 
   Duration positionNow([DateTime? now]) {
     if (!playing) return position;
@@ -114,6 +118,9 @@ abstract class PlaybackController {
   });
   Future<void> playNext(List<Track> tracks);
   Future<void> addTracks(List<Track> tracks);
+
+  /// Makes [tracks] the queue while the song playing, `tracks[index]`, plays on, as "Play album" does. The song is not interrupted where the output allows it; there, the songs already played before it may stay in the queue.
+  Future<void> continueWith(List<Track> tracks, int index);
   Future<void> play();
   Future<void> pause();
   Future<void> next();
@@ -208,6 +215,17 @@ class LocalPlaybackController implements PlaybackController {
     int index = 0,
     bool shuffle = false,
   }) => handler.playTracks(tracks, index: index, shuffle: shuffle);
+
+  /// The queue is rebuilt around the song, which then carries on from where it was.
+  @override
+  Future<void> continueWith(List<Track> tracks, int index) async {
+    final position = handler.position;
+    final playing = handler.player.playing;
+    await handler.playTracks(tracks, index: index);
+    if (position > const Duration(seconds: 1)) await handler.seek(position);
+    if (!playing) await handler.pause();
+  }
+
   @override
   Future<void> playNext(List<Track> tracks) => handler.playNext(tracks);
   @override

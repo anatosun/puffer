@@ -245,6 +245,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
       index: queue.currentIndex,
       outputName: thisDevice ? null : _player?.name ?? playerId,
       volume: thisDevice ? null : _player?.sliderVolume,
+      autoplay: queue.autoplay,
     );
   }
 
@@ -323,6 +324,35 @@ class MusicAssistantPlaybackController implements PlaybackController {
     await _queueCommand('play_index', {'index': index});
   }
 
+  /// Music Assistant cannot change the queue up to the song playing, which the player has buffered, without restarting it; so only what follows the song is replaced, in one step, and the songs played before it stay.
+  @override
+  Future<void> continueWith(List<Track> tracks, int index) async {
+    _remember(tracks);
+    final after = tracks.sublist(index + 1);
+    final current = _queue?.currentIndex;
+    if (after.isEmpty) {
+      // Nothing follows the song: the songs queued after it go.
+      final upcoming = current == null
+          ? const <MaQueueItem>[]
+          : _items.skip(current + 1).toList();
+      for (final item in upcoming) {
+        await _queueCommand('delete_item', {'item_id_or_index': item.id});
+      }
+    } else {
+      await _queueCommand('play_media', {
+        'media': after.map(_media).toList(),
+        'option': 'replace_next',
+        // The album plays in its order.
+        'shuffle': false,
+      });
+    }
+    // The order sent stays known when it matched the queue up to the song.
+    final kept = current != null && _sent.length == _items.length
+        ? _sent.take(current + 1)
+        : null;
+    _sent = kept == null ? const [] : [...kept, ...after];
+  }
+
   @override
   Future<void> playNext(List<Track> tracks) async {
     _remember(tracks);
@@ -368,6 +398,17 @@ class MusicAssistantPlaybackController implements PlaybackController {
   @override
   Future<void> setRepeat(Repeat repeat) =>
       _control(_queueCommand('repeat', {'repeat_mode': repeat.name}));
+
+  /// Turns the Autoplay of the queue on or off: Music Assistant then adds similar songs itself when the queue runs out. It refuses Autoplay while repeat is on, and the player offers none then. Servers before the rename only know `dont_stop_the_music`.
+  Future<void> setAutoplay(bool enabled) => _control(() async {
+    try {
+      await _queueCommand('autoplay', {'autoplay_enabled': enabled});
+    } on MaException {
+      await _queueCommand('dont_stop_the_music', {
+        'dont_stop_the_music_enabled': enabled,
+      });
+    }
+  }());
 
   @override
   Future<void> removeAt(int index) async {

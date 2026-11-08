@@ -157,11 +157,6 @@ class ExperienceSettingsPage extends ConsumerWidget {
               title: 'Swipe the artwork to skip',
               subtitle: 'Swiping sideways plays the next or previous song',
             ),
-            _Switch(
-              provider: upNextProvider,
-              title: 'Up next',
-              subtitle: 'The next song shows under the controls',
-            ),
             const SettingsSection('Tabs'),
             const _Hint('From two to five tabs. Press and drag to reorder.'),
             _ToggleList(

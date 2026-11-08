@@ -32,6 +32,7 @@ Future<void> showItemActions(
   int? rating,
   void Function(int rating)? onRated,
   VoidCallback? info,
+  List<ItemAction> extras = const [],
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -225,6 +226,16 @@ Future<void> showItemActions(
                       info();
                     },
                   ),
+                for (final extra in extras)
+                  ListTile(
+                    leading: Icon(extra.icon),
+                    title: Text(extra.label),
+                    subtitle: extra.detail == null ? null : Text(extra.detail!),
+                    onTap: () {
+                      close();
+                      extra.onTap();
+                    },
+                  ),
                 if (albumId != null && kind != PinKind.album)
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
@@ -259,11 +270,20 @@ final starredProvider = FutureProvider<Starred?>((ref) async {
   return client.getStarred();
 });
 
+/// An entry a caller adds at the end of the menu, such as the player's sleep timer.
+typedef ItemAction = ({
+  IconData icon,
+  String label,
+  String? detail,
+  VoidCallback onTap,
+});
+
 Future<void> showTrackActions(
   BuildContext context,
   WidgetRef ref,
-  Track track,
-) => showItemActions(
+  Track track, {
+  List<ItemAction> extras = const [],
+}) => showItemActions(
   context,
   ref,
   kind: PinKind.track,
@@ -279,6 +299,7 @@ Future<void> showTrackActions(
   albumId: track.albumId,
   artistId: track.artistId,
   info: () => showSongInfo(context, track),
+  extras: extras,
 );
 
 /// Keeps a rating in the JSON of a model loaded from the server, so its menu shows it next time. Models built from constant maps stay as they are.

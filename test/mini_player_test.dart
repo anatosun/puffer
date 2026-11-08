@@ -167,8 +167,13 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(tester.takeException(), isNull);
-        expect(find.text('Next one'), findsOneWidget);
+        // The first screen is the player alone: the next song shows only in the queue below.
+        expect(find.text('Next one'), findsNothing);
         expect(find.byIcon(Icons.star_rounded), findsNWidgets(rating ? 3 : 0));
+        // Shuffle and repeat sit in the toolbar, with the menu between them.
+        expect(find.byTooltip('Shuffle'), findsOneWidget);
+        expect(find.byTooltip('Repeat'), findsOneWidget);
+        expect(find.byTooltip('More'), findsOneWidget);
         expect(
           find.byWidgetPredicate(
             (w) => w is CustomPaint && w.painter is WaveformPainter,
@@ -185,7 +190,8 @@ void main() {
         await tester.tap(find.widgetWithText(Tab, 'Played'));
         await tester.pumpAndSettle();
         expect(find.text('Played before'), findsOneWidget);
-        expect(find.text('Next one'), findsOneWidget);
+        // The Played tab lists what came before only.
+        expect(find.text('Next one'), findsNothing);
       },
     );
   }
@@ -376,18 +382,14 @@ void main() {
     expect(find.text('FLAC'), findsOneWidget);
     expect(find.text('16/44.1 kHz'), findsOneWidget);
     expect(find.text('-3:00'), findsOneWidget);
-    expect(find.text('Next one'), findsWidgets);
 
     await pumpPlayer({
       'experience.playerFormat': false,
       'experience.remainingTime': false,
-      'experience.upNext': false,
     });
     expect(find.text('FLAC'), findsNothing);
     // The length of the song instead of the time that remains.
     expect(find.text('3:00'), findsOneWidget);
-    // The queue further down is not built yet, so the next song shows nowhere on screen.
-    expect(find.text('Next one'), findsNothing);
   });
 
   testWidgets(
@@ -607,19 +609,19 @@ void main() {
       }
 
       await open('Album', 'Blue in Green');
-      // "Play album" makes the album the queue, from the song that plays.
-      when(() => controller.playTracks(any(), index: any(named: 'index')))
+      // "Play album" makes the album the queue around the song that plays, which carries on.
+      when(() => controller.continueWith(any(), any()))
           .thenAnswer((_) async {});
       await tester.tap(find.text('Play album'));
       await tester.pump();
       final sent = verify(
-        () => controller.playTracks(
-          captureAny(),
-          index: captureAny(named: 'index'),
-        ),
+        () => controller.continueWith(captureAny(), captureAny()),
       ).captured;
       expect((sent[0] as List<Track>).map((t) => t.id), ['a', 'b']);
       expect(sent[1], 0);
+      verifyNever(
+        () => controller.playTracks(any(), index: any(named: 'index')),
+      );
       // The album that plays has a tab of its own, so the artist tab leaves it out.
       await open('Artist', 'Bitches Brew');
       await open('About', 'A trumpeter.');
