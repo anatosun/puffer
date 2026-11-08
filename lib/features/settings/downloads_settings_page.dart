@@ -1,10 +1,15 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:collection/collection.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/db/database.dart';
 import '../../downloads/download_settings.dart';
+import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import 'settings_section.dart';
 import '../../ui/widgets/backdrop.dart';
@@ -170,6 +175,10 @@ class DownloadsSettingsPage extends ConsumerWidget {
                   ),
                 ),
               ),
+            if (libraryFolderAvailable) ...[
+              const SettingsSection('Library folder'),
+              const _LibraryFolder(),
+            ],
             if (usage != null && usage.$2.isNotEmpty) ...[
               const SettingsSection('Storage by artist'),
               for (final artist in usage.$2)
@@ -239,5 +248,86 @@ class DownloadsSettingsPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// The library folder a person picks, on the desktop.
+class _LibraryFolder extends ConsumerWidget {
+  const _LibraryFolder();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final folder = ref.watch(libraryFolderProvider);
+    // Without a server there is no download manager to move the files.
+    final ready = ref.watch(downloadManagerProvider) != null;
+    final hint = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Text(
+        'Songs go in Music/Artist/Album/01 Title, an M3U8 file for each downloaded playlist in Playlists, and an iTunes library at the top for other players and DJ software. Changing the folder moves the songs already downloaded.',
+        style: TextStyle(color: context.muted, fontSize: 13),
+      ),
+    );
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: const Text('Folder'),
+          subtitle: Text(folder ?? 'None: downloads stay inside Puffer'),
+          trailing: folder == null
+              ? null
+              : TextButton(
+                  onPressed: ready ? () => _move(context, ref, null) : null,
+                  child: const Text('Turn off'),
+                ),
+          enabled: ready,
+          onTap: () async {
+            final picked = await getDirectoryPath(
+              initialDirectory: folder,
+              confirmButtonText: 'Use this folder',
+            );
+            if (picked != null && context.mounted) {
+              await _move(context, ref, picked);
+            }
+          },
+        ),
+        hint,
+      ],
+    );
+  }
+
+  /// Moves the downloads with a dialog that stays while the files move, and reports a folder that cannot be written.
+  Future<void> _move(
+    BuildContext context,
+    WidgetRef ref,
+    String? folder,
+  ) async {
+    final move = ref.read(setLibraryFolderProvider)(folder);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 24),
+                Expanded(child: Text('Moving downloads…')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    try {
+      await move;
+    } on FileSystemException {
+      showMessage('Puffer cannot write to that folder');
+    } finally {
+      navigator.pop();
+    }
   }
 }

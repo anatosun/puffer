@@ -20,12 +20,13 @@ abstract class TransferBackend {
   Stream<TransferUpdate> get updates;
   Future<void> start();
 
-  /// [expectedBytes] is the size the file should reach, for progress when the server sends no `Content-Length`, as with transcoded streams.
+  /// [expectedBytes] is the size the file should reach, for progress when the server sends no `Content-Length`, as with transcoded streams. [directory] is under the support directory of the app, or an absolute path when [absolute] is true.
   Future<void> enqueue({
     required String id,
     required Uri url,
     required String directory,
     required String filename,
+    bool absolute = false,
     int? expectedBytes,
   });
   Future<void> cancel(String id);
@@ -82,6 +83,7 @@ class BackgroundDownloaderBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
+    bool absolute = false,
     int? expectedBytes,
   }) async {
     await _downloader.cancelTaskWithId(id);
@@ -91,7 +93,9 @@ class BackgroundDownloaderBackend implements TransferBackend {
         url: url.toString(),
         filename: filename,
         directory: directory,
-        baseDirectory: BaseDirectory.applicationSupport,
+        baseDirectory: absolute
+            ? BaseDirectory.root
+            : BaseDirectory.applicationSupport,
         group: _group,
         // background_downloader reports progress only for a known size. It reads this header when the response has no Content-Length.
         headers: {

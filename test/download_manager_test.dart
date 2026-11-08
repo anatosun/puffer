@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'dart:convert';
+
+import 'package:drift/drift.dart' show Value;
+
 import 'package:drift/native.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puffer/data/db/database.dart';
 import 'package:puffer/data/subsonic/models.dart';
 import 'package:puffer/downloads/download_manager.dart';
 import 'package:puffer/downloads/download_settings.dart';
+import 'package:puffer/downloads/library_folder.dart';
 import 'package:puffer/downloads/transfer_backend.dart';
 
 class FakeBackend implements TransferBackend {
@@ -26,8 +32,15 @@ class FakeBackend implements TransferBackend {
     required Uri url,
     required String directory,
     required String filename,
+    bool absolute = false,
     int? expectedBytes,
-  }) async => enqueued.add(id);
+  }) async {
+    enqueued.add(id);
+    targets[id] = absolute ? '$directory/$filename' : filename;
+  }
+
+  /// Where each transfer was told to write: an absolute path in a library folder, the file name otherwise.
+  final targets = <String, String>{};
 
   @override
   Future<void> cancel(String id) async => cancelled.add(id);
@@ -347,5 +360,219 @@ void main() {
     expect(await fileIds(), isEmpty);
     expect(await db.select(db.pins).get(), isEmpty);
     expect(File('${dir.path}/t1').existsSync(), isFalse);
+  });
+
+  group('library folder', () {
+    late String root;
+    late String private;
+    late DownloadManager inFolder;
+    final songs = {
+      't1': const Track({
+        'id': 't1',
+        'title': 'One',
+        'artist': 'X',
+        'album': 'A',
+        'track': 1,
+        'duration': 100,
+        'suffix': 'flac',
+      }),
+      't2': const Track({
+        'id': 't2',
+        'title': 'Two',
+        'artist': 'X',
+        'album': 'A',
+        'track': 2,
+        'suffix': 'flac',
+      }),
+      // The same name as t1, from another server entry.
+      't3': const Track({
+        'id': 't3',
+        'title': 'One',
+        'artist': 'X',
+        'album': 'A',
+        'track': 1,
+        'suffix': 'flac',
+      }),
+    };
+
+    setUp(() async {
+      root = p.join(dir.path, 'Music');
+      private = p.join(dir.path, 'support');
+      for (final t in songs.values) {
+        await db
+            .into(db.cachedItems)
+            .insert(
+              CachedItemsCompanion.insert(
+                kind: 'track',
+                id: t.id,
+                json: jsonEncode(t.json),
+                updatedAt: DateTime.now(),
+              ),
+            );
+      }
+      library = {
+        (PinKind.album, 'A'): [songs['t1']!, songs['t2']!],
+        (PinKind.playlist, 'pl'): [songs['t2']!, songs['t1']!],
+        (PinKind.track, 't3'): [songs['t3']!],
+      };
+      await manager.dispose();
+      inFolder = manager = DownloadManager(
+        db: db,
+        backend: backend,
+        resolve: (kind, id) async => library[(kind, id)]!,
+        urlFor: (t, q) async =>
+            (url: Uri.parse('http://server/${t.id}'), extension: t.suffix),
+        settings: () => settings,
+        folder: root,
+        privateRoot: private,
+        cachedPlaylist: (id) async => Playlist({
+          'id': id,
+          'name': 'Road trip',
+          'entry': [for (final t in library[(PinKind.playlist, id)]!) t.json],
+        }),
+      );
+      await manager.start();
+    });
+
+    /// Writes the file where the transfer was told to, as the downloader does.
+    Future<void> land(String id) async {
+      final target = backend.targets[id]!;
+      await File(target).create(recursive: true);
+      await File(target).writeAsBytes(List.filled(10, 0));
+      backend.controller.add(
+        TransferUpdate(id, status: FileStatus.complete, path: target),
+      );
+      await pumpEventQueue();
+      await inFolder.settled;
+    }
+
+    String at(String relative) => p.joinAll([root, ...relative.split('/')]);
+
+    test('downloads land as Artist/Album/01 Title, with the playlist files '
+        'beside them', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      await inFolder.pin(PinKind.playlist, 'pl');
+      expect(backend.targets['t1'], at('Music/X/A/01 One.flac'));
+      expect(backend.targets['t2'], at('Music/X/A/02 Two.flac'));
+      await land('t1');
+      await land('t2');
+      expect(await inFolder.localPath('t1'), at('Music/X/A/01 One.flac'));
+
+      await inFolder.writePlaylists();
+      expect(
+        await File(at('Playlists/Road trip.m3u8')).readAsString(),
+        '#EXTM3U\n#PLAYLIST:Road trip\n'
+        '#EXTINF:0,X - Two\n${at('Music/X/A/02 Two.flac')}\n'
+        '#EXTINF:100,X - One\n${at('Music/X/A/01 One.flac')}\n',
+      );
+      expect(await File(at(itunesLibraryFile)).exists(), isTrue);
+    });
+
+    test('a second song with the same name gets a number, and removing it '
+        'leaves the first', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      await land('t1');
+      await inFolder.pin(PinKind.track, 't3');
+      expect(backend.targets['t3'], at('Music/X/A/01 One (2).flac'));
+      await land('t3');
+
+      await inFolder.unpin(PinKind.track, 't3');
+      expect(await File(at('Music/X/A/01 One (2).flac')).exists(), isFalse);
+      expect(await File(at('Music/X/A/01 One.flac')).exists(), isTrue);
+    });
+
+    test('removing the last song of an album removes its folders', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      await land('t1');
+      await land('t2');
+      await inFolder.unpin(PinKind.album, 'A');
+      expect(await Directory(at('Music/X')).exists(), isFalse);
+      expect(await Directory(root).exists(), isTrue);
+    });
+
+    test(
+      'turning the folder off moves the songs back to the private store and '
+      'removes the playlist files; turning it on moves them out again',
+      () async {
+        await inFolder.pin(PinKind.playlist, 'pl');
+        await land('t1');
+        await land('t2');
+        await inFolder.writePlaylists();
+
+        await inFolder.moveTo(null);
+        expect(inFolder.folder, isNull);
+        expect(
+          await inFolder.localPath('t1'),
+          p.join(private, 'music', 't1.flac'),
+        );
+        expect(
+          await File(p.join(private, 'music', 't1.flac')).exists(),
+          isTrue,
+        );
+        expect(await File(at('Playlists/Road trip.m3u8')).exists(), isFalse);
+        expect(await File(at(itunesLibraryFile)).exists(), isFalse);
+        expect(await Directory(at('Music/X')).exists(), isFalse);
+
+        final other = p.join(dir.path, 'Elsewhere');
+        await inFolder.moveTo(other);
+        expect(
+          await inFolder.localPath('t2'),
+          p.join(other, 'Music', 'X', 'A', '02 Two.flac'),
+        );
+        expect(
+          await File(p.join(other, 'Playlists', 'Road trip.m3u8')).exists(),
+          isTrue,
+        );
+      },
+    );
+
+    test('a transfer in progress starts again in the new folder', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      backend.enqueued.clear();
+      final other = p.join(dir.path, 'Elsewhere');
+      await inFolder.moveTo(other);
+      expect(backend.enqueued, containsAll(['t1', 't2']));
+      expect(
+        backend.targets['t1'],
+        p.join(other, 'Music', 'X', 'A', '01 One.flac'),
+      );
+    });
+
+    test('paths follow a container that moved', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      await land('t1');
+      await inFolder.rebase(root, '/new/container/Music');
+      expect(
+        await inFolder.localPath('t1'),
+        p.join('/new/container/Music', 'Music', 'X', 'A', '01 One.flac'),
+      );
+    });
+
+    test('a folder written by an earlier version moves to the current '
+        'layout, leaving songs without metadata', () async {
+      await inFolder.pin(PinKind.album, 'A');
+      await inFolder.pin(PinKind.track, 't3');
+      // As an earlier version left them: no Music folder.
+      for (final (id, old) in [
+        ('t1', at('X/A/01 One.flac')),
+        ('t3', at('X/A/01 One (2).flac')),
+      ]) {
+        await File(old).create(recursive: true);
+        await (db.update(
+          db.trackFiles,
+        )..where((t) => t.trackId.equals(id))).write(
+          TrackFilesCompanion(
+            status: const Value(FileStatus.complete),
+            path: Value(old),
+          ),
+        );
+      }
+      await (db.delete(db.cachedItems)..where((t) => t.id.equals('t3'))).go();
+
+      await inFolder.relayout();
+      expect(await inFolder.localPath('t1'), at('Music/X/A/01 One.flac'));
+      expect(await File(at('Music/X/A/01 One.flac')).exists(), isTrue);
+      expect(await inFolder.localPath('t3'), at('X/A/01 One (2).flac'));
+    });
   });
 }

@@ -652,6 +652,49 @@ final downloadSettingsUpdaterProvider = Provider<DownloadSettingsUpdater>(
   DownloadSettingsUpdater.new,
 );
 
+/// Whether this platform offers a library folder: the desktop only. Phones keep the private store, since Android lets an app write to a folder of a person's choosing only through the system folder picker.
+bool get libraryFolderAvailable =>
+    Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+
+/// The library folder: the absolute path of the folder a person picked, or null to keep the downloads private to Puffer. Always null on phones.
+class LibraryFolderSetting extends Notifier<String?> {
+  static const key = 'downloads.folder';
+
+  @override
+  String? build() => libraryFolderAvailable
+      ? ref.watch(sharedPreferencesProvider).getString(key)
+      : null;
+
+  Future<void> save(String? value) async {
+    state = value;
+    final prefs = ref.read(sharedPreferencesProvider);
+    value == null ? await prefs.remove(key) : await prefs.setString(key, value);
+  }
+}
+
+final libraryFolderProvider = NotifierProvider<LibraryFolderSetting, String?>(
+  LibraryFolderSetting.new,
+);
+
+/// The absolute paths the downloads were last stored under, to find them again after iOS moves the container of the app, which it does on every update, and to notice a folder moved outside Puffer.
+const _lastFolderKey = 'downloads.lastFolder';
+const _lastPrivateKey = 'downloads.lastPrivate';
+
+/// The layout of the library folder: 2 puts the songs under Music/ and files each album under its first album artist.
+const _folderLayoutKey = 'downloads.folderLayout';
+const _folderLayout = 2;
+
+/// Moves the downloads to [folder] (null for the private store), then keeps the setting. Throws when the folder cannot be written, before anything moves.
+final setLibraryFolderProvider = Provider<Future<void> Function(String?)>(
+  (ref) => (folder) async {
+    await ref.read(downloadManagerProvider)?.moveTo(folder);
+    await ref.read(libraryFolderProvider.notifier).save(folder);
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (folder != null) await prefs.setString(_lastFolderKey, folder);
+    await prefs.setInt(_folderLayoutKey, _folderLayout);
+  },
+);
+
 final _transferBackendProvider = Provider<TransferBackend>(
   (ref) => BackgroundDownloaderBackend(),
 );
@@ -737,8 +780,34 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
     },
     settings: () => ref.read(downloadSettingsProvider),
     fetchArtwork: art,
+    folder: ref.read(libraryFolderProvider),
+    privateRoot: ref.watch(supportDirectoryProvider).path,
+    cachedPlaylist: repository.cachedPlaylist,
   );
-  unawaited(manager.start());
+  unawaited(() async {
+    // Paths stored before iOS moved the container of the app point to it again.
+    final prefs = ref.read(sharedPreferencesProvider);
+    for (final (key, now) in [
+      (_lastFolderKey, manager.folder),
+      (_lastPrivateKey, manager.privateRoot),
+    ]) {
+      if (now == null) continue;
+      final before = prefs.getString(key);
+      if (before != null && before != now) await manager.rebase(before, now);
+      await prefs.setString(key, now);
+    }
+    await manager.start();
+    if (manager.folder != null) {
+      // A folder written by an earlier version moves to the current layout once.
+      if (prefs.getInt(_folderLayoutKey) != _folderLayout) {
+        await manager.relayout();
+        await prefs.setInt(_folderLayoutKey, _folderLayout);
+      } else {
+        // The playlist files name songs by absolute path, which a rebase may have changed.
+        await manager.writePlaylists();
+      }
+    }
+  }());
   ref.listen(
     downloadSettingsProvider.select((s) => s.simultaneous),
     (_, count) => unawaited(manager.backend.setMaxConcurrent(count)),

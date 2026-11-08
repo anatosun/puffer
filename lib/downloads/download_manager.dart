@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show debugPrint, listEquals;
+import 'package:path/path.dart' as p;
 
 import '../data/db/database.dart';
 import '../data/subsonic/models.dart';
 import 'download_settings.dart';
+import 'library_folder.dart';
 import 'transfer_backend.dart';
 
 enum PinKind { track, album, playlist, artist }
@@ -85,6 +87,7 @@ typedef UrlBuilder = Future<DownloadSource> Function(
   DownloadQuality quality,
 );
 typedef ArtworkFetcher = Future<void> Function(String coverArt);
+typedef PlaylistReader = Future<Playlist?> Function(String id);
 
 /// Keeps the track files on disk in line with the pins.
 ///
@@ -97,6 +100,10 @@ class DownloadManager {
     required this.urlFor,
     required this.settings,
     this.fetchArtwork,
+    this._folder,
+    this.privateRoot,
+    this.cachedPlaylist,
+    this.appVersion = '',
   });
 
   final AppDatabase db;
@@ -105,6 +112,19 @@ class DownloadManager {
   final UrlBuilder urlFor;
   final DownloadSettings Function() settings;
   final ArtworkFetcher? fetchArtwork;
+
+  /// The absolute path of the private store, where files go while no library folder is set; files move back there when the folder is turned off.
+  final String? privateRoot;
+
+  /// The cached playlist with its songs, for the playlist files of the library folder.
+  final PlaylistReader? cachedPlaylist;
+
+  /// The version of the app, written in the iTunes library.
+  final String appVersion;
+
+  /// The library folder: an absolute path where downloads are stored as `Music/Artist/Album/01 Title.flac`, with the playlist files in `Playlists`, or null for the private store.
+  String? get folder => _folder;
+  String? _folder;
 
   StreamSubscription<TransferUpdate>? _subscription;
 
@@ -134,6 +154,7 @@ class DownloadManager {
   }
 
   Future<void> dispose() async {
+    _playlistTimer?.cancel();
     await _subscription?.cancel();
     await _listingChanged.close();
   }
@@ -305,12 +326,193 @@ class DownloadManager {
 
   Future<void> _transfer(Track track, DownloadSettings s) async {
     final source = await urlFor(track, s.quality);
+    final root = _folder;
+    if (root == null) {
+      await backend.enqueue(
+        id: track.id,
+        url: source.url,
+        directory: _directory,
+        filename: '${track.id}.${source.extension}',
+        expectedBytes: expectedBytes(track, s.quality),
+      );
+      return;
+    }
+    // The path is kept from now on, so no other song takes the same name while this one downloads.
+    final path = await _freePath(root, track, source.extension);
+    await (db.update(db.trackFiles)..where((t) => t.trackId.equals(track.id)))
+        .write(TrackFilesCompanion(path: Value(path)));
     await backend.enqueue(
       id: track.id,
       url: source.url,
-      directory: _directory,
-      filename: '${track.id}.${source.extension}',
+      directory: p.dirname(path),
+      filename: p.basename(path),
+      absolute: true,
       expectedBytes: expectedBytes(track, s.quality),
+    );
+  }
+
+  /// The path of [track] in the library folder [root], numbered when another song already has its name or a file Puffer did not write is there.
+  Future<String> _freePath(String root, Track track, String extension) async {
+    final relative = libraryPath(track, extension);
+    for (var n = 1; ; n++) {
+      final path = p.joinAll([root, ...numberedPath(relative, n).split('/')]);
+      final owner = await (db.select(
+        db.trackFiles,
+      )..where((t) => t.path.equals(path))).getSingleOrNull();
+      if (owner?.trackId == track.id) return path;
+      if (owner == null && !await File(path).exists()) return path;
+    }
+  }
+
+  /// Moves every downloaded file to the library folder [target], or back to the private store when it is null, and writes the playlist files there. Transfers in progress start again at the new place. Each file is moved and recorded on its own, so a move that fails half way leaves every file where the database says it is, and a second attempt finishes it.
+  Future<void> moveTo(String? target) async {
+    if (target == _folder) return;
+    final privateRoot = this.privateRoot;
+    if (target == null && privateRoot == null) {
+      throw StateError('No private store to move the downloads back to');
+    }
+    await _arrange(target);
+  }
+
+  /// Moves the songs of the library folder to the paths of the current layout, for a folder written by an earlier version. Songs whose metadata is not cached stay where they are.
+  Future<void> relayout() async {
+    if (_folder == null) return;
+    await _arrange(_folder, keepUncached: true);
+  }
+
+  Future<void> _arrange(String? target, {bool keepUncached = false}) async {
+    final old = _folder;
+    final wasHeld = _held;
+    await setHeld(true);
+    try {
+      // Fails here, before anything moves, when the folder cannot be written.
+      if (target != null) await Directory(target).create(recursive: true);
+      final files = await db.select(db.trackFiles).get();
+      final tracks = {
+        for (final t in await _cachedTracks(files.map((f) => f.trackId)))
+          t.id: t,
+      };
+      for (final f in files) {
+        final from = f.path;
+        if (f.status != FileStatus.complete) {
+          // A path kept for a transfer that has not finished.
+          if (from != null) {
+            await (db.update(db.trackFiles)
+                  ..where((t) => t.trackId.equals(f.trackId)))
+                .write(const TrackFilesCompanion(path: Value(null)));
+          }
+          continue;
+        }
+        if (from == null || !await File(from).exists()) continue;
+        if (keepUncached && !tracks.containsKey(f.trackId)) continue;
+        final extension = p.extension(from).replaceFirst('.', '');
+        final to = target == null
+            ? p.join(privateRoot!, _directory, '${f.trackId}.$extension')
+            : await _freePath(
+                target,
+                tracks[f.trackId] ??
+                    Track({'id': f.trackId, 'title': f.trackId}),
+                extension,
+              );
+        if (to == from) continue;
+        await moveFile(from, to);
+        await (db.update(db.trackFiles)
+              ..where((t) => t.trackId.equals(f.trackId)))
+            .write(TrackFilesCompanion(path: Value(to)));
+        if (old != null) await pruneEmptyFolders(from, old);
+      }
+      if (old != null && old != target) {
+        // Only the playlist files Puffer wrote go; anything else a person put in the old folder stays.
+        await writePlaylistFiles(
+          root: old,
+          tracks: const [],
+          playlists: const [],
+          version: appVersion,
+        );
+      }
+      _folder = target;
+    } finally {
+      if (!wasHeld) await setHeld(false);
+    }
+    await writePlaylists();
+  }
+
+  /// Rewrites the stored paths under [from] to the same paths under [to], for a folder that moved without its files moving: iOS gives the app a new container path on every update.
+  Future<void> rebase(String from, String to) async {
+    if (from == to) return;
+    final rows = await (db.select(
+      db.trackFiles,
+    )..where((t) => t.path.like('$from%'))).get();
+    for (final f in rows) {
+      final path = f.path!;
+      if (!p.isWithin(from, path)) continue;
+      await (db.update(
+        db.trackFiles,
+      )..where((t) => t.trackId.equals(f.trackId))).write(
+        TrackFilesCompanion(
+          path: Value(p.join(to, p.relative(path, from: from))),
+        ),
+      );
+    }
+  }
+
+  /// The playlist files are written a moment after the last change, so a whole album finishing writes them once.
+  static const playlistDelay = Duration(seconds: 3);
+  Timer? _playlistTimer;
+  Future<void> _playlistWrites = Future.value();
+
+  void _schedulePlaylists() {
+    if (_folder == null) return;
+    _playlistTimer?.cancel();
+    _playlistTimer = Timer(playlistDelay, () => unawaited(writePlaylists()));
+  }
+
+  /// Writes the M3U8 file of every downloaded playlist and the iTunes library of every downloaded song into the library folder. Songs whose file is not there yet are left out until it is.
+  Future<void> writePlaylists() => _playlistWrites = _playlistWrites
+      .then((_) => _writePlaylists())
+      .catchError((Object e) {
+        // A folder that went away or refuses a file, such as Android refusing XML in Music; the songs stay playable. The type alone is logged, as the text holds paths.
+        debugPrint('Writing the playlist files failed: ${e.runtimeType}');
+      });
+
+  Future<void> _writePlaylists() async {
+    final root = _folder;
+    if (root == null) return;
+    final files = await (db.select(
+      db.trackFiles,
+    )..where((t) => t.status.equalsValue(FileStatus.complete))).get();
+    final tracks = {
+      for (final t in await _cachedTracks(files.map((f) => f.trackId))) t.id: t,
+    };
+    final inFolder = <FolderTrack>[
+      for (final f in files)
+        if (f.path case final path? when p.isWithin(root, path))
+          (
+            track: tracks[f.trackId] ?? Track({'id': f.trackId}),
+            path: path,
+            size: f.size ?? 0,
+            added: f.createdAt,
+          ),
+    ]..sort((a, b) => a.path.compareTo(b.path));
+    final playlists = <({Playlist playlist, List<String> trackIds})>[];
+    for (final pin in await watchPins(PinKind.playlist).first) {
+      final playlist = await cachedPlaylist?.call(pin.itemId);
+      if (playlist == null) continue;
+      playlists.add((
+        playlist: playlist,
+        trackIds: [for (final t in playlist.entries) t.id],
+      ));
+    }
+    playlists.sort(
+      (a, b) => a.playlist.name.toLowerCase().compareTo(
+        b.playlist.name.toLowerCase(),
+      ),
+    );
+    await writePlaylistFiles(
+      root: root,
+      tracks: inFolder,
+      playlists: playlists,
+      version: appVersion,
     );
   }
 
@@ -366,6 +568,7 @@ class DownloadManager {
         db.trackFiles,
       )..where((t) => t.trackId.equals(row.read<String>('track_id')))).go();
     }
+    if (orphans.isNotEmpty) _schedulePlaylists();
   }
 
   Future<void> _deleteFile(String trackId, String? path) async {
@@ -373,6 +576,10 @@ class DownloadManager {
     if (path != null) {
       final file = File(path);
       if (await file.exists()) await file.delete();
+      final root = _folder;
+      if (root != null && p.isWithin(root, path)) {
+        await pruneEmptyFolders(path, root);
+      }
     }
   }
 
@@ -423,7 +630,10 @@ class DownloadManager {
     await (db.update(
       db.trackFiles,
     )..where((t) => t.trackId.equals(update.id))).write(companion);
-    if (update.status == FileStatus.complete) await optimizeStorage();
+    if (update.status == FileStatus.complete) {
+      await optimizeStorage();
+      _schedulePlaylists();
+    }
   }
 
   Future<void> retryFailed() async {
@@ -495,6 +705,7 @@ class DownloadManager {
       await db.delete(db.pins).go();
       await db.delete(db.trackFiles).go();
     });
+    _schedulePlaylists();
   }
 
   // ---------------------------------------------------------------- queries
