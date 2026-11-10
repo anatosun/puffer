@@ -53,3 +53,6 @@ key.properties
 
 # Generated code (CI and F-Droid run build_runner)
 *.g.dart
+
+# Miscellaneous
+todos.md
