@@ -589,6 +589,42 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (playing) await player.play();
   }
 
+  /// Replaces the songs after the current one with [tracks]. The current entry stays, so its song plays on, and the songs before it stay. The queue it replaces goes to the past queues when songs followed the current one.
+  Future<void> replaceUpcoming(List<Track> tracks) async {
+    if (_tracks.isEmpty || player.currentIndex == null) {
+      return playTracks(tracks);
+    }
+    _cancelCrossfade();
+    final sources = await Future.wait(tracks.map(_audioSource));
+    final kept = await _serial(() async {
+      final at = player.currentIndex;
+      if (at == null || at >= _tracks.length) return false;
+      if (at + 1 < _tracks.length) {
+        onReplaced?.call(
+          PastQueue(List.of(_tracks), at, position, DateTime.now()),
+        );
+      }
+      _swapping = true;
+      try {
+        final count = player.audioSources.length;
+        if (at + 1 < count) await player.removeAudioSourceRange(at + 1, count);
+        if (sources.isNotEmpty) await player.addAudioSources(sources);
+      } finally {
+        _swapping = false;
+      }
+      _tracks = [..._tracks.take(at + 1), ...tracks];
+      // The entries up to the current one keep the artwork fetched for them.
+      queue.add([
+        ...queue.value.take(at + 1),
+        for (final t in tracks) _mediaItem(t),
+      ]);
+      return true;
+    });
+    if (!kept) return playTracks(tracks);
+    _broadcastState(player.playbackEvent);
+    _prefetch();
+  }
+
   Future<void> playNext(List<Track> tracks) async {
     if (_tracks.isEmpty) return playTracks(tracks);
     final sources = [for (final t in tracks) await _audioSource(t)];

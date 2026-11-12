@@ -324,13 +324,24 @@ class MusicAssistantPlaybackController implements PlaybackController {
     await _queueCommand('play_index', {'index': index});
   }
 
-  /// Music Assistant cannot change the queue up to the song playing, which the player has buffered, without restarting it; so only what follows the song is replaced, in one step, and the songs played before it stay.
+  /// Music Assistant cannot change the queue up to the song playing, which the player has buffered, without restarting it; so only what follows the song is replaced, and the songs played before it stay.
   @override
-  Future<void> continueWith(List<Track> tracks, int index) async {
+  Future<void> continueWith(List<Track> tracks, int index) {
     _remember(tracks);
-    final after = tracks.sublist(index + 1);
+    return _replaceNext(tracks.sublist(index + 1));
+  }
+
+  @override
+  Future<void> replaceUpcoming(List<Track> tracks) {
+    final loaded = _queue?.currentItem != null || _items.isNotEmpty;
+    return loaded ? _replaceNext(tracks) : playTracks(tracks);
+  }
+
+  /// Replaces what follows the song in one step.
+  Future<void> _replaceNext(List<Track> tracks) async {
+    _remember(tracks);
     final current = _queue?.currentIndex;
-    if (after.isEmpty) {
+    if (tracks.isEmpty) {
       // Nothing follows the song: the songs queued after it go.
       final upcoming = current == null
           ? const <MaQueueItem>[]
@@ -340,9 +351,9 @@ class MusicAssistantPlaybackController implements PlaybackController {
       }
     } else {
       await _queueCommand('play_media', {
-        'media': after.map(_media).toList(),
+        'media': tracks.map(_media).toList(),
         'option': 'replace_next',
-        // The album plays in its order.
+        // The songs play in the order sent.
         'shuffle': false,
       });
     }
@@ -350,7 +361,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
     final kept = current != null && _sent.length == _items.length
         ? _sent.take(current + 1)
         : null;
-    _sent = kept == null ? const [] : [...kept, ...after];
+    _sent = kept == null ? const [] : [...kept, ...tracks];
   }
 
   @override

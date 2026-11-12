@@ -121,6 +121,9 @@ abstract class PlaybackController {
 
   /// Makes [tracks] the queue while the song playing, `tracks[index]`, plays on, as "Play album" does. The song is not interrupted where the output allows it; there, the songs already played before it may stay in the queue.
   Future<void> continueWith(List<Track> tracks, int index);
+
+  /// Replaces the songs after the one that plays with [tracks], as a radio does. The song that plays and those before it stay, so the song plays on. With nothing loaded, [tracks] play.
+  Future<void> replaceUpcoming(List<Track> tracks);
   Future<void> play();
   Future<void> pause();
   Future<void> next();
@@ -225,6 +228,10 @@ class LocalPlaybackController implements PlaybackController {
     if (position > const Duration(seconds: 1)) await handler.seek(position);
     if (!playing) await handler.pause();
   }
+
+  @override
+  Future<void> replaceUpcoming(List<Track> tracks) =>
+      handler.replaceUpcoming(tracks);
 
   @override
   Future<void> playNext(List<Track> tracks) => handler.playNext(tracks);

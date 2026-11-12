@@ -8,6 +8,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/playback_controller.dart';
+import '../../playback/radio.dart';
 import '../../ui/messages.dart';
 import '../../ui/open_page.dart';
 import '../../ui/theme.dart';
@@ -185,15 +186,17 @@ class BelowTabBar extends ConsumerWidget {
               tooltip: 'Instant mix',
               color: context.muted,
               icon: const Icon(Icons.radio),
+              // The song plays on, and the mix follows it.
               onPressed: () => runPlayback(() async {
-                final tracks = await ref
+                final mix = await ref
                     .read(repositoryProvider)!
                     .instantMix(track);
-                if (tracks.length < 2) {
+                if (!await playRadio(
+                  ref.read(playbackControllerProvider),
+                  mix,
+                )) {
                   showMessage('The server found no similar songs');
-                  return;
                 }
-                await ref.read(playbackControllerProvider).playTracks(tracks);
               }),
             ),
         ],

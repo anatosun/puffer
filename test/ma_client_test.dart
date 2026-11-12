@@ -782,6 +782,55 @@ void main() {
   });
 
   test(
+    'a radio on a speaker replaces only what follows the song that plays',
+    () async {
+      final client = await connected();
+      final controller = MusicAssistantPlaybackController(
+        client,
+        'kitchen',
+        providerInstance: 'opensubsonic--abc',
+        streamUri: (t) => Uri.parse('http://subsonic/${t.id}'),
+      );
+      // The queue plays its first item.
+      server.send({
+        'event': 'queue_updated',
+        'object_id': 'kitchen',
+        'data': {
+          'queue_id': 'kitchen',
+          'state': 'playing',
+          'items': 2,
+          'current_index': 0,
+          'current_item': {'queue_item_id': 'a', 'name': 'Playing'},
+        },
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final before = server.commands.length;
+      await controller.replaceUpcoming([
+        Track({'id': 'r1', 'title': 'Similar'}),
+        Track({'id': 'r2', 'title': 'Also similar'}),
+      ]);
+      final sent = [
+        for (final c in server.commands.skip(before))
+          if ((c['command'] as String).startsWith('player_queues/') &&
+              c['command'] != 'player_queues/items')
+            c,
+      ];
+      expect(sent.single['command'], 'player_queues/play_media');
+      expect(sent.single['args'], {
+        'queue_id': 'kitchen',
+        'media': [
+          'opensubsonic--abc://track/r1',
+          'opensubsonic--abc://track/r2',
+        ],
+        'option': 'replace_next',
+        'shuffle': false,
+      });
+      controller.dispose();
+      await client.close();
+    },
+  );
+
+  test(
     'Play album from its last song drops what was queued after it',
     () async {
       final client = await connected();

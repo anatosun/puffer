@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../../playback/radio.dart';
 import 'star_button.dart';
 import '../../features/collection/playlist_edit.dart';
 import '../../features/now_playing/song_info.dart';
@@ -94,12 +95,9 @@ Future<void> showItemActions(
                     onTap: () async {
                       close();
                       await runPlayback(() async {
-                        final tracks = await mix();
-                        if (tracks.isEmpty) {
+                        if (!await playRadio(handler, await mix())) {
                           showMessage('The server found no similar songs');
-                          return;
                         }
-                        await handler.playTracks(tracks);
                       });
                     },
                   ),
