@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -19,38 +20,66 @@ class PlayingBars extends StatefulWidget {
   State<PlayingBars> createState() => _PlayingBarsState();
 }
 
-class _PlayingBarsState extends State<PlayingBars>
-    with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1200),
-  );
+class _PlayingBarsState extends State<PlayingBars> {
+  /// The bars move 15 times a second, which looks smooth at their size. An animation would redraw the screen on every frame the display shows, up to 120 times a second.
+  static const _step = Duration(milliseconds: 66);
+  static const _period = 1200;
+
+  final _clock = Stopwatch();
+  Timer? _timer;
+  late final AppLifecycleListener _lifecycle;
+  bool _shown = true;
 
   @override
   void initState() {
     super.initState();
-    if (widget.playing) _controller.repeat();
+    _lifecycle = AppLifecycleListener(onStateChange: (_) => _update());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Off for pages under another page, as for an animation.
+    _shown = TickerMode.valuesOf(context).enabled;
+    _update();
   }
 
   @override
   void didUpdateWidget(PlayingBars old) {
     super.didUpdateWidget(old);
-    if (widget.playing && !_controller.isAnimating) _controller.repeat();
-    if (!widget.playing && _controller.isAnimating) _controller.stop();
+    _update();
+  }
+
+  /// Runs the clock while the song plays and the bars show, in an app that shows.
+  void _update() {
+    final visible = switch (WidgetsBinding.instance.lifecycleState) {
+      null || AppLifecycleState.resumed || AppLifecycleState.inactive => true,
+      _ => false,
+    };
+    final run = widget.playing && _shown && visible;
+    if (run && _timer == null) {
+      _clock.start();
+      _timer = Timer.periodic(_step, (_) => setState(() {}));
+    } else if (!run && _timer != null) {
+      _clock.stop();
+      _timer!.cancel();
+      _timer = null;
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _timer?.cancel();
+    _lifecycle.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: widget.size,
-    child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => Row(
+  Widget build(BuildContext context) {
+    final phase = _clock.elapsedMilliseconds % _period / _period;
+    return SizedBox.square(
+      dimension: widget.size,
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -64,7 +93,7 @@ class _PlayingBarsState extends State<PlayingBars>
                       0.7 *
                           (widget.playing
                               ? (sin(
-                                          (_controller.value + i * 0.29) *
+                                          (phase + i * 0.29) *
                                               2 *
                                               pi *
                                               (1 + i * 0.4),
@@ -79,6 +108,6 @@ class _PlayingBarsState extends State<PlayingBars>
             ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
