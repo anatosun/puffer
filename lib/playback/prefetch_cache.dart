@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -56,8 +57,12 @@ class PrefetchCache {
     return file;
   }
 
-  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file.
-  Future<File> fetch(String name, Uri uri) async {
+  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file. [progress] receives the part fetched, from 0 to 1, at every hundredth, when the server tells the size.
+  Future<File> fetch(
+    String name,
+    Uri uri, {
+    void Function(double fraction)? progress,
+  }) async {
     final cached = await existing(name);
     if (cached != null) return cached;
     await dir.create(recursive: true);
@@ -72,8 +77,23 @@ class PrefetchCache {
       await response.stream.drain<void>();
       throw HttpException('HTTP ${response.statusCode}', uri: uri);
     }
+    final total = response.contentLength;
+    var received = 0;
+    var reported = 0.0;
     try {
-      await response.stream.pipe(part.openWrite());
+      await response.stream
+          .map((chunk) {
+            received += chunk.length;
+            if (progress != null && total != null && total > 0) {
+              final fraction = math.min(1.0, received / total);
+              if (fraction - reported >= 0.01 || fraction == 1) {
+                reported = fraction;
+                progress(fraction);
+              }
+            }
+            return chunk;
+          })
+          .pipe(part.openWrite());
       return await part.rename(file.path);
     } on Object {
       if (await part.exists()) await part.delete();

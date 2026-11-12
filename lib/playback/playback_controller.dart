@@ -66,7 +66,7 @@ class NowPlaying {
   final Duration duration;
   final Duration position;
 
-  /// How far into the song the player has loaded it; null when the output does not report it, as Music Assistant does not.
+  /// How much of the song is on this device: all of it for a downloaded or cached song, else how far the player or the cache has loaded it. Null when the output does not report it, as Music Assistant does not.
   final Duration? buffered;
   final DateTime positionAt;
   final bool playing;

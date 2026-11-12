@@ -999,6 +999,7 @@ class SessionPlaybackSource implements PlaybackSource {
     required Set<Track> keep,
     required void Function(Track track, String path) ready,
     required void Function(Set<String> fileNames) removed,
+    void Function(Track track, double fraction)? progress,
   }) async {
     final run = ++_prefetchRun;
     final mode = ref.read(prefetchModeProvider);
@@ -1019,7 +1020,11 @@ class SessionPlaybackSource implements PlaybackSource {
       if (run != _prefetchRun) return;
       if (await localPath(track.id) != null) continue;
       try {
-        final file = await cache.fetch(cacheName(track), streamUri(track));
+        final file = await cache.fetch(
+          cacheName(track),
+          streamUri(track),
+          progress: progress == null ? null : (f) => progress(track, f),
+        );
         ready(track, file.path);
       } on Exception {
         // The song streams when its turn comes.

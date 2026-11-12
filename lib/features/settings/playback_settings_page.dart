@@ -51,7 +51,7 @@ class PlaybackSettingsPage extends ConsumerWidget {
             ListTile(
               title: const Text('Fetch upcoming songs'),
               subtitle: const Text(
-                'The next three songs of the queue are fetched in full, so they play through gaps in the connection',
+                'The song that plays and the next three are fetched in full, so the next ones play through gaps in the connection',
               ),
               trailing: DropdownButton<PrefetchMode>(
                 value: ref.watch(prefetchModeProvider),

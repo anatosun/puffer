@@ -57,6 +57,28 @@ void main() {
     expect(await c.existing('2_original.flac'), isNull);
   });
 
+  test(
+    'a fetch reports its progress by hundredths up to the whole song',
+    () async {
+      final c = cache(
+        respond: (_) => http.Response.bytes(
+          List.filled(1000, 1),
+          200,
+          headers: {'content-type': 'audio/flac'},
+        ),
+      );
+      final reports = <double>[];
+      await c.fetch(
+        '1_original.flac',
+        Uri.parse('https://x/1'),
+        progress: reports.add,
+      );
+      expect(reports.last, 1);
+      expect(reports, orderedEquals([...reports]..sort()));
+      expect(reports.length, lessThanOrEqualTo(101));
+    },
+  );
+
   test('a Subsonic error instead of audio leaves no file', () async {
     final c = cache(
       respond: (_) => http.Response(

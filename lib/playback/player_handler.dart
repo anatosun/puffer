@@ -27,12 +27,13 @@ abstract class PlaybackSource {
   /// The file of [track] among the songs fetched ahead, when there is one.
   Future<String?> cachedPath(Track track);
 
-  /// Fetches [upcoming], the next songs of the queue, ahead of playback, and calls [ready] with the file of each. Files of the songs in [keep] stay in the cache; [removed] receives the names of the files deleted to make room.
+  /// Fetches [upcoming], the song that plays and the next songs of the queue, ahead of playback, and calls [ready] with the file of each. [progress] receives the part of each song fetched so far, from 0 to 1, when the server tells its size. Files of the songs in [keep] stay in the cache; [removed] receives the names of the files deleted to make room.
   Future<void> prefetch(
     List<Track> upcoming, {
     required Set<Track> keep,
     required void Function(Track track, String path) ready,
     required void Function(Set<String> fileNames) removed,
+    void Function(Track track, double fraction)? progress,
   });
 
   /// The artwork of [coverArt] as a local file, when it is at hand.
@@ -100,11 +101,36 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Where the stream of the current song starts within the song. Zero unless a seek restarted a transcoded stream on the server.
   Duration _offset = Duration.zero;
 
-  /// How far into the current song the player has loaded it. It changes twice a second while the song loads, so it stays out of [playbackState], each change of which goes to the system media controls.
+  /// How much of the current song is on this device, by [loadedPart]. It changes twice a second while the song loads, so it stays out of [playbackState], each change of which goes to the system media controls.
   Duration get buffered => _buffered;
   Duration _buffered = Duration.zero;
   Stream<Duration> get bufferedChanges => _bufferedChanges.stream;
   final _bufferedChanges = StreamController<Duration>.broadcast();
+
+  /// The part of each song fetched to the cache so far, by track ID, for the songs of the last [_prefetch].
+  final _fetched = <String, double>{};
+
+  /// Works out [buffered] again and reports a change.
+  Duration _updateBuffered() {
+    final index = player.currentIndex;
+    final duration = player.duration;
+    final Duration value;
+    if (index == null || index >= _tracks.length || duration == null) {
+      value = player.bufferedPosition + _offset;
+    } else {
+      value = loadedPart(
+        duration: duration + _offset,
+        buffered: player.bufferedPosition + _offset,
+        fromFile: !_streams(index),
+        fetched: _fetched[_tracks[index].id] ?? 0,
+      );
+    }
+    if (value != _buffered) {
+      _buffered = value;
+      _bufferedChanges.add(value);
+    }
+    return value;
+  }
 
   /// The offset the current song starts with after a queue loads, for the index the player reports first.
   ({int index, Duration offset})? _startOffset;
@@ -290,7 +316,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     return s is UriAudioSource && s.uri.scheme != 'file';
   }
 
-  /// Fetches the next songs ahead of playback and plays each from its file once it is there.
+  /// Fetches the song that plays and the next songs to the cache, and plays each of the next songs from its file once it is there. The song that plays keeps its stream, which a switch would interrupt; its file serves when it plays again, and shows how much of it is on this device.
   void _prefetch() {
     final src = source;
     final current = player.currentIndex;
@@ -314,24 +340,37 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await _decide([_tracks[current], for (final i in next) _tracks[i]]);
       if (generation != _generation) return;
       _upgradeStreams(generation, next);
+      final fetched = [
+        for (final i in [current, ...next])
+          if (_streams(i)) _tracks[i],
+      ];
+      final ids = {for (final t in fetched) t.id};
+      _fetched.removeWhere((id, _) => !ids.contains(id));
       await src
           .prefetch(
-            [
-              for (final i in next)
-                if (_streams(i)) _tracks[i],
-            ],
+            fetched,
             keep: {
               _tracks[current],
               for (final i in next) _tracks[i],
               for (final i in recent) _tracks[i],
             },
-            ready: (track, path) => _replace(
-              generation,
-              track.id,
-              toFile: true,
-              source: AudioSource.file(path, tag: track.id),
-            ),
+            ready: (track, path) {
+              _fetched[track.id] = 1;
+              _updateBuffered();
+              unawaited(
+                _replace(
+                  generation,
+                  track.id,
+                  toFile: true,
+                  source: AudioSource.file(path, tag: track.id),
+                ),
+              );
+            },
             removed: cachedFilesRemoved,
+            progress: (track, fraction) {
+              _fetched[track.id] = fraction;
+              if (track.id == currentTrack?.id) _updateBuffered();
+            },
           )
           .catchError((Object _) {});
     }());
@@ -774,11 +813,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _broadcastState(PlaybackEvent event) {
-    final buffered = player.bufferedPosition + _offset;
-    if (buffered != _buffered) {
-      _buffered = buffered;
-      _bufferedChanges.add(buffered);
-    }
+    final buffered = _updateBuffered();
     final playing = player.playing;
     final previous = playbackState.value;
     final next = previous.copyWith(
@@ -828,6 +863,18 @@ AudioPlayer _newPlayer() => AudioPlayer(
 bool _sameSongs(List<Track> a, List<Track> b) =>
     a.length == b.length &&
     Iterable.generate(a.length).every((i) => a[i].id == b[i].id);
+
+/// How much of a song of [duration] is on this device: all of it when it plays from a file, a download or a song fetched ahead; otherwise the further of what the player has [buffered] and the part of the song [fetched] to the cache, from 0 to 1.
+Duration loadedPart({
+  required Duration duration,
+  required Duration buffered,
+  required bool fromFile,
+  double fetched = 0,
+}) {
+  if (fromFile) return duration;
+  final cached = duration * fetched.clamp(0.0, 1.0);
+  return cached > buffered ? cached : buffered;
+}
 
 /// Whether [next] says nothing that [previous] does not: the same state, with a position where [previous] puts it by now. The player reports each change of the loaded part, which the system media controls do not need.
 bool sameState(PlaybackState previous, PlaybackState next) =>

@@ -32,6 +32,7 @@ class _Files implements PlaybackSource {
     required Set<Track> keep,
     required void Function(Track track, String path) ready,
     required void Function(Set<String> fileNames) removed,
+    void Function(Track track, double fraction)? progress,
   }) async {}
   @override
   Uri? artUri(String? coverArt) => null;
@@ -45,6 +46,33 @@ class _Files implements PlaybackSource {
   double volumeFor(Track track) => 0;
   @override
   Duration get crossfade => Duration.zero;
+}
+
+/// Songs streamed from [base], whose fetching to the cache the test drives.
+class _Streamed extends _Files {
+  _Streamed(super.dir, this.base);
+
+  final Uri base;
+  List<String> fetched = const [];
+  void Function(Track track, String path)? onReady;
+  void Function(Track track, double fraction)? onProgress;
+
+  @override
+  Future<String?> localPath(String trackId) async => null;
+  @override
+  Uri streamUri(Track track) => base.replace(path: '/${track.id}.wav');
+  @override
+  Future<void> prefetch(
+    List<Track> upcoming, {
+    required Set<Track> keep,
+    required void Function(Track track, String path) ready,
+    required void Function(Set<String> fileNames) removed,
+    void Function(Track track, double fraction)? progress,
+  }) async {
+    fetched = [for (final t in upcoming) t.id];
+    onReady = ready;
+    onProgress = progress;
+  }
 }
 
 /// A silent WAV file of [seconds] at 8 kHz, mono, 16 bits.
@@ -133,6 +161,8 @@ void main() {
         song('c', 4),
       ], index: 1);
       await Future<void>.delayed(const Duration(milliseconds: 1500));
+      // A song that plays from its file is on this device in full.
+      expect(handler.buffered, const Duration(seconds: 8));
       final before = handler.position;
       await handler.replaceUpcoming([song('r1', 5), song('r2', 6)]);
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -146,4 +176,44 @@ void main() {
     },
     skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux',
   );
+
+  test('a streamed song shows the part of it fetched to the cache', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('com.ryanheise.audio_session'),
+          (_) async => null,
+        );
+    // A cache of two seconds, so the player loads far less than the song.
+    final size = JustAudioMediaKit.bufferSize;
+    JustAudioMediaKit.bufferSize = 32 * 1024;
+    addTearDown(() => JustAudioMediaKit.bufferSize = size);
+    JustAudioMediaKit.ensureInitialized(linux: true);
+    final dir = Directory.systemTemp.createTempSync('media_kit_stream');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = _silence(dir, 's.wav', 120);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      request.response.headers
+        ..contentType = ContentType('audio', 'wav')
+        ..contentLength = file.lengthSync();
+      await request.response.addStream(file.openRead());
+      await request.response.close();
+    });
+    final source = _Streamed(dir, Uri.parse('http://127.0.0.1:${server.port}'));
+    final handler = PlayerHandler()..source = source;
+    addTearDown(handler.player.dispose);
+    const song = Track({'id': 's', 'title': 's', 'duration': 120});
+    await handler.playTracks([song]);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+    // The song that plays is fetched with the next ones.
+    expect(source.fetched, ['s']);
+    expect(handler.buffered, lessThan(const Duration(seconds: 30)));
+    source.onProgress!(song, 0.75);
+    expect(handler.buffered, const Duration(seconds: 90));
+    source.onReady!(song, file.path);
+    expect(handler.buffered, const Duration(minutes: 2));
+  }, skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux');
 }

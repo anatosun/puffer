@@ -63,4 +63,47 @@ void main() {
       );
     },
   );
+
+  group('the loaded part of the seek bar', () {
+    const song = Duration(minutes: 4);
+
+    test('is the whole song when it plays from a file', () {
+      expect(
+        loadedPart(duration: song, buffered: Duration.zero, fromFile: true),
+        song,
+      );
+    });
+
+    test('follows the cache when it is ahead of the player', () {
+      expect(
+        loadedPart(
+          duration: song,
+          buffered: const Duration(seconds: 50),
+          fromFile: false,
+          fetched: 0.5,
+        ),
+        const Duration(minutes: 2),
+      );
+    });
+
+    test('follows the player when the cache has less, or nothing', () {
+      expect(
+        loadedPart(
+          duration: song,
+          buffered: const Duration(seconds: 50),
+          fromFile: false,
+          fetched: 0.1,
+        ),
+        const Duration(seconds: 50),
+      );
+      expect(
+        loadedPart(
+          duration: song,
+          buffered: const Duration(seconds: 50),
+          fromFile: false,
+        ),
+        const Duration(seconds: 50),
+      );
+    });
+  });
 }
