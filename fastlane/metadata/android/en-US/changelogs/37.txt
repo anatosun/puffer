@@ -1,0 +1,7 @@
+- Uses less battery while the app is out of sight or nothing plays
+- A thin line on the seek bar shows how much of the song has loaded
+- Playlists can show a cover with their title
+- A radio replaces the songs after the one that plays
+- Go to artist and Go to album work from the player
+- On Linux and Windows, queued songs play at their place instead of twice
+- Hi-res songs take less work on Linux and Windows and load further ahead on Android
