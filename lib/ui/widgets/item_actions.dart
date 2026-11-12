@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
@@ -11,6 +10,7 @@ import 'star_button.dart';
 import '../../features/collection/playlist_edit.dart';
 import '../../features/now_playing/song_info.dart';
 import '../messages.dart';
+import '../open_page.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
 
@@ -47,7 +47,6 @@ Future<void> showItemActions(
         final offline = ref.watch(isOfflineProvider);
         final canMix = ref.watch(canMixProvider);
         final messenger = ScaffoldMessenger.of(context);
-        final router = GoRouter.of(context);
         void close() => Navigator.pop(sheetContext);
 
         // The actions scroll when they do not fit, on short screens or with large text.
@@ -240,10 +239,7 @@ Future<void> showItemActions(
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
                     title: const Text('Go to album'),
-                    onTap: () {
-                      close();
-                      router.push('/album/$albumId');
-                    },
+                    onTap: () => openPage(context, '/album/$albumId'),
                   ),
                 // One entry per artist the item credits, named so a song by several artists leads to each of them. The menu of an artist leads to its own page.
                 for (final artist in artists)
@@ -254,10 +250,7 @@ Future<void> showItemActions(
                           ? 'Go to artist'
                           : 'Go to ${artist.name}',
                     ),
-                    onTap: () {
-                      close();
-                      router.push('/artist/${artist.id}');
-                    },
+                    onTap: () => openPage(context, '/artist/${artist.id}'),
                   ),
               ],
             ),

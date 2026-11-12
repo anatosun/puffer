@@ -3,13 +3,13 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/playback_controller.dart';
 import '../../ui/messages.dart';
+import '../../ui/open_page.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/playing_bars.dart';
@@ -214,11 +214,7 @@ class BelowContent extends ConsumerWidget {
     final tab = tabs.contains(selected) ? selected : BelowTab.queue;
 
     // Links leave the player for the page they open.
-    void open(String path) {
-      final router = GoRouter.of(context);
-      Navigator.pop(context);
-      router.push(path);
-    }
+    void open(String path) => openPage(context, path);
 
     switch (tab) {
       case BelowTab.played:

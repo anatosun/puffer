@@ -104,4 +104,82 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Go to Artist X'), findsOneWidget);
   });
+
+  testWidgets('Go to in the menu of the player closes the player', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    const track = Track({
+      'id': 't',
+      'title': 'Song',
+      'artists': [
+        {'id': 'x', 'name': 'Artist X'},
+      ],
+    });
+    // The player sits on the root navigator over the tabs, whose navigator holds the pages, as in the app.
+    void openPlayer(BuildContext context) =>
+        Navigator.of(context, rootNavigator: true).push(
+          PageRouteBuilder<void>(
+            settings: const RouteSettings(name: 'now-playing'),
+            opaque: false,
+            pageBuilder: (_, _, _) => Material(
+              child: Consumer(
+                builder: (context, ref, _) => TextButton(
+                  onPressed: () => showTrackActions(context, ref, track),
+                  child: const Text('menu'),
+                ),
+              ),
+            ),
+          ),
+        );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          connectivityProvider.overrideWithValue(
+            const AsyncData([ConnectivityResult.wifi]),
+          ),
+          playbackControllerProvider.overrideWithValue(_FakeController()),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            routes: [
+              ShellRoute(
+                builder: (_, _, child) => child,
+                routes: [
+                  GoRoute(
+                    path: '/',
+                    builder: (_, _) => Material(
+                      child: Builder(
+                        builder: (context) => TextButton(
+                          onPressed: () => openPlayer(context),
+                          child: const Text('player'),
+                        ),
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: '/artist/:id',
+                    builder: (_, s) => Material(
+                      child: Text('artist ${s.pathParameters['id']}'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('player'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('menu'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Go to Artist X'));
+    await tester.tap(find.text('Go to Artist X'));
+    await tester.pumpAndSettle();
+    expect(find.text('artist x'), findsOneWidget);
+    expect(find.text('menu'), findsNothing);
+  });
 }
