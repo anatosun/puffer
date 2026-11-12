@@ -57,12 +57,29 @@ class PrefetchCache {
     return file;
   }
 
-  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file. [progress] receives the part fetched, from 0 to 1, at every hundredth, when the server tells the size.
+  /// The fetches under way, by file name.
+  final _fetching = <String, _Fetch>{};
+
+  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file. [progress] receives the part fetched, from 0 to 1, at every hundredth, and 1 once the file is complete. The part comes from the size the server tells. An ask for a song already on its way waits for that fetch and receives its progress, so the song downloads once.
   Future<File> fetch(
     String name,
     Uri uri, {
     void Function(double fraction)? progress,
-  }) async {
+  }) {
+    if (_fetching[name] case final running?) {
+      running.listen(progress);
+      return running.file;
+    }
+    final fetch = _Fetch()..listen(progress);
+    _fetching[name] = fetch;
+    return fetch.file = _download(
+      name,
+      uri,
+      fetch,
+    ).whenComplete(() => _fetching.remove(name));
+  }
+
+  Future<File> _download(String name, Uri uri, _Fetch fetch) async {
     final cached = await existing(name);
     if (cached != null) return cached;
     await dir.create(recursive: true);
@@ -79,22 +96,22 @@ class PrefetchCache {
     }
     final total = response.contentLength;
     var received = 0;
-    var reported = 0.0;
     try {
       await response.stream
           .map((chunk) {
             received += chunk.length;
-            if (progress != null && total != null && total > 0) {
+            if (total != null && total > 0) {
               final fraction = math.min(1.0, received / total);
-              if (fraction - reported >= 0.01 || fraction == 1) {
-                reported = fraction;
-                progress(fraction);
+              if (fraction < 1 && fraction - fetch.reported >= 0.01) {
+                fetch.report(fraction);
               }
             }
             return chunk;
           })
           .pipe(part.openWrite());
-      return await part.rename(file.path);
+      final done = await part.rename(file.path);
+      fetch.report(1);
+      return done;
     } on Object {
       if (await part.exists()) await part.delete();
       rethrow;
@@ -139,6 +156,27 @@ class PrefetchCache {
   }
 
   void close() => _http.close();
+}
+
+/// A fetch under way and the callers that follow its progress.
+class _Fetch {
+  final _listeners = <void Function(double fraction)>[];
+  double reported = 0;
+  late final Future<File> file;
+
+  /// Adds [progress] to the callers, and gives it the part fetched so far.
+  void listen(void Function(double fraction)? progress) {
+    if (progress == null) return;
+    _listeners.add(progress);
+    if (reported > 0) progress(reported);
+  }
+
+  void report(double fraction) {
+    reported = fraction;
+    for (final progress in _listeners) {
+      progress(fraction);
+    }
+  }
 }
 
 /// The queue positions of the songs that play after [current], in play order: [effectiveIndices] is the play order of the queue (the shuffle order when shuffling). With [loop], the order wraps around to the start.

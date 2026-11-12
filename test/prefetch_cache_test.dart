@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -34,6 +35,22 @@ void main() {
           );
     }),
   );
+
+  /// A cache whose server sends [body], telling [length] as its size when given.
+  PrefetchCache streaming(Stream<List<int>> Function() body, {int? length}) =>
+      PrefetchCache(
+        Directory(p.join(dir.path, 'prefetch')),
+        maxBytes: 100000,
+        httpClient: MockClient.streaming((request, _) async {
+          requests.add(request.url);
+          return http.StreamedResponse(
+            body(),
+            200,
+            contentLength: length,
+            headers: {'content-type': 'audio/ogg'},
+          );
+        }),
+      );
 
   Future<void> age(PrefetchCache c, String name, int minutesAgo) => File(
     p.join(c.dir.path, name),
@@ -78,6 +95,37 @@ void main() {
       expect(reports.length, lessThanOrEqualTo(101));
     },
   );
+
+  test('a second ask for a song on its way follows the same fetch', () async {
+    final rest = Completer<void>();
+    final c = streaming(() async* {
+      yield List.filled(500, 1);
+      await rest.future;
+      yield List.filled(500, 2);
+    }, length: 1000);
+    final uri = Uri.parse('https://x/1');
+    final first = <double>[];
+    final a = c.fetch('1_original.flac', uri, progress: first.add);
+    while (first.isEmpty) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    final second = <double>[];
+    final b = c.fetch('1_original.flac', uri, progress: second.add);
+    expect(second, [0.5]);
+    rest.complete();
+    final (fileA, fileB) = await (a, b).wait;
+    expect(requests, hasLength(1));
+    expect(fileB.path, fileA.path);
+    expect(await fileA.readAsBytes(), [
+      ...List.filled(500, 1),
+      ...List.filled(500, 2),
+    ]);
+    expect(first, [0.5, 1]);
+    expect(second, [0.5, 1]);
+    expect(c.dir.listSync().map((e) => p.basename(e.path)), [
+      '1_original.flac',
+    ]);
+  });
 
   test('a Subsonic error instead of audio leaves no file', () async {
     final c = cache(
