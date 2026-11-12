@@ -64,6 +64,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');
     }
+    if (JustAudioMediaKit.cacheDir case final dir?) {
+      setProperty(_player, 'demuxer-cache-dir', dir);
+    }
 
     _streamSubscriptions = [
       _player.stream.duration.listen((duration) {

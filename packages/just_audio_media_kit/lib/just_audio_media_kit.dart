@@ -19,6 +19,9 @@ class JustAudioMediaKit extends JustAudioPlatform {
   /// Sets the demuxer's cache size (in bytes)
   static int bufferSize = 32 * 1024 * 1024;
 
+  /// The folder of mpv's cache. media_kit asks mpv to keep its cache on disk, but without a folder mpv fails to create the file and keeps the cache in memory.
+  static String? cacheDir;
+
   /// Sets the name of the underlying window & process for native backend. This is visible inside the Windows' volume mixer.
   static String title = 'JustAudioMediaKit';
 
