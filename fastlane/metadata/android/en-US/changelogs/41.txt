@@ -1,0 +1,2 @@
+- A song asked for while it downloads ahead is fetched once, and the seek bar no longer jumps back
+- The seek bar follows the fetch of a transcoded song
