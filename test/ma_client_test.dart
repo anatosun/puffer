@@ -749,6 +749,21 @@ void main() {
     await client.close();
   });
 
+  test('a resting client stays down until it wakes', () async {
+    final client = await connected();
+    await client.rest();
+    expect(client.status, MaConnectionStatus.disconnected);
+    // Longer than the first retry would wait.
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(client.status, MaConnectionStatus.disconnected);
+
+    client.wake();
+    await client.statusStream.firstWhere(
+      (s) => s == MaConnectionStatus.connected,
+    );
+    await client.close();
+  });
+
   test('Play album on a speaker replaces only what follows the song that plays', () async {
     final client = await connected();
     final controller = MusicAssistantPlaybackController(

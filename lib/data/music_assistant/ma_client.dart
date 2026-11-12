@@ -118,6 +118,9 @@ class MusicAssistantClient {
   final _pending = <String, Completer<Object?>>{};
   final _partial = <String, List<Object?>>{};
   bool _closed = false;
+
+  /// Set by [rest]: the connection stays down until [wake].
+  bool _resting = false;
   int _attempt = 0;
   Timer? _retry;
   bool _connecting = false;
@@ -163,8 +166,27 @@ class MusicAssistantClient {
     if (_waiting > 0) _waiting--;
   }
 
+  /// Drops the connection without retrying, so the events Music Assistant sends each second while a speaker plays stop waking the phone. [wake] connects again.
+  Future<void> rest() async {
+    if (_closed || _resting) return;
+    _resting = true;
+    _retry?.cancel();
+    final channel = _channel;
+    if (channel == null) return;
+    _onClosed(channel);
+    await channel.sink.close();
+  }
+
+  /// Connects again after [rest].
+  void wake() {
+    if (_closed || !_resting) return;
+    _resting = false;
+    _attempt = 0;
+    unawaited(connect());
+  }
+
   Future<void> connect() async {
-    if (_closed) return;
+    if (_closed || _resting) return;
     _connecting = true;
     _setStatus(MaConnectionStatus.connecting);
     final channel = _connect(_wsUri(baseUrl));
@@ -238,6 +260,7 @@ class MusicAssistantClient {
     _partial.clear();
     if (_closed) return;
     _setStatus(MaConnectionStatus.disconnected);
+    if (_resting) return;
     final delay = maRetryDelay(_attempt++, waiting: _waiting > 0);
     _retry?.cancel();
     _retry = Timer(delay, connect);

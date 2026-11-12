@@ -100,6 +100,20 @@ final maClientProvider = Provider<MusicAssistantClient?>((ref) {
   return client;
 });
 
+/// Music Assistant sends the time of every speaker that plays, each second, which keeps the phone's radio awake. The connection rests once the app has been out of sight for a minute while this device is the output and the phone is no speaker, since then nothing in the app follows Music Assistant; it comes back when the app shows.
+final maRestProvider = Provider<void>((ref) {
+  final client = ref.watch(maClientProvider);
+  if (client == null) return;
+  if (ref.watch(appVisibleProvider) ||
+      ref.watch(outputProvider) != null ||
+      ref.watch(sendspinEnabledProvider)) {
+    client.wake();
+    return;
+  }
+  final timer = Timer(const Duration(minutes: 1), client.rest);
+  ref.onDispose(timer.cancel);
+});
+
 final maStatusProvider = StreamProvider<MaConnectionStatus>((ref) async* {
   final client = ref.watch(maClientProvider);
   if (client == null) {

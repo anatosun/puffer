@@ -166,6 +166,7 @@ class App extends ConsumerWidget {
     ref.watch(queuePersistenceProvider);
     ref.watch(sendspinServiceProvider);
     ref.watch(followSpeakerProvider);
+    ref.watch(maRestProvider);
     ref.watch(maCrossfadeProvider);
     ref.watch(endlessRadioRunnerProvider);
     ref.watch(maScrobbleRunnerProvider);
