@@ -68,6 +68,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// The player of the incoming song during a crossfade, made on the first fade.
   AudioPlayer? _incoming;
   Timer? _fadeTimer;
+  Timer? _fadeStart;
 
   /// Completes when the volumes have crossed, or when the fade is cancelled.
   Completer<void>? _faded;
@@ -141,20 +142,25 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       source?.nowPlaying(track);
       _scrobbled = null;
     });
-    // A play counts once half of the track, or four minutes, has played.
-    player.positionStream.listen((position) {
-      _maybeCrossfade(position);
-      final track = currentTrack;
-      if (track == null || _scrobbled == track.id) return;
-      // A stream that restarted part-way is shorter than the song, so it is measured against the song.
-      final duration = _offset > Duration.zero
-          ? track.duration
-          : player.duration ?? track.duration;
-      if (countsAsPlayed(position + _offset, duration)) {
-        _scrobbled = track.id;
-        source?.played(track);
-      }
-    });
+    // A play counts once half of the track, or four minutes, has played. The position comes once a second, which keeps the phone asleep between ticks while the screen is off.
+    player
+        .createPositionStream(
+          minPeriod: const Duration(seconds: 1),
+          maxPeriod: const Duration(seconds: 1),
+        )
+        .listen((position) {
+          _maybeCrossfade(position);
+          final track = currentTrack;
+          if (track == null || _scrobbled == track.id) return;
+          // A stream that restarted part-way is shorter than the song, so it is measured against the song.
+          final duration = _offset > Duration.zero
+              ? track.duration
+              : player.duration ?? track.duration;
+          if (countsAsPlayed(position + _offset, duration)) {
+            _scrobbled = track.id;
+            source?.played(track);
+          }
+        });
   }
 
   Future<AudioSource> _audioSource(Track track) async {
@@ -431,8 +437,17 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (index >= _tracks.length || next >= _tracks.length) return;
     final remaining = duration - position;
     // Too close to the end, a fade could not finish before the song does.
-    if (remaining > fade || remaining < const Duration(seconds: 1)) return;
+    if (remaining < const Duration(seconds: 1)) return;
     if (!crossfades(_tracks[index], _tracks[next])) return;
+    if (remaining > fade) {
+      // The fade is due before the next position arrives, so a timer starts it on time. Each call checks again, so a pause or a seek in between leaves the fade out.
+      final wait = remaining - fade;
+      if (wait < const Duration(milliseconds: 1500)) {
+        _fadeStart?.cancel();
+        _fadeStart = Timer(wait, () => _maybeCrossfade(player.position));
+      }
+      return;
+    }
     unawaited(_crossfade(index, next, remaining));
   }
 
@@ -503,6 +518,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Stops a running crossfade, for a pause, a seek or a skip: the incoming song stops and the current one plays at its own volume.
   void _cancelCrossfade() {
+    _fadeStart?.cancel();
     if (!_fading) return;
     _endCrossfade();
     unawaited(_incoming?.stop());
