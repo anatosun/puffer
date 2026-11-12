@@ -22,7 +22,7 @@ void main() {
   });
 
   final last = NowPlaying(
-    track: const Track({'id': 't2', 'title': 'Last'}),
+    track: const Track({'id': 't2', 'title': 'Last', 'artistId': 'ar1'}),
     title: 'Last',
     positionAt: DateTime(2026),
     index: 1,
@@ -32,10 +32,11 @@ void main() {
     ],
   );
 
-  /// The runner at the last song of the queue, with a server that answers the mix when the test completes [mix].
+  /// The runner at the last song of the queue, with a server that answers the mix when the test completes [mix], and [byArtist] for songs similar to the artist.
   Future<(StreamController<NowPlaying?>, _FakeController)> atLastSong(
-    Completer<List<Track>> mix,
-  ) async {
+    Completer<List<Track>> mix, {
+    List<Track> byArtist = const [],
+  }) async {
     SharedPreferences.setMockInitialValues({'playback.endlessRadio': true});
     final prefs = await SharedPreferences.getInstance();
     final controller = _FakeController();
@@ -43,6 +44,13 @@ void main() {
     final repository = _FakeRepository();
     when(() => repository.instantMix(any(), count: any(named: 'count')))
         .thenAnswer((_) => mix.future);
+    when(
+      () => repository.radio(
+        artistId: any(named: 'artistId'),
+        albumId: any(named: 'albumId'),
+        count: any(named: 'count'),
+      ),
+    ).thenAnswer((_) async => byArtist);
     final playing = StreamController<NowPlaying?>();
     final container = ProviderContainer(
       overrides: [
@@ -92,4 +100,24 @@ void main() {
       verifyNever(() => controller.addTracks(any()));
     },
   );
+
+  test('for a song the server finds nothing like, endless radio follows its artist', () async {
+    final mix = Completer<List<Track>>();
+    final (_, controller) = await atLastSong(
+      mix,
+      byArtist: const [
+        Track({'id': 'a1'}),
+        Track({'id': 't1'}),
+      ],
+    );
+    // An unanalysed song: the server sends back only the song itself.
+    mix.complete(const [
+      Track({'id': 't2'}),
+    ]);
+    await pumpEventQueue();
+    final added =
+        verify(() => controller.addTracks(captureAny())).captured.single
+            as List<Track>;
+    expect(added.map((t) => t.id), ['a1']);
+  });
 }
