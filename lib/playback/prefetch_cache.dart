@@ -60,11 +60,12 @@ class PrefetchCache {
   /// The fetches under way, by file name.
   final _fetching = <String, _Fetch>{};
 
-  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file. [progress] receives the part fetched, from 0 to 1, at every hundredth, and 1 once the file is complete. The part comes from the size the server tells. An ask for a song already on its way waits for that fetch and receives its progress, so the song downloads once.
+  /// Fetches [uri] into the file [name], unless the cache already holds it. A failed fetch leaves no file. [progress] receives the part fetched, from 0 to 1, at every hundredth, and 1 once the file is complete. The part comes from the size the server tells or, when it tells none, as for a transcoded stream, from [expectedBytes]; since an estimate can fall short, it then stays at 0.99 until the song has arrived. An ask for a song already on its way waits for that fetch and receives its progress, so the song downloads once.
   Future<File> fetch(
     String name,
     Uri uri, {
     void Function(double fraction)? progress,
+    int? expectedBytes,
   }) {
     if (_fetching[name] case final running?) {
       running.listen(progress);
@@ -76,10 +77,16 @@ class PrefetchCache {
       name,
       uri,
       fetch,
+      expectedBytes,
     ).whenComplete(() => _fetching.remove(name));
   }
 
-  Future<File> _download(String name, Uri uri, _Fetch fetch) async {
+  Future<File> _download(
+    String name,
+    Uri uri,
+    _Fetch fetch,
+    int? expectedBytes,
+  ) async {
     final cached = await existing(name);
     if (cached != null) return cached;
     await dir.create(recursive: true);
@@ -94,14 +101,16 @@ class PrefetchCache {
       await response.stream.drain<void>();
       throw HttpException('HTTP ${response.statusCode}', uri: uri);
     }
-    final total = response.contentLength;
+    final told = response.contentLength;
+    final total = told != null && told > 0 ? told : expectedBytes;
+    final ceiling = total == told ? 1.0 : 0.99;
     var received = 0;
     try {
       await response.stream
           .map((chunk) {
             received += chunk.length;
             if (total != null && total > 0) {
-              final fraction = math.min(1.0, received / total);
+              final fraction = math.min(ceiling, received / total);
               if (fraction < 1 && fraction - fetch.reported >= 0.01) {
                 fetch.report(fraction);
               }
@@ -178,6 +187,12 @@ class _Fetch {
     }
   }
 }
+
+/// The size of [duration] of audio at [bitsPerSecond], or null when either is unknown.
+int? streamSize(Duration duration, int? bitsPerSecond) =>
+    bitsPerSecond == null || bitsPerSecond <= 0 || duration <= Duration.zero
+    ? null
+    : duration.inMilliseconds * bitsPerSecond ~/ 8000;
 
 /// The queue positions of the songs that play after [current], in play order: [effectiveIndices] is the play order of the queue (the shuffle order when shuffling). With [loop], the order wraps around to the start.
 List<int> upcomingIndices(

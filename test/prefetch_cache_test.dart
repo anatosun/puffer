@@ -96,6 +96,36 @@ void main() {
     },
   );
 
+  test('without a size from the server, the progress follows the expected size and waits at 0.99 for the end', () async {
+    final c = streaming(
+      () => Stream.fromIterable([
+        for (var i = 0; i < 10; i++) List.filled(100, 1),
+      ]),
+    );
+    final short = <double>[];
+    await c.fetch(
+      'a.opus',
+      Uri.parse('https://x/a'),
+      progress: short.add,
+      expectedBytes: 800,
+    );
+    expect(short, [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 0.99, 1]);
+    final long = <double>[];
+    await c.fetch(
+      'b.opus',
+      Uri.parse('https://x/b'),
+      progress: long.add,
+      expectedBytes: 2000,
+    );
+    expect(long, [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 1]);
+  });
+
+  test('the expected size comes from the length and the bitrate', () {
+    expect(streamSize(const Duration(minutes: 4), 128000), 3840000);
+    expect(streamSize(const Duration(minutes: 4), null), isNull);
+    expect(streamSize(Duration.zero, 128000), isNull);
+  });
+
   test('a second ask for a song on its way follows the same fetch', () async {
     final rest = Completer<void>();
     final c = streaming(() async* {

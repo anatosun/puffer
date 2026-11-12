@@ -27,7 +27,7 @@ abstract class PlaybackSource {
   /// The file of [track] among the songs fetched ahead, when there is one.
   Future<String?> cachedPath(Track track);
 
-  /// Fetches [upcoming], the song that plays and the next songs of the queue, ahead of playback, and calls [ready] with the file of each. [progress] receives the part of each song fetched so far, from 0 to 1, when the server tells its size. Files of the songs in [keep] stay in the cache; [removed] receives the names of the files deleted to make room.
+  /// Fetches [upcoming], the song that plays and the next songs of the queue, ahead of playback, and calls [ready] with the file of each. [progress] receives the part of each song fetched so far, from 0 to 1, from the size the server tells or the size the streaming quality gives. Files of the songs in [keep] stay in the cache; [removed] receives the names of the files deleted to make room.
   Future<void> prefetch(
     List<Track> upcoming, {
     required Set<Track> keep,

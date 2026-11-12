@@ -962,6 +962,20 @@ class SessionPlaybackSource implements PlaybackSource {
     return ref.read(streamingQualityProvider).format ?? track.suffix;
   }
 
+  /// The size [track] should have at the streaming quality, for the progress of a fetch whose server tells no size, as for a transcoded stream.
+  int? _expectedBytes(Track track) {
+    final int? bitsPerSecond;
+    if (_choice(track) case final choice?) {
+      if (!choice.transcoded) return track.size;
+      bitsPerSecond = choice.stream?.audioBitrate;
+    } else {
+      final kbps = ref.read(streamingQualityProvider).maxBitRate;
+      if (kbps == null) return track.size;
+      bitsPerSecond = kbps * 1000;
+    }
+    return streamSize(track.duration, bitsPerSecond);
+  }
+
   /// The file name of [track] in the cache, at the streaming quality of the current network.
   String cacheName(Track track) => PrefetchCache.fileName(
     track.id,
@@ -1024,6 +1038,7 @@ class SessionPlaybackSource implements PlaybackSource {
           cacheName(track),
           streamUri(track),
           progress: progress == null ? null : (f) => progress(track, f),
+          expectedBytes: _expectedBytes(track),
         );
         ready(track, file.path);
       } on Exception {
