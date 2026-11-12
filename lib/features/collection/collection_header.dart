@@ -15,6 +15,7 @@ class CollectionView extends ConsumerWidget {
     super.key,
     required this.coverArt,
     this.image,
+    this.cover,
     required this.title,
     this.subtitle,
     this.onSubtitleTap,
@@ -32,6 +33,9 @@ class CollectionView extends ConsumerWidget {
 
   /// An image shown in place of [coverArt], such as the photo of an artist.
   final ImageProvider? image;
+
+  /// A cover of the given side shown in place of [coverArt], such as the title cover of a playlist.
+  final Widget Function(double side)? cover;
   final String title;
   final String? subtitle;
   final VoidCallback? onSubtitleTap;
@@ -63,7 +67,9 @@ class CollectionView extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
 
     Widget artwork(double side) {
-      final picture = image == null
+      final picture = cover != null
+          ? cover!(side)
+          : image == null
           ? Artwork(
               coverArt,
               size: side,

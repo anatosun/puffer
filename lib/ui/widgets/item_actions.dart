@@ -15,7 +15,7 @@ import '../open_page.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
 
-/// The long-press menu of a track, album, playlist or artist. "Remove Download" and "Remove from Library" are separate entries.
+/// The long-press menu of a track, album, playlist or artist. "Remove Download" and "Remove from Library" are separate entries. The header shows [cover] when there is one, such as the cover of a playlist, and the artwork of [coverArt] otherwise.
 Future<void> showItemActions(
   BuildContext context,
   WidgetRef ref, {
@@ -24,6 +24,7 @@ Future<void> showItemActions(
   required String title,
   String? subtitle,
   String? coverArt,
+  Widget? cover,
   bool? starred,
   Future<List<Track>> Function()? tracks,
   Future<List<Track>> Function()? mix,
@@ -57,11 +58,15 @@ Future<void> showItemActions(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: Artwork(
-                    coverArt,
-                    size: 48,
-                    icon: kind == PinKind.artist ? Icons.person : Icons.album,
-                  ),
+                  leading:
+                      cover ??
+                      Artwork(
+                        coverArt,
+                        size: 48,
+                        icon: kind == PinKind.artist
+                            ? Icons.person
+                            : Icons.album,
+                      ),
                   title: Text(
                     title,
                     maxLines: 1,

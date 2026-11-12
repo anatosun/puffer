@@ -74,6 +74,14 @@ class ExperienceSettingsPage extends ConsumerWidget {
               ),
             ),
             SwitchListTile(
+              title: const Text('Title covers for playlists'),
+              subtitle: const Text(
+                'Playlists show their name and the pufferfish in the colours of the theme, in place of their artwork',
+              ),
+              value: ref.watch(titleCoversProvider),
+              onChanged: (v) => ref.read(titleCoversProvider.notifier).set(v),
+            ),
+            SwitchListTile(
               title: const Text('Start-up animation'),
               subtitle: const Text(
                 'The pufferfish plays when the app opens. Applies at the next start',

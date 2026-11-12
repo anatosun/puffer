@@ -16,6 +16,7 @@ import '../theme.dart';
 import 'artwork.dart';
 import 'brand_mark.dart';
 import 'download_indicator.dart';
+import 'title_cover.dart';
 import 'item_actions.dart';
 import 'playing_bars.dart';
 import 'pressable.dart';
@@ -556,7 +557,7 @@ final playlistCoversProvider = FutureProvider.autoDispose
           const [];
     });
 
-/// The cover of a playlist. Without a cover from the server, a 2×2 mosaic of its first four albums, or the cover of its first album when it has fewer. The mosaic needs the playlist to have been opened or downloaded once.
+/// The cover of a playlist. With [titleCoversProvider] on, its name and the pufferfish on the colours of the theme. Otherwise the cover from the server, or without one, a 2×2 mosaic of its first four albums, or the cover of its first album when it has fewer. The mosaic needs the playlist to have been opened or downloaded once.
 class PlaylistArtwork extends ConsumerWidget {
   const PlaylistArtwork(this.playlist, {super.key, this.size, this.radius = 4});
 
@@ -566,6 +567,9 @@ class PlaylistArtwork extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(titleCoversProvider)) {
+      return TitleCover(playlist.name, size: size, radius: radius);
+    }
     if (playlist.coverArt != null) {
       return Artwork(
         playlist.coverArt,
@@ -643,6 +647,7 @@ Future<void> showPlaylistActions(
   title: playlist.name,
   subtitle: countOf(playlist.songCount, 'song'),
   coverArt: playlist.coverArt,
+  cover: PlaylistArtwork(playlist, size: 48),
   playlist: playlist,
   tracks: () async =>
       (await ref.read(repositoryProvider)!.playlist(playlist.id)).entries,

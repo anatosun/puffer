@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/experience.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/subsonic/models.dart';
@@ -13,6 +14,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/shimmer.dart';
 import '../../ui/widgets/tiles.dart';
+import '../../ui/widgets/title_cover.dart';
 import 'collection_header.dart';
 import '../home/home_page.dart';
 import 'add_songs_sheet.dart';
@@ -144,6 +146,7 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
       title: p.name,
       subtitle: countOf(_entries.length, 'song'),
       coverArt: p.coverArt,
+      cover: PlaylistArtwork(p, size: 48),
       playlist: p,
       tracks: () async => _entries,
     ).then((_) async {
@@ -162,6 +165,9 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
         ownsPlaylist(ref, playlist) && !ref.watch(isOfflineProvider);
     return CollectionView(
       coverArt: playlist.headerCover,
+      cover: ref.watch(titleCoversProvider)
+          ? (side) => TitleCover(playlist.name, size: side, radius: 8)
+          : null,
       title: playlist.name,
       subtitle: playlist.owner,
       details:

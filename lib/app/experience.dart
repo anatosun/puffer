@@ -363,3 +363,8 @@ final waveformStyleProvider =
         WaveformStyle.smooth,
       ),
     );
+
+/// Playlists show a cover made of their name and the pufferfish, in the colours of the theme, in place of their artwork.
+final titleCoversProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.playlistTitleCovers', false),
+);
