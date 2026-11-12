@@ -1,0 +1,5 @@
+- The player goes away when the queue runs out
+- The seek bar shows how much of the song is on the device; downloaded songs show it whole
+- With songs ahead on, the song that plays is fetched in full too
+- Instant mix sits in the player's toolbar, which now fits narrow phones
+- On Linux and Windows, nearly any song loads whole
