@@ -8,7 +8,6 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/playback_controller.dart';
-import '../../playback/radio.dart';
 import '../../ui/messages.dart';
 import '../../ui/open_page.dart';
 import '../../ui/theme.dart';
@@ -143,63 +142,31 @@ bool _hasPlayed(WidgetRef ref) =>
     (ref.watch(nowPlayingProvider.select((s) => s.value?.index)) ?? 0) > 0 ||
     (ref.watch(pastQueuesProvider).value?.isNotEmpty ?? false);
 
-/// The tab bar below the player, with instant mix at its end.
+/// The tab bar below the player.
 class BelowTabBar extends ConsumerWidget {
   const BelowTabBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final below = _below(ref);
-    final tabs = _available(below, played: _hasPlayed(ref));
+    final tabs = _available(_below(ref), played: _hasPlayed(ref));
     final selected = ref.watch(belowTabProvider);
     final index = math.max(0, tabs.indexOf(selected));
-    final track = below.track;
-    // An instant mix asks the server for songs that sound alike, so it needs the connection and the `sonicSimilarity` extension.
-    final mix =
-        track != null &&
-        ref.watch(canMixProvider) &&
-        !ref.watch(isOfflineProvider);
     return Padding(
-      // The right padding matches the player's, so instant mix sits under the speaker button.
-      padding: const EdgeInsets.only(top: 8, left: 12, right: 24),
-      child: Row(
-        children: [
-          Expanded(
-            child: DefaultTabController(
-              // A new controller when the tabs change with the song, or when another control picks a tab, such as "Up next" picking the queue.
-              key: ValueKey('${tabs.join()}$index'),
-              length: tabs.length,
-              initialIndex: index,
-              // Six tabs do not fit a narrow phone at a readable size, so the bar scrolls sideways; the queue, second, shows from the start.
-              child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-                dividerColor: Colors.transparent,
-                tabs: [for (final t in tabs) Tab(text: t.label)],
-                onTap: (i) => ref.read(belowTabProvider.notifier).set(tabs[i]),
-              ),
-            ),
-          ),
-          if (mix)
-            IconButton(
-              tooltip: 'Instant mix',
-              color: context.muted,
-              icon: const Icon(Icons.radio),
-              // The song plays on, and the mix follows it.
-              onPressed: () => runPlayback(() async {
-                final mix = await ref
-                    .read(repositoryProvider)!
-                    .instantMix(track);
-                if (!await playRadio(
-                  ref.read(playbackControllerProvider),
-                  mix,
-                )) {
-                  showMessage('The server found no similar songs');
-                }
-              }),
-            ),
-        ],
+      padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
+      child: DefaultTabController(
+        // A new controller when the tabs change with the song, or when another control picks a tab, such as "Up next" picking the queue.
+        key: ValueKey('${tabs.join()}$index'),
+        length: tabs.length,
+        initialIndex: index,
+        // Six tabs do not fit a narrow phone at a readable size, so the bar scrolls sideways; the queue, second, shows from the start.
+        child: TabBar(
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+          dividerColor: Colors.transparent,
+          tabs: [for (final t in tabs) Tab(text: t.label)],
+          onTap: (i) => ref.read(belowTabProvider.notifier).set(tabs[i]),
+        ),
       ),
     );
   }

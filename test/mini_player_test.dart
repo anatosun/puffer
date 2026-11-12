@@ -490,6 +490,8 @@ void main() {
       await tester.pump();
       // The player has no heart button; a double tap on the artwork adds the song.
       expect(find.byIcon(Icons.favorite_border), findsNothing);
+      // Instant mix sits in the toolbar, between repeat and the speaker.
+      expect(find.byTooltip('Instant mix'), findsOneWidget);
 
       final cover = find.byType(Hero);
       await tester.tap(cover);
@@ -504,11 +506,70 @@ void main() {
       expect(find.text('3:00'), findsOneWidget);
       expect(prefs.getBool('experience.remainingTime'), isFalse);
 
-      // The tab bar below the player starts on the queue, with instant mix at its end. The drag starts below the artwork, which takes vertical swipes itself.
+      // The tab bar below the player starts on the queue. The drag starts below the artwork, which takes vertical swipes itself.
       await tester.dragFrom(const Offset(200, 720), const Offset(0, -650));
       await tester.pumpAndSettle();
       expect(find.text('Queue'), findsOneWidget);
-      expect(find.byTooltip('Instant mix'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'every button of the toolbar fits a phone 360 points wide, instant mix between repeat and the speaker',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(360, 780));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            initialMaCredentialsProvider.overrideWithValue(
+              MaCredentials(baseUrl: Uri.parse('http://ma:8095'), token: 't'),
+            ),
+            outputEndlessRadioProvider.overrideWithValue((
+              available: true,
+              on: false,
+              blocked: false,
+            )),
+            repositoryProvider.overrideWithValue(_FakeRepository()),
+            syncAutomaticDownloadsProvider.overrideWithValue(() async {}),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            extensionsProvider.overrideWithValue(
+              const AsyncData({'sonicSimilarity'}),
+            ),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final left = [
+        for (final t in ['Queue', 'Endless radio off', 'Shuffle', 'More'])
+          tester.getCenter(find.byTooltip(t)).dx,
+      ];
+      final right = [
+        for (final t in ['More', 'Repeat', 'Instant mix', 'Play on'])
+          tester.getCenter(find.byTooltip(t)).dx,
+      ];
+      expect(left, orderedEquals([...left]..sort()));
+      expect(right, orderedEquals([...right]..sort()));
+      await tester.binding.setSurfaceSize(null);
     },
   );
 

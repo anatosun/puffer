@@ -14,6 +14,7 @@ import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/audio_format.dart';
 import '../../playback/playback_controller.dart';
+import '../../playback/radio.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
@@ -1040,7 +1041,7 @@ class _PlayerScrollState extends State<_PlayerScroll> {
   );
 }
 
-/// The last row of the player, small icons on either side of the menu: the queue, endless radio and shuffle on the left; repeat and the speaker on the right. Toggles stay faint unless on.
+/// The last row of the player, small icons on either side of the menu: the queue, endless radio and shuffle on the left; repeat, instant mix and the speaker on the right. Toggles stay faint unless on.
 class _Toolbar extends ConsumerWidget {
   const _Toolbar({required this.np, required this.color});
 
@@ -1057,63 +1058,92 @@ class _Toolbar extends ConsumerWidget {
     // On a Music Assistant player, its Autoplay.
     final radio = ref.watch(outputEndlessRadioProvider);
     final speaker = ref.watch(maCredentialsProvider) != null;
-    // The left group hugs the left edge and the right group the right edge, with the menu centred between them, as in Plexamp.
+    // An instant mix asks the server for songs that sound alike, so it needs the connection and the `sonicSimilarity` extension.
+    final mix =
+        track != null &&
+        ref.watch(canMixProvider) &&
+        !ref.watch(isOfflineProvider);
+    // The left group hugs the left edge and the right group the right edge, with the menu centred between them, as in Plexamp. On a phone narrower than 384 points, three buttons do not fit beside the menu, and the group shrinks.
     return Row(
       children: [
         Expanded(
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Queue',
-                color: faint,
-                icon: const Icon(Icons.queue_music),
-                onPressed: () =>
-                    showQueue(context, ProviderScope.containerOf(context)),
-              ),
-              // Greyed out while repeat is on: a queue that repeats never runs out, so there is nothing to extend.
-              if (radio.available)
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 IconButton(
-                  tooltip: radio.blocked
-                      ? 'Endless radio is off while repeat is on'
-                      : radio.on
-                      ? 'Endless radio on'
-                      : 'Endless radio off',
-                  color: radio.on ? color : faint,
-                  icon: const Icon(Icons.all_inclusive),
-                  onPressed: radio.blocked
-                      ? null
-                      : () => runPlayback(
-                          () => ref.read(setEndlessRadioProvider)(!radio.on),
-                        ),
+                  tooltip: 'Queue',
+                  color: faint,
+                  icon: const Icon(Icons.queue_music),
+                  onPressed: () =>
+                      showQueue(context, ProviderScope.containerOf(context)),
                 ),
-              IconButton(
-                tooltip: 'Shuffle',
-                color: np.shuffle ? color : faint,
-                icon: const Icon(Icons.shuffle),
-                onPressed: () => controller.setShuffle(!np.shuffle),
-              ),
-            ],
+                // Greyed out while repeat is on: a queue that repeats never runs out, so there is nothing to extend.
+                if (radio.available)
+                  IconButton(
+                    tooltip: radio.blocked
+                        ? 'Endless radio is off while repeat is on'
+                        : radio.on
+                        ? 'Endless radio on'
+                        : 'Endless radio off',
+                    color: radio.on ? color : faint,
+                    icon: const Icon(Icons.all_inclusive),
+                    onPressed: radio.blocked
+                        ? null
+                        : () => runPlayback(
+                            () => ref.read(setEndlessRadioProvider)(!radio.on),
+                          ),
+                  ),
+                IconButton(
+                  tooltip: 'Shuffle',
+                  color: np.shuffle ? color : faint,
+                  icon: const Icon(Icons.shuffle),
+                  onPressed: () => controller.setShuffle(!np.shuffle),
+                ),
+              ],
+            ),
           ),
         ),
         _PlayerMenuButton(np: np, track: track),
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                tooltip: 'Repeat',
-                color: np.repeat == Repeat.off ? faint : color,
-                icon: Icon(
-                  np.repeat == Repeat.one ? Icons.repeat_one : Icons.repeat,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Repeat',
+                  color: np.repeat == Repeat.off ? faint : color,
+                  icon: Icon(
+                    np.repeat == Repeat.one ? Icons.repeat_one : Icons.repeat,
+                  ),
+                  onPressed: () => controller.setRepeat(switch (np.repeat) {
+                    Repeat.off => Repeat.all,
+                    Repeat.all => Repeat.one,
+                    Repeat.one => Repeat.off,
+                  }),
                 ),
-                onPressed: () => controller.setRepeat(switch (np.repeat) {
-                  Repeat.off => Repeat.all,
-                  Repeat.all => Repeat.one,
-                  Repeat.one => Repeat.off,
-                }),
-              ),
-              if (speaker) OutputButton(activeColor: color, idleColor: faint),
-            ],
+                if (mix)
+                  IconButton(
+                    tooltip: 'Instant mix',
+                    color: faint,
+                    icon: const Icon(Icons.radio),
+                    // The song plays on, and the mix follows it.
+                    onPressed: () => runPlayback(() async {
+                      final songs = await ref
+                          .read(repositoryProvider)!
+                          .instantMix(track);
+                      if (!await playRadio(controller, songs)) {
+                        showMessage('The server found no similar songs');
+                      }
+                    }),
+                  ),
+                if (speaker) OutputButton(activeColor: color, idleColor: faint),
+              ],
+            ),
           ),
         ),
       ],
