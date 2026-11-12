@@ -17,6 +17,8 @@ analyzer:
     - linux/**
     - windows/**
     - macos/**
+    # A copy of a third-party package, kept as it was published apart from its fix.
+    - packages/just_audio_media_kit/**
 
 linter:
   # The lint rules applied to this project can be customized in the
