@@ -1,0 +1,6 @@
+- The player goes away when the queue runs out
+- Endless radio follows the artist when the server finds no similar song
+- The seek bar shows how much of the song is on the device; downloaded songs show it whole
+- With songs ahead on, the song that plays is fetched in full too
+- Instant mix sits in the player's toolbar, which now fits narrow phones
+- On Linux and Windows, nearly any song loads whole
