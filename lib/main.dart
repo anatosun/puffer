@@ -15,6 +15,8 @@ import 'playback/player_handler.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // just_audio has no Linux or Windows backend; media_kit (libmpv) provides one. macOS uses just_audio's own.
+  // Pitch control puts mpv's scaletempo filter on every song, even at normal speed, and its work grows with the square of the sample rate: a 24-bit song at 192 kHz decoded 18 times slower with it. The app never changes the speed or the pitch.
+  JustAudioMediaKit.pitch = false;
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
   registerFontLicences();
 
