@@ -56,7 +56,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _init();
   }
 
-  final player = AudioPlayer();
+  final player = _newPlayer();
   PlaybackSource? source;
 
   /// Receives the queue that [playTracks] replaces, so it can be played again later.
@@ -462,7 +462,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final from = _tracks[index], to = _tracks[next];
     final fromVolume = source?.volumeFor(from) ?? 1;
     final toVolume = source?.volumeFor(to) ?? 1;
-    final incoming = _incoming ??= AudioPlayer();
+    final incoming = _incoming ??= _newPlayer();
     try {
       await incoming.setVolume(0);
       await incoming.setAudioSource(await _audioSource(to));
@@ -817,6 +817,13 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!sameState(previous, next)) playbackState.add(next);
   }
 }
+
+/// ExoPlayer loads 50 seconds ahead, but stops at 13 MB by default: enough for 50 seconds of a CD-quality FLAC, about 20 seconds of a 24-bit one at 192 kHz. The larger cap keeps 50 seconds of either.
+AudioPlayer _newPlayer() => AudioPlayer(
+  audioLoadConfiguration: const AudioLoadConfiguration(
+    androidLoadControl: AndroidLoadControl(targetBufferBytes: 64 << 20),
+  ),
+);
 
 bool _sameSongs(List<Track> a, List<Track> b) =>
     a.length == b.length &&
