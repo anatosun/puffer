@@ -21,6 +21,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeController extends Mock implements PlaybackController {}
 
+bool _drawsTimeline(Widget w) =>
+    w is CustomPaint && w.painter is TimelinePainter;
+
+bool _drawsWaveform(Widget w) =>
+    _drawsTimeline(w) &&
+    ((w as CustomPaint).painter as TimelinePainter).peaks != null;
+
 class _FakeRepository extends Mock implements LibraryRepository {}
 
 void main() {
@@ -175,11 +182,11 @@ void main() {
         expect(find.byTooltip('Repeat'), findsOneWidget);
         expect(find.byTooltip('More'), findsOneWidget);
         expect(
-          find.byWidgetPredicate(
-            (w) => w is CustomPaint && w.painter is WaveformPainter,
-          ),
+          find.byWidgetPredicate(_drawsWaveform),
           findsNWidgets(waveform ? 1 : 0),
         );
+        // The line of the timeline shows with a waveform and without one.
+        expect(find.byWidgetPredicate(_drawsTimeline), findsOneWidget);
 
         // Scrolling down continues into the queue, which starts with the current song; played songs have a tab of their own before it.
         await tester.dragFrom(const Offset(180, 600), const Offset(0, -500));
@@ -230,22 +237,12 @@ void main() {
     );
     await tester.pump();
     final whileLoading = tester.getCenter(find.byType(Slider));
-    expect(
-      find.byWidgetPredicate(
-        (w) => w is CustomPaint && w.painter is WaveformPainter,
-      ),
-      findsNothing,
-    );
+    expect(find.byWidgetPredicate(_drawsWaveform), findsNothing);
 
     loading.complete([0, 128, 255, 64]);
     await tester.pump();
     await tester.pump();
-    expect(
-      find.byWidgetPredicate(
-        (w) => w is CustomPaint && w.painter is WaveformPainter,
-      ),
-      findsOneWidget,
-    );
+    expect(find.byWidgetPredicate(_drawsWaveform), findsOneWidget);
     expect(tester.getCenter(find.byType(Slider)), whileLoading);
   });
 

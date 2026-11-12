@@ -598,7 +598,6 @@ class _SeekBar extends ConsumerStatefulWidget {
 }
 
 class _SeekBarState extends ConsumerState<_SeekBar> {
-  static const _thumbRadius = 6.0;
   static const _waveformHeight = 40.0;
 
   double? _dragValue;
@@ -608,6 +607,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     ref.watch(clockProvider);
     final position = widget.np.positionNow();
     final duration = widget.np.duration;
+    final buffered = widget.np.buffered;
     final max = duration.inMilliseconds.toDouble();
     final value = (_dragValue ?? position.inMilliseconds.toDouble()).clamp(
       0.0,
@@ -625,18 +625,14 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     final peaks = showWaveform
         ? ref.watch(waveformProvider(trackId)).value
         : null;
+    // The slider takes the gestures; the timeline below it draws the position, so the slider itself shows nothing.
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: 3,
-        // With a waveform, the colour of the bars marks the position, so there is no thumb.
-        thumbShape: peaks == null
-            ? const RoundSliderThumbShape(enabledThumbRadius: _thumbRadius)
-            : SliderComponentShape.noThumb,
+        trackHeight: TimelinePainter.lineWidth,
+        thumbShape: SliderComponentShape.noThumb,
         overlayShape: SliderComponentShape.noOverlay,
-        // With a waveform, the waveform shows the progress and the track is hidden behind it.
-        activeTrackColor: peaks == null ? widget.color : Colors.transparent,
-        thumbColor: context.colors.onSurface,
-        inactiveTrackColor: peaks == null ? context.subtle : Colors.transparent,
+        activeTrackColor: Colors.transparent,
+        inactiveTrackColor: Colors.transparent,
       ),
       child: Slider(
         value: value,
@@ -668,21 +664,25 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Without a thumb the slider track spans the full width, as the bars do.
-                if (peaks != null)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: WaveformPainter(
-                        peaks: peaks,
-                        progress: max == 0 ? 0 : value / max,
-                        played: widget.color,
-                        smooth:
-                            ref.watch(waveformStyleProvider) ==
-                            WaveformStyle.smooth,
-                        unplayed: context.subtle,
-                      ),
+                // Without a thumb the slider track spans the full width, as the timeline does.
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: TimelinePainter(
+                      peaks: peaks,
+                      progress: max == 0 ? 0 : value / max,
+                      // An output that reports no loading, such as Music Assistant, counts as having loaded the song.
+                      loaded: max == 0 || buffered == null
+                          ? 1
+                          : buffered.inMilliseconds / max,
+                      played: widget.color,
+                      loadedColour: context.muted,
+                      unplayed: context.subtle,
+                      smooth:
+                          ref.watch(waveformStyleProvider) ==
+                          WaveformStyle.smooth,
                     ),
                   ),
+                ),
                 slider,
               ],
             ),

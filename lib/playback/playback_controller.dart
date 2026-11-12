@@ -41,6 +41,7 @@ class NowPlaying {
     this.imageUrl,
     this.duration = Duration.zero,
     this.position = Duration.zero,
+    this.buffered,
     required this.positionAt,
     this.playing = false,
     this.buffering = false,
@@ -64,6 +65,9 @@ class NowPlaying {
   final Uri? imageUrl;
   final Duration duration;
   final Duration position;
+
+  /// How far into the song the player has loaded it; null when the output does not report it, as Music Assistant does not.
+  final Duration? buffered;
   final DateTime positionAt;
   final bool playing;
   final bool buffering;
@@ -187,6 +191,7 @@ class LocalPlaybackController implements PlaybackController {
       coverArt: track?.coverArt,
       duration: item.duration ?? Duration.zero,
       position: s.updatePosition,
+      buffered: s.bufferedPosition,
       positionAt: s.updateTime,
       playing: s.playing,
       buffering:

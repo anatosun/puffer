@@ -249,6 +249,20 @@ void main() {
     );
   });
 
+  group('timelineParts', () {
+    test('the line is played up to the position, then loaded, then not', () {
+      expect(timelineParts(0.25, 0.6), (played: 0.25, loaded: 0.6));
+    });
+
+    test('a load behind the position leaves no loaded part', () {
+      expect(timelineParts(0.5, 0.2), (played: 0.5, loaded: 0.5));
+    });
+
+    test('both ends stay on the line', () {
+      expect(timelineParts(-0.1, 1.4), (played: 0.0, loaded: 1.0));
+    });
+  });
+
   group('waveformBars', () {
     test('squares the quadratic mean of each group, relative to the loudest '
         'peak', () {

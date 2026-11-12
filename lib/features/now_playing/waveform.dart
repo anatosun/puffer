@@ -72,22 +72,33 @@ List<double> smoothBars(List<double> bars) {
   });
 }
 
-/// Draws [peaks] as vertically centred bars, smoothed by [smoothBars],, in [played] up to [progress] (0 to 1) and in [unplayed] after it.
-class WaveformPainter extends CustomPainter {
-  const WaveformPainter({
-    required this.peaks,
+/// The parts of the line of the seek bar, as fractions of its length from 0 to 1: played up to [progress], loaded up to [loaded] after that, and not loaded after. A [loaded] behind [progress] leaves no loaded part.
+({double played, double loaded}) timelineParts(double progress, double loaded) {
+  final played = progress.clamp(0.0, 1.0);
+  return (played: played, loaded: math.max(played, loaded.clamp(0.0, 1.0)));
+}
+
+/// The seek bar: [peaks] as vertically centred bars, smoothed by [smoothBars], when there is a waveform, and a thin line across the middle. Bars and line are in [played] up to [progress] (0 to 1) and in [unplayed] after it; the line is in [loadedColour] where the player has loaded the song, up to [loaded].
+class TimelinePainter extends CustomPainter {
+  const TimelinePainter({
+    this.peaks,
     required this.progress,
+    required this.loaded,
     required this.played,
+    required this.loadedColour,
     required this.unplayed,
     this.smooth = true,
   });
 
   static const barWidth = 2.0;
   static const barGap = 1.5;
+  static const lineWidth = 2.0;
 
-  final List<int> peaks;
+  final List<int>? peaks;
   final double progress;
+  final double loaded;
   final Color played;
+  final Color loadedColour;
   final Color unplayed;
 
   /// Smooths the bars with [smoothBars]; otherwise each bar shows its own loudness.
@@ -95,32 +106,58 @@ class WaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const step = barWidth + barGap;
-    final count = ((size.width + barGap) / step).floor();
-    final raw = waveformBars(peaks, count);
-    final bars = smooth ? smoothBars(raw) : raw;
-    final playedX = progress * size.width;
-    final playedPaint = Paint()..color = played;
-    final unplayedPaint = Paint()..color = unplayed;
     final mid = size.height / 2;
-    for (var i = 0; i < bars.length; i++) {
-      final x = i * step;
-      final height = math.max(1.0, bars[i] * size.height);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, mid - height / 2, barWidth, height),
-          const Radius.circular(1),
-        ),
-        x + barWidth / 2 <= playedX ? playedPaint : unplayedPaint,
+    final playedX = progress.clamp(0.0, 1.0) * size.width;
+    if (peaks case final peaks?) {
+      const step = barWidth + barGap;
+      final count = ((size.width + barGap) / step).floor();
+      final raw = waveformBars(peaks, count);
+      final bars = smooth ? smoothBars(raw) : raw;
+      final playedPaint = Paint()..color = played;
+      final unplayedPaint = Paint()..color = unplayed;
+      for (var i = 0; i < bars.length; i++) {
+        final x = i * step;
+        final height = math.max(1.0, bars[i] * size.height);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, mid - height / 2, barWidth, height),
+            const Radius.circular(1),
+          ),
+          x + barWidth / 2 <= playedX ? playedPaint : unplayedPaint,
+        );
+      }
+    }
+    final parts = timelineParts(progress, loaded);
+    final top = mid - lineWidth / 2;
+    // The line has round ends; the parts meet edge to edge inside it.
+    canvas.save();
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, top, size.width, lineWidth),
+        const Radius.circular(lineWidth / 2),
+      ),
+    );
+    void part(double from, double to, Color colour) {
+      if (to <= from) return;
+      canvas.drawRect(
+        Rect.fromLTRB(from * size.width, top, to * size.width, top + lineWidth),
+        Paint()..color = colour,
       );
     }
+
+    part(0, parts.played, played);
+    part(parts.played, parts.loaded, loadedColour);
+    part(parts.loaded, 1, unplayed);
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(WaveformPainter oldDelegate) =>
+  bool shouldRepaint(TimelinePainter oldDelegate) =>
       !identical(peaks, oldDelegate.peaks) ||
       progress != oldDelegate.progress ||
+      loaded != oldDelegate.loaded ||
       played != oldDelegate.played ||
+      loadedColour != oldDelegate.loadedColour ||
       unplayed != oldDelegate.unplayed ||
       smooth != oldDelegate.smooth;
 }
