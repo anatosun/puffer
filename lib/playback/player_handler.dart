@@ -100,6 +100,12 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Where the stream of the current song starts within the song. Zero unless a seek restarted a transcoded stream on the server.
   Duration _offset = Duration.zero;
 
+  /// How far into the current song the player has loaded it. It changes twice a second while the song loads, so it stays out of [playbackState], each change of which goes to the system media controls.
+  Duration get buffered => _buffered;
+  Duration _buffered = Duration.zero;
+  Stream<Duration> get bufferedChanges => _bufferedChanges.stream;
+  final _bufferedChanges = StreamController<Duration>.broadcast();
+
   /// The offset the current song starts with after a queue loads, for the index the player reports first.
   ({int index, Duration offset})? _startOffset;
 
@@ -768,45 +774,62 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _broadcastState(PlaybackEvent event) {
+    final buffered = player.bufferedPosition + _offset;
+    if (buffered != _buffered) {
+      _buffered = buffered;
+      _bufferedChanges.add(buffered);
+    }
     final playing = player.playing;
-    playbackState.add(
-      playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {
-          MediaAction.seek,
-          MediaAction.seekForward,
-          MediaAction.seekBackward,
-        },
-        androidCompactActionIndices: const [0, 1, 2],
-        processingState: const {
-          ProcessingState.idle: AudioProcessingState.idle,
-          ProcessingState.loading: AudioProcessingState.loading,
-          ProcessingState.buffering: AudioProcessingState.buffering,
-          ProcessingState.ready: AudioProcessingState.ready,
-          ProcessingState.completed: AudioProcessingState.completed,
-        }[player.processingState]!,
-        playing: playing,
-        updatePosition: position,
-        bufferedPosition: player.bufferedPosition + _offset,
-        speed: player.speed,
-        queueIndex: event.currentIndex,
-        shuffleMode: player.shuffleModeEnabled
-            ? AudioServiceShuffleMode.all
-            : AudioServiceShuffleMode.none,
-        repeatMode: switch (player.loopMode) {
-          LoopMode.off => AudioServiceRepeatMode.none,
-          LoopMode.one => AudioServiceRepeatMode.one,
-          LoopMode.all => AudioServiceRepeatMode.all,
-        },
-      ),
+    final previous = playbackState.value;
+    final next = previous.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+      },
+      androidCompactActionIndices: const [0, 1, 2],
+      processingState: const {
+        ProcessingState.idle: AudioProcessingState.idle,
+        ProcessingState.loading: AudioProcessingState.loading,
+        ProcessingState.buffering: AudioProcessingState.buffering,
+        ProcessingState.ready: AudioProcessingState.ready,
+        ProcessingState.completed: AudioProcessingState.completed,
+      }[player.processingState]!,
+      playing: playing,
+      updatePosition: position,
+      bufferedPosition: buffered,
+      speed: player.speed,
+      queueIndex: event.currentIndex,
+      shuffleMode: player.shuffleModeEnabled
+          ? AudioServiceShuffleMode.all
+          : AudioServiceShuffleMode.none,
+      repeatMode: switch (player.loopMode) {
+        LoopMode.off => AudioServiceRepeatMode.none,
+        LoopMode.one => AudioServiceRepeatMode.one,
+        LoopMode.all => AudioServiceRepeatMode.all,
+      },
     );
+    if (!sameState(previous, next)) playbackState.add(next);
   }
 }
 
 bool _sameSongs(List<Track> a, List<Track> b) =>
     a.length == b.length &&
     Iterable.generate(a.length).every((i) => a[i].id == b[i].id);
+
+/// Whether [next] says nothing that [previous] does not: the same state, with a position where [previous] puts it by now. The player reports each change of the loaded part, which the system media controls do not need.
+bool sameState(PlaybackState previous, PlaybackState next) =>
+    previous.processingState == next.processingState &&
+    previous.playing == next.playing &&
+    previous.speed == next.speed &&
+    previous.queueIndex == next.queueIndex &&
+    previous.shuffleMode == next.shuffleMode &&
+    previous.repeatMode == next.repeatMode &&
+    previous.errorMessage == next.errorMessage &&
+    (previous.position - next.updatePosition).abs() <
+        const Duration(milliseconds: 200);

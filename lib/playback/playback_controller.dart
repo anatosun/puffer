@@ -155,6 +155,7 @@ class LocalPlaybackController implements PlaybackController {
       handler.mediaItem.listen((_) => _emit()),
       handler.playbackState.listen((_) => _emit()),
       handler.queue.listen((_) => _emit()),
+      handler.bufferedChanges.listen((_) => _emit()),
     ];
   }
 
@@ -162,6 +163,10 @@ class LocalPlaybackController implements PlaybackController {
   late final List<StreamSubscription<Object?>> _subscriptions;
   final _controller = StreamController<NowPlaying?>.broadcast();
   NowPlaying? _current;
+
+  /// The entries of the queue the handler last listed, kept until it lists another, since the state changes far more often than the queue.
+  List<QueueEntry> _queue = const [];
+  List<MediaItem>? _queueSource;
 
   @override
   NowPlaying? get current => _current ?? _build();
@@ -182,7 +187,6 @@ class LocalPlaybackController implements PlaybackController {
     if (item == null) return null;
     final s = handler.playbackState.value;
     final track = handler.currentTrack;
-    final covers = {for (final t in handler.tracks) t.id: t.coverArt};
     return NowPlaying(
       track: track,
       title: item.title,
@@ -191,7 +195,7 @@ class LocalPlaybackController implements PlaybackController {
       coverArt: track?.coverArt,
       duration: item.duration ?? Duration.zero,
       position: s.updatePosition,
-      buffered: s.bufferedPosition,
+      buffered: handler.buffered,
       positionAt: s.updateTime,
       playing: s.playing,
       buffering:
@@ -203,18 +207,26 @@ class LocalPlaybackController implements PlaybackController {
         AudioServiceRepeatMode.one => Repeat.one,
         _ => Repeat.all,
       },
-      queue: [
-        for (final m in handler.queue.value)
-          QueueEntry(
-            id: m.id,
-            trackId: m.id,
-            title: m.title,
-            artist: m.artist,
-            coverArt: covers[m.id],
-          ),
-      ],
+      queue: _entries(),
       index: s.queueIndex,
     );
+  }
+
+  List<QueueEntry> _entries() {
+    final items = handler.queue.value;
+    if (identical(items, _queueSource)) return _queue;
+    final covers = {for (final t in handler.tracks) t.id: t.coverArt};
+    _queueSource = items;
+    return _queue = [
+      for (final m in items)
+        QueueEntry(
+          id: m.id,
+          trackId: m.id,
+          title: m.title,
+          artist: m.artist,
+          coverArt: covers[m.id],
+        ),
+    ];
   }
 
   @override
