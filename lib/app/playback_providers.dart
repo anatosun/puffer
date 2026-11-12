@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/music_assistant/ma_client.dart';
@@ -665,8 +666,41 @@ final nowPlayingProvider = StreamProvider<NowPlaying?>(
   (ref) => ref.watch(playbackControllerProvider).state,
 );
 
-/// Ticks twice a second while a screen shows the position.
+/// Whether the app shows on the screen. The clocks below stop while it does not, so the phone can sleep between songs.
+class AppVisibleNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final listener = AppLifecycleListener(
+      onStateChange: (s) => state = _visible(s),
+    );
+    ref.onDispose(listener.dispose);
+    return _visible(WidgetsBinding.instance.lifecycleState);
+  }
+
+  /// Inactive still shows, as under the notification shade; an unknown state counts as showing.
+  static bool _visible(AppLifecycleState? s) =>
+      s == null ||
+      s == AppLifecycleState.resumed ||
+      s == AppLifecycleState.inactive;
+}
+
+final appVisibleProvider = NotifierProvider<AppVisibleNotifier, bool>(
+  AppVisibleNotifier.new,
+);
+
+Stream<DateTime> _ticks(bool on) => on
+    ? Stream.periodic(const Duration(milliseconds: 500), (_) => DateTime.now())
+    : const Stream.empty();
+
+/// Ticks twice a second while the app shows, for a countdown.
 final clockProvider = StreamProvider.autoDispose<DateTime>(
-  (ref) =>
-      Stream.periodic(const Duration(milliseconds: 500), (_) => DateTime.now()),
+  (ref) => _ticks(ref.watch(appVisibleProvider)),
+);
+
+/// Ticks twice a second while a song plays and the app shows, for the position. A paused position does not move, and each change of the player brings a new [NowPlaying].
+final positionClockProvider = StreamProvider.autoDispose<DateTime>(
+  (ref) => _ticks(
+    ref.watch(appVisibleProvider) &&
+        ref.watch(nowPlayingProvider.select((s) => s.value?.playing ?? false)),
+  ),
 );

@@ -109,7 +109,7 @@ class _LinesState extends ConsumerState<_Lines> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(clockProvider);
+    ref.watch(positionClockProvider);
     final synced = widget.lyrics.synced;
     final current = synced
         ? currentLyricLine(_lines, widget.np.positionNow())

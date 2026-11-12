@@ -97,7 +97,7 @@ class MiniPlayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final np = ref.watch(nowPlayingProvider).value;
     if (np == null) return const SizedBox.shrink();
-    ref.watch(clockProvider);
+    ref.watch(positionClockProvider);
     final controller = ref.read(playbackControllerProvider);
     final scheme = _scheme(context, ref, np);
     final position = np.positionNow();
@@ -604,7 +604,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(clockProvider);
+    ref.watch(positionClockProvider);
     final position = widget.np.positionNow();
     final duration = widget.np.duration;
     final buffered = widget.np.buffered;
