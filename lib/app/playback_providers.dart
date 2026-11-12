@@ -607,6 +607,9 @@ final endlessRadioRunnerProvider = Provider<void>((ref) {
       try {
         final mix = await ref.read(repositoryProvider)!.instantMix(track);
         final more = songsToAdd(mix, [for (final e in np.queue) e.id]);
+        // The songs come too late when the queue ran out or another took its place while the server answered.
+        final now = ref.read(nowPlayingProvider).value;
+        if (now?.queue.lastOrNull?.trackId != track.id) return;
         if (more.isNotEmpty) {
           await ref.read(playbackControllerProvider).addTracks(more);
         }

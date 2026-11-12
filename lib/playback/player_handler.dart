@@ -174,6 +174,16 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       source?.nowPlaying(track);
       _scrobbled = null;
     });
+    // The queue ran out: it joins the past queues, from which it can play again, and the player goes.
+    player.processingStateStream.listen((state) {
+      if (state != ProcessingState.completed || _swapping || _tracks.isEmpty) {
+        return;
+      }
+      onReplaced?.call(
+        PastQueue(List.of(_tracks), 0, Duration.zero, DateTime.now()),
+      );
+      unawaited(stop());
+    });
     // A play counts once half of the track, or four minutes, has played. The position comes once a second, which keeps the phone asleep between ticks while the screen is off.
     player
         .createPositionStream(

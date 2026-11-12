@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path/path.dart' as p;
 import 'package:puffer/data/subsonic/models.dart';
+import 'package:puffer/playback/past_queues.dart';
 import 'package:puffer/playback/player_handler.dart';
 
 /// Songs whose audio is a file named by their ID.
@@ -216,4 +217,38 @@ void main() {
     source.onReady!(song, file.path);
     expect(handler.buffered, const Duration(minutes: 2));
   }, skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux');
+
+  test(
+    'a queue that runs out leaves the player and joins the past queues',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.ryanheise.audio_session'),
+            (_) async => null,
+          );
+      JustAudioMediaKit.ensureInitialized(linux: true);
+      final dir = Directory.systemTemp.createTempSync('media_kit_end');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      Track song(String id, int seconds) {
+        _silence(dir, '$id.wav', seconds);
+        return Track({'id': id, 'title': id, 'duration': seconds});
+      }
+
+      final past = <PastQueue>[];
+      final handler = PlayerHandler()
+        ..source = _Files(dir)
+        ..onReplaced = past.add;
+      addTearDown(handler.player.dispose);
+      await handler.playTracks([song('a', 3), song('b', 2)], index: 1);
+      await handler.play();
+      await handler.mediaItem
+          .firstWhere((item) => item == null)
+          .timeout(const Duration(seconds: 10));
+      expect(handler.tracks, isEmpty);
+      expect(handler.queue.value, isEmpty);
+      expect([for (final t in past.single.tracks) t.id], ['a', 'b']);
+    },
+    skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux',
+  );
 }
