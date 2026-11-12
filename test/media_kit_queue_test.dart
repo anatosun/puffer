@@ -56,6 +56,10 @@ class _Streamed extends _Files {
 
   final Uri base;
   List<String> fetched = const [];
+
+  /// The files of the songs fetched ahead, by track ID. Each is there from the second time the handler asks, as for a song whose fetch ends after its stream started.
+  Map<String, String> cached = const {};
+  final _asked = <String>{};
   void Function(Track track, String path)? onReady;
   void Function(Track track, double fraction)? onProgress;
 
@@ -63,6 +67,9 @@ class _Streamed extends _Files {
   Future<String?> localPath(String trackId) async => null;
   @override
   Uri streamUri(Track track) => base.replace(path: '/${track.id}.wav');
+  @override
+  Future<String?> cachedPath(Track track) async =>
+      _asked.add(track.id) ? null : cached[track.id];
   @override
   Future<void> prefetch(
     List<Track> upcoming, {
@@ -303,4 +310,39 @@ void main() {
     },
     skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux',
   );
+
+  test('a stream that fails carries on from the file of the song', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('com.ryanheise.audio_session'),
+          (_) async => null,
+        );
+    JustAudioMediaKit.ensureInitialized(linux: true);
+    final dir = Directory.systemTemp.createTempSync('media_kit_recover');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = _silence(dir, 's.wav', 30);
+    // A server that has lost the song, as one out of reach would.
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+    });
+    final source = _Streamed(dir, Uri.parse('http://127.0.0.1:${server.port}'))
+      ..cached = {'s': file.path};
+    final handler = PlayerHandler()..source = source;
+    addTearDown(handler.player.dispose);
+    const song = Track({'id': 's', 'title': 's', 'duration': 30});
+    try {
+      await handler.playTracks([song]);
+    } on PlayerException {
+      // The stream failed; the handler carries on from the file.
+    }
+    await handler.player.durationStream
+        .firstWhere((d) => d == const Duration(seconds: 30))
+        .timeout(const Duration(seconds: 10));
+    final entry = handler.player.audioSources.single as UriAudioSource;
+    expect(entry.uri.scheme, 'file');
+  }, skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux');
 }

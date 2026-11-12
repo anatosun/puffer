@@ -170,10 +170,18 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       mediaItem.add(queue.value[index]);
       final track = _tracks[index];
       if (queue.value[index].artUri == null) unawaited(_fetchArt(index));
-      if (!_handingOver) player.setVolume(source?.volumeFor(track) ?? 1);
+      if (!_handingOver) {
+        // A load that starts meanwhile interrupts the one the volume waits for.
+        unawaited(
+          player
+              .setVolume(source?.volumeFor(track) ?? 1)
+              .catchError((Object _) {}),
+        );
+      }
       source?.nowPlaying(track);
       _scrobbled = null;
     });
+    player.errorStream.listen((_) => unawaited(_recover()));
     // The queue ran out: it joins the past queues, from which it can play again, and the player goes.
     player.processingStateStream.listen((state) {
       if (state != ProcessingState.completed || _swapping || _tracks.isEmpty) {
@@ -318,6 +326,31 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       shuffleOrder: _order,
     );
   }
+
+  /// The stream of the current song failed, as when the connection drops. When the downloads or the songs fetched ahead hold the whole song, the queue loads again, which gives the song its file, and the song carries on where it stopped. A song that plays from its file is left alone, so a failing file does not load the queue over and over.
+  Future<void> _recover() async {
+    // The player may report one failure several times; a second load would interrupt the first.
+    if (_recovering) return;
+    final src = source;
+    final index = player.currentIndex;
+    if (src == null || index == null || index >= _tracks.length) return;
+    if (!_streams(index)) return;
+    _recovering = true;
+    try {
+      final track = _tracks[index];
+      if (await src.localPath(track.id) == null &&
+          await src.cachedPath(track) == null) {
+        return;
+      }
+      await reloadSources(decide: false);
+    } on Exception {
+      // The song stays where it stopped, as without its file.
+    } finally {
+      _recovering = false;
+    }
+  }
+
+  bool _recovering = false;
 
   bool _streams(int index) {
     final sources = player.audioSources;
@@ -643,14 +676,14 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     return Duration.zero;
   }
 
-  /// Builds the audio sources of the queue again, for example after the streaming quality changed, and carries on from the same song and position. A song that was playing keeps playing.
-  Future<void> reloadSources() async {
+  /// Builds the audio sources of the queue again, for example after the streaming quality changed, and carries on from the same song and position. A song that was playing keeps playing. Without [decide], the server is not asked how the song streams, as when the connection is gone.
+  Future<void> reloadSources({bool decide = true}) async {
     final index = player.currentIndex;
     if (_tracks.isEmpty || source == null || index == null) return;
     _cancelCrossfade();
     final position = this.position;
     final playing = player.playing;
-    if (index < _tracks.length) await _decide([_tracks[index]]);
+    if (decide && index < _tracks.length) await _decide([_tracks[index]]);
     final sources = await Future.wait(_tracks.map(_audioSource));
     final start = await _startingAt(sources, index, position);
     await _serial(

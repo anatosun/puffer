@@ -2,6 +2,8 @@ library just_audio_media_kit;
 
 import 'dart:async';
 
+import 'package:flutter/services.dart';
+
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:logging/logging.dart';
@@ -172,6 +174,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           _errorCode = kErrorCode;
           _errorMessage = error;
           _updatePlaybackEvent();
+          // A song that fails to open never becomes ready; without this, the load waited for it forever, and every later change of the playlist with it.
+          final loading = _loadCompleter;
+          if (loading != null && !loading.isCompleted) {
+            loading.completeError(
+                PlatformException(code: '$kErrorCode', message: error));
+          }
         }
         _logger.severe('ERROR OCCURRED: $error');
       }),
