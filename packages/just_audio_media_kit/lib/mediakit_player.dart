@@ -44,6 +44,22 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// [LoadRequest.initialPosition] or [seek] request before [Player.play] was called and/or finished loading.
   Duration? _setPosition;
 
+  /// Whether shuffle is on. mpv's playlist stays in queue order, so its indices stay those of just_audio; the songs follow [_shuffleOrder] instead.
+  bool _shuffling = false;
+
+  /// The play order of the playlist while shuffling, as just_audio sends it with each change of the playlist.
+  List<int> _shuffleOrder = const [];
+
+  LoopModeMessage _loopMode = LoopModeMessage.off;
+
+  /// The index after [_currentIndex] in [_shuffleOrder], wrapping around when the playlist loops; null at the end of the order.
+  int? get _shuffleNext {
+    final at = _shuffleOrder.indexOf(_currentIndex);
+    if (at < 0) return null;
+    if (at + 1 < _shuffleOrder.length) return _shuffleOrder[at + 1];
+    return _loopMode == LoopModeMessage.all ? _shuffleOrder.first : null;
+  }
+
   Media? get _currentMedia {
     var medias = _player.state.playlist.medias;
     if (medias.isEmpty) return null;
@@ -132,9 +148,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       }),
       _player.stream.completed.listen((completed) {
         _bufferedPosition = _position = Duration.zero;
-        if (completed &&
-            // is at the end of the [Playlist]
-            _currentIndex == _player.state.playlist.medias.length - 1 &&
+        // While shuffling, mpv stops at the end of each song, and the next one in the shuffle order plays.
+        final next = completed && _shuffling ? _shuffleNext : null;
+        if (next != null) {
+          unawaited(_player.jump(next));
+        } else if (completed &&
+            // is at the end of the [Playlist], or of its shuffle order
+            (_shuffling ||
+                _currentIndex == _player.state.playlist.medias.length - 1) &&
             // is not looping (technically this shouldn't be fired if the player is looping)
             _player.state.playlistMode == PlaylistMode.none) {
           _processingState = ProcessingStateMessage.completed;
@@ -244,6 +265,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (request.audioSourceMessage is ConcatenatingAudioSourceMessage) {
       final audioSource =
           request.audioSourceMessage as ConcatenatingAudioSourceMessage;
+      _shuffleOrder = audioSource.shuffleOrder;
       final playable = Playlist(
           audioSource.children.map(_convertAudioSourceIntoMediaKit).toList(),
           index: _currentIndex);
@@ -302,6 +324,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   @override
   Future<SetLoopModeResponse> setLoopMode(SetLoopModeRequest request) async {
+    _loopMode = request.loopMode;
     await _player.setPlaylistMode(_loopModeToPlaylistMode(request.loopMode));
     return SetLoopModeResponse();
   }
@@ -310,12 +333,24 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Future<SetShuffleModeResponse> setShuffleMode(
       SetShuffleModeRequest request) async {
     bool shuffling = request.shuffleMode != ShuffleModeMessage.none;
-    await _player.setShuffle(shuffling);
+    // mpv's own shuffle reorders its playlist, after which its indices no longer match those of just_audio. Instead, mpv stops at the end of every song while shuffling, and the completed listener plays the next one in the shuffle order.
+    _shuffling = shuffling;
+    await setProperty(_player, 'keep-open', shuffling ? 'always' : 'yes');
 
     _dataController.add(PlayerDataMessage(
         shuffleMode:
             shuffling ? ShuffleModeMessage.all : ShuffleModeMessage.none));
     return SetShuffleModeResponse();
+  }
+
+  @override
+  Future<SetShuffleOrderResponse> setShuffleOrder(
+      SetShuffleOrderRequest request) async {
+    final source = request.audioSourceMessage;
+    if (source is ConcatenatingAudioSourceMessage) {
+      _shuffleOrder = source.shuffleOrder;
+    }
+    return SetShuffleOrderResponse();
   }
 
   @override
@@ -350,6 +385,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<ConcatenatingInsertAllResponse> concatenatingInsertAll(
       ConcatenatingInsertAllRequest request) async {
+    _shuffleOrder = request.shuffleOrder;
     // mpv appends each source; it is then moved from the end, at length - 1, to its place, and each child goes after the one before it. Moving from length, past the end, left every inserted source at the end of the playlist.
     for (final (i, source) in request.children.indexed) {
       await _player.add(_convertAudioSourceIntoMediaKit(source));
@@ -366,6 +402,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<ConcatenatingRemoveRangeResponse> concatenatingRemoveRange(
       ConcatenatingRemoveRangeRequest request) async {
+    _shuffleOrder = request.shuffleOrder;
     for (var i = request.startIndex; i < request.endIndex; i++) {
       await _player.remove(request.startIndex);
     }
@@ -376,6 +413,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<ConcatenatingMoveResponse> concatenatingMove(
       ConcatenatingMoveRequest request) {
+    _shuffleOrder = request.shuffleOrder;
     return _player
         .move(
             request.currentIndex,

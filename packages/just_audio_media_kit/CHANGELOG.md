@@ -1,6 +1,7 @@
 ## 2.1.0 (Puffer)
 
 - A source inserted inside the playlist goes to its place; media_kit 2.1.0 left it at the end, so a song replaced in the queue played twice and another not at all.
+- Shuffle follows the shuffle order of just_audio. mpv's own shuffle reordered its playlist, after which its indices no longer matched those of just_audio, and songs played in another order than the one shown.
 - `JustAudioMediaKit.cacheDir` sets the folder of mpv's cache. media_kit asks for the cache on disk, but without a folder mpv kept it in memory.
 
 ## 2.1.0

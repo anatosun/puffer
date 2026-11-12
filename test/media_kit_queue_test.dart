@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -248,6 +249,57 @@ void main() {
       expect(handler.tracks, isEmpty);
       expect(handler.queue.value, isEmpty);
       expect([for (final t in past.single.tracks) t.id], ['a', 'b']);
+    },
+    skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux',
+  );
+
+  test(
+    'shuffled songs play in the shuffle order, each at its own index',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.ryanheise.audio_session'),
+            (_) async => null,
+          );
+      JustAudioMediaKit.ensureInitialized(linux: true);
+      final dir = Directory.systemTemp.createTempSync('media_kit_shuffle');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      // Each file has its own length, which tells which one the player holds.
+      final lengths = [1, 2, 3, 4];
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        handleAudioSessionActivation: false,
+      );
+      addTearDown(player.dispose);
+      await player.setVolume(0);
+      await player.setAudioSources([
+        for (final l in lengths)
+          AudioSource.file(_silence(dir, '$l.wav', l).path),
+      ], shuffleOrder: DefaultShuffleOrder(random: Random(7)));
+      await player.setShuffleModeEnabled(true);
+      final order = player.effectiveIndices;
+      // A queue order would prove nothing.
+      expect(order, isNot([0, 1, 2, 3]));
+      await player.seek(Duration.zero, index: order.first);
+
+      final played = <int>[];
+      final mismatched = <String>[];
+      final sub = player.durationStream.listen((duration) {
+        final index = player.currentIndex;
+        if (duration == null || index == null) return;
+        if (played.lastOrNull != index) played.add(index);
+        if (duration.inSeconds != lengths[index]) {
+          mismatched.add('index $index holds a ${duration.inSeconds} s song');
+        }
+      });
+      addTearDown(sub.cancel);
+      await player.play();
+      await player.processingStateStream
+          .firstWhere((s) => s == ProcessingState.completed)
+          .timeout(const Duration(seconds: 25));
+      expect(played, order);
+      expect(mismatched, isEmpty);
     },
     skip: enabled ? false : 'needs libmpv: MEDIA_KIT_NATIVE=1 on Linux',
   );
