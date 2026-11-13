@@ -383,7 +383,7 @@ class AlbumShelf extends ConsumerWidget {
   }
 }
 
-/// The download state in the bottom-right corner of a cover, the same on album and playlist cards.
+/// The download state in the top-right corner of a cover, the same on album and playlist cards.
 class CardDownloadBadge extends StatelessWidget {
   const CardDownloadBadge(this.pin, {super.key});
 
@@ -391,8 +391,8 @@ class CardDownloadBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Positioned(
+    top: 6,
     right: 6,
-    bottom: 6,
     child: Container(
       padding: const EdgeInsets.all(2),
       decoration: const BoxDecoration(
