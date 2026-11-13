@@ -367,6 +367,21 @@ class NowPlayingPage extends ConsumerWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      // A song from an external provider, whose ID starts with `ext-`, shows a globe: the server fetches it from the internet rather than from its own library.
+                                      if (track != null &&
+                                          isExternalId(track.id))
+                                        Padding(
+                                          padding: const EdgeInsets.all(4),
+                                          child: Tooltip(
+                                            message:
+                                                'From an external provider',
+                                            child: Icon(
+                                              Icons.public,
+                                              size: 16,
+                                              color: highlight,
+                                            ),
+                                          ),
+                                        ),
                                       if (format != null && track != null)
                                         _FormatBadges(
                                           format: format,
