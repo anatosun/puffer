@@ -1,0 +1,5 @@
+- Downloads keep the waveform of each song, and covers that failed are fetched again
+- On the desktop, each album folder of the library folder holds its cover
+- Offline, Home keeps its shelves, buttons that need the server go, and an offline icon offers to go online
+- Settings > Downloads: refresh, remove all from the top, and albums that open and can be removed
+- The download badge sits in the top-right corner of covers
