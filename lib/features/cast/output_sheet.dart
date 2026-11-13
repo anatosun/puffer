@@ -31,14 +31,12 @@ class OutputButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Offline, nothing can play on a speaker; an icon in the place of the button tells why.
+    // Offline, nothing can play on a speaker; an icon in the place of the button tells why, and offers to go online.
     if (ref.watch(isOfflineProvider)) {
-      return Tooltip(
-        message: 'Offline',
-        child: SizedBox.square(
-          dimension: 48,
-          child: Icon(Icons.cloud_off, color: idleColor),
-        ),
+      return IconButton(
+        tooltip: 'Offline',
+        icon: Icon(Icons.cloud_off, color: idleColor),
+        onPressed: () => promptOnline(context, ref),
       );
     }
     if (ref.watch(maCredentialsProvider) == null) {
@@ -80,6 +78,36 @@ class OutputButton extends ConsumerWidget {
       icon: icon,
       onPressed: () => showOutputSheet(context),
     );
+  }
+}
+
+/// Offers to turn offline mode off. When the device has no network, there is nothing to turn off, and a message says so.
+Future<void> promptOnline(BuildContext context, WidgetRef ref) async {
+  if (!ref.read(manualOfflineProvider)) {
+    showMessage('This device has no network connection');
+    return;
+  }
+  final online = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Go online?'),
+      content: const Text(
+        'Offline mode turns off, and Puffer streams from the server again.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Stay offline'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Go online'),
+        ),
+      ],
+    ),
+  );
+  if (online ?? false) {
+    await ref.read(manualOfflineProvider.notifier).set(false);
   }
 }
 
