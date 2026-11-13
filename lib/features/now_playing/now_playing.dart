@@ -1057,7 +1057,6 @@ class _Toolbar extends ConsumerWidget {
     final faint = context.muted;
     // On a Music Assistant player, its Autoplay.
     final radio = ref.watch(outputEndlessRadioProvider);
-    final speaker = ref.watch(maCredentialsProvider) != null;
     // An instant mix asks the server for songs that sound alike, so it needs the connection and the `sonicSimilarity` extension.
     final mix =
         track != null &&
@@ -1141,7 +1140,7 @@ class _Toolbar extends ConsumerWidget {
                       }
                     }),
                   ),
-                if (speaker) OutputButton(activeColor: color, idleColor: faint),
+                OutputButton(activeColor: color, idleColor: faint),
               ],
             ),
           ),

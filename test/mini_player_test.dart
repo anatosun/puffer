@@ -574,6 +574,61 @@ void main() {
   );
 
   testWidgets(
+    'offline, the player has an offline icon in the place of the speaker and none of the buttons that need the server',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({'playback.endlessRadio': true});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                NowPlaying(
+                  track: const Track({'id': 'a', 'title': 'A title'}),
+                  title: 'A title',
+                  positionAt: DateTime.now(),
+                  duration: const Duration(minutes: 3),
+                ),
+              ),
+            ),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.none]),
+            ),
+            maClientProvider.overrideWithValue(null),
+            initialMaCredentialsProvider.overrideWithValue(
+              MaCredentials(baseUrl: Uri.parse('http://ma:8095'), token: 't'),
+            ),
+            repositoryProvider.overrideWithValue(_FakeRepository()),
+            syncAutomaticDownloadsProvider.overrideWithValue(() async {}),
+            playbackControllerProvider.overrideWithValue(_FakeController()),
+            extensionsProvider.overrideWithValue(
+              const AsyncData({'sonicSimilarity'}),
+            ),
+            playingFormatProvider.overrideWithValue(null),
+            waveformSupportedProvider.overrideWith((ref) async => false),
+          ],
+          child: const MaterialApp(home: NowPlayingPage()),
+        ),
+      );
+      await tester.pump();
+      expect(find.byTooltip('Offline'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off), findsOneWidget);
+      for (final gone in [
+        'Play on',
+        'Instant mix',
+        'Endless radio on',
+        'Endless radio off',
+      ]) {
+        expect(find.byTooltip(gone), findsNothing, reason: gone);
+      }
+      expect(find.byTooltip('Repeat'), findsOneWidget);
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
+  testWidgets(
     'the tabs below the player show the album, the artist and similar artists',
     (tester) async {
       final controller = _FakeController();

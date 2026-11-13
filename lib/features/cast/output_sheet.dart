@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
+import '../../app/providers.dart';
 import '../../app/sendspin_providers.dart';
 import '../../data/music_assistant/ma_client.dart';
 import '../../data/music_assistant/ma_models.dart';
@@ -30,6 +31,16 @@ class OutputButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Offline, nothing can play on a speaker; an icon in the place of the button tells why.
+    if (ref.watch(isOfflineProvider)) {
+      return Tooltip(
+        message: 'Offline',
+        child: SizedBox.square(
+          dimension: 48,
+          child: Icon(Icons.cloud_off, color: idleColor),
+        ),
+      );
+    }
     if (ref.watch(maCredentialsProvider) == null) {
       return const SizedBox.shrink();
     }

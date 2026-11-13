@@ -186,7 +186,6 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(startupSyncProvider);
-    final offline = ref.watch(isOfflineProvider);
     final last = ref.watch(continueListeningProvider)
         ? ref.watch(shelfAlbumsProvider('recent')).value?.firstOrNull
         : null;
@@ -198,18 +197,7 @@ class HomePage extends ConsumerWidget {
             ref.watch(greetingProvider) ? _greeting(DateTime.now()) : 'Home',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          actions: [
-            if (offline)
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Chip(
-                  avatar: Icon(Icons.cloud_off, size: 16),
-                  label: Text('Offline'),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            const OutputButton(),
-          ],
+          actions: const [OutputButton()],
         ),
         body: RefreshIndicator(
           onRefresh: () async {
