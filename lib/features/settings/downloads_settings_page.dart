@@ -243,6 +243,7 @@ Future<void> _removeAll(BuildContext context, WidgetRef ref) async {
           child: const Text('Cancel'),
         ),
         FilledButton(
+          style: destructiveButton,
           onPressed: () => Navigator.pop(context, true),
           child: const Text('Remove all'),
         ),

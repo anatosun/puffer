@@ -146,6 +146,10 @@ void main() {
 
       await tester.tap(find.byTooltip('Remove all downloads'));
       await tester.pumpAndSettle();
+      final remove = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Remove all'),
+      );
+      expect(remove.style?.backgroundColor?.resolve({}), Colors.red.shade700);
       await tester.tap(find.text('Remove all'));
       await tester.pumpAndSettle();
       verify(manager.removeAll).called(1);

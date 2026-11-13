@@ -69,6 +69,12 @@ extension ThemeShades on BuildContext {
 }
 
 /// [n] with [one], or with its plural (`one` + s) unless [n] is 1: "1 song", "12 songs".
+/// The confirming button of a prompt that removes something: red, with white text that reads on it.
+final destructiveButton = FilledButton.styleFrom(
+  backgroundColor: Colors.red.shade700,
+  foregroundColor: Colors.white,
+);
+
 String countOf(int n, String one) => '$n ${n == 1 ? one : '${one}s'}';
 
 String formatDuration(Duration d) {

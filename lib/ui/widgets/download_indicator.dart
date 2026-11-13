@@ -156,6 +156,7 @@ Future<bool> confirmRemoveDownload(BuildContext context) async =>
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: destructiveButton,
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Remove'),
           ),
