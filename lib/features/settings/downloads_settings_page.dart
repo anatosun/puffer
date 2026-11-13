@@ -5,50 +5,65 @@ import 'package:collection/collection.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../data/db/database.dart';
+import '../../data/subsonic/models.dart';
+import '../../downloads/download_manager.dart';
 import '../../downloads/download_settings.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
+import '../../ui/widgets/download_indicator.dart';
 import 'settings_section.dart';
 import '../../ui/widgets/backdrop.dart';
 
-class _ArtistUsage {
-  const _ArtistUsage(this.artist, this.bytes, this.albums);
+/// The downloaded songs of one album: its ID, when the songs name it, and their size.
+typedef AlbumUsage = ({String? id, String name, int bytes});
 
-  final String artist;
-  final int bytes;
-  final Map<String, int> albums;
+/// The downloaded songs of one artist, with their albums.
+typedef ArtistUsage = ({String artist, int bytes, List<AlbumUsage> albums});
+
+/// The size of the downloaded [tracks] by artist and album, from [sizes] by track ID, largest first.
+List<ArtistUsage> downloadUsage(List<Track> tracks, Map<String, int> sizes) {
+  int bytes(Iterable<Track> songs) => songs.map((t) => sizes[t.id] ?? 0).sum;
+  return [
+    for (final MapEntry(key: artist, value: songs) in groupBy(
+      tracks,
+      (t) => t.artist ?? 'Unknown artist',
+    ).entries)
+      (
+        artist: artist,
+        bytes: bytes(songs),
+        albums: [
+          for (final album in groupBy(
+            songs,
+            (t) => t.albumId ?? t.album ?? '',
+          ).values)
+            (
+              id: album.first.albumId,
+              name: album.first.album ?? 'Unknown album',
+              bytes: bytes(album),
+            ),
+        ]..sort((a, b) => b.bytes.compareTo(a.bytes)),
+      ),
+  ]..sort((a, b) => b.bytes.compareTo(a.bytes));
 }
 
-/// Downloaded bytes per artist and album, largest first.
-final _usageProvider = FutureProvider.autoDispose<(int, List<_ArtistUsage>)>((
+/// The total size of the downloads and their size per artist and album.
+final _usageProvider = FutureProvider.autoDispose<(int, List<ArtistUsage>)>((
   ref,
 ) async {
   ref.watch(completeTrackIdsProvider);
   final db = ref.watch(databaseProvider);
   final repository = ref.watch(repositoryProvider);
-  if (repository == null) return (0, const <_ArtistUsage>[]);
+  if (repository == null) return (0, const <ArtistUsage>[]);
   final files = await (db.select(
     db.trackFiles,
   )..where((t) => t.status.equalsValue(FileStatus.complete))).get();
   final sizes = {for (final f in files) f.trackId: f.size ?? 0};
   final tracks = await repository.cachedTracks(sizes.keys);
-  final usage = [
-    for (final byArtist in groupBy(
-      tracks,
-      (t) => t.artist ?? 'Unknown artist',
-    ).entries)
-      _ArtistUsage(byArtist.key, byArtist.value.map((t) => sizes[t.id]!).sum, {
-        for (final byAlbum in groupBy(
-          byArtist.value,
-          (t) => t.album ?? 'Unknown album',
-        ).entries)
-          byAlbum.key: byAlbum.value.map((t) => sizes[t.id]!).sum,
-      }),
-  ]..sort((a, b) => b.bytes.compareTo(a.bytes));
-  return (sizes.values.sum, usage);
+  return (sizes.values.sum, downloadUsage(tracks, sizes));
 });
 
 final _failedCountProvider = StreamProvider.autoDispose<int>((ref) {
@@ -189,19 +204,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                     style: TextStyle(color: context.muted),
                   ),
                   children: [
-                    for (final album in artist.albums.entries)
-                      ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.only(
-                          left: 32,
-                          right: 16,
-                        ),
-                        title: Text(album.key),
-                        trailing: Text(
-                          formatBytes(album.value),
-                          style: TextStyle(color: context.muted),
-                        ),
-                      ),
+                    for (final album in artist.albums) _AlbumUsageRow(album),
                   ],
                 ),
             ],
@@ -246,6 +249,53 @@ class DownloadsSettingsPage extends ConsumerWidget {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// An album of the storage by artist. It opens the album, and its own download can be removed here; songs that another download holds stay.
+class _AlbumUsageRow extends ConsumerWidget {
+  const _AlbumUsageRow(this.album);
+
+  final AlbumUsage album;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = album.id;
+    final manager = ref.watch(downloadManagerProvider);
+    final pinned =
+        id != null &&
+        (ref.watch(pinStateProvider((PinKind.album, id))).value?.pinned ??
+            false);
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.only(left: 32, right: 4),
+      title: Text(album.name),
+      onTap: id == null ? null : () => context.push('/album/$id'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatBytes(album.bytes),
+            style: TextStyle(color: context.muted),
+          ),
+          // The button keeps its room on every row, so the sizes line up.
+          SizedBox.square(
+            dimension: 48,
+            child: pinned && manager != null
+                ? IconButton(
+                    tooltip: 'Remove download',
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () async {
+                      if (await confirmRemoveDownload(context)) {
+                        await manager.unpin(PinKind.album, id);
+                      }
+                    },
+                  )
+                : null,
+          ),
+        ],
       ),
     );
   }
