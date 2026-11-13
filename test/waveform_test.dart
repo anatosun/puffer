@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
+import 'package:puffer/data/db/database.dart';
+import 'package:puffer/data/repositories/library_repository.dart';
 import 'package:puffer/data/subsonic/subsonic_client.dart';
 import 'package:puffer/features/now_playing/waveform.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -78,16 +81,22 @@ SubsonicClient _client(
 Future<ProviderContainer> _container(
   SubsonicClient client, {
   bool offline = false,
+  Set<String> downloaded = const {},
+  AppDatabase? database,
   Map<String, Object> settings = const {},
   List<Override> overrides = const [],
 }) async {
   SharedPreferences.setMockInitialValues(settings);
   final prefs = await SharedPreferences.getInstance();
+  final db = database ?? AppDatabase(NativeDatabase.memory());
+  if (database == null) addTearDown(db.close);
   final c = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       clientProvider.overrideWithValue(client),
       isOfflineProvider.overrideWithValue(offline),
+      databaseProvider.overrideWithValue(db),
+      downloadedTrackIdSetProvider.overrideWithValue(downloaded),
       ...overrides,
     ],
   );
@@ -211,6 +220,46 @@ void main() {
       );
     });
 
+    test('a downloaded song keeps its waveform, which shows offline', () async {
+      final client = _client({
+        'getOpenSubsonicExtensions': _ok(_extensions),
+        'getWaveform': _ok(_waveform),
+      });
+      client.loadExtensions();
+      final online = await _container(client, downloaded: {'song-1'});
+      await online.read(waveformProvider('song-1').future);
+      final db = online.read(databaseProvider);
+      final requests = <Uri>[];
+      final offline = await _container(
+        _client(const {}, requests: requests),
+        offline: true,
+        database: db,
+      );
+      expect(await offline.read(waveformSupportedProvider.future), isTrue);
+      expect(await offline.read(waveformProvider('song-1').future), [
+        0,
+        64,
+        255,
+        128,
+      ]);
+      expect(await offline.read(waveformProvider('song-2').future), isNull);
+      expect(requests, isEmpty);
+    });
+
+    test('a song that is not downloaded keeps no waveform', () async {
+      final client = _client({
+        'getOpenSubsonicExtensions': _ok(_extensions),
+        'getWaveform': _ok(_waveform),
+      });
+      client.loadExtensions();
+      final c = await _container(client);
+      await c.read(waveformProvider('song-1').future);
+      expect(
+        await c.read(repositoryProvider)!.storedWaveform('song-1'),
+        isNull,
+      );
+    });
+
     test('returns null offline without any request', () async {
       final requests = <Uri>[];
       final client = _client({
@@ -296,6 +345,57 @@ void main() {
     test('even levels stay even, ends included', () {
       expect(smoothBars([0.5, 0.5, 0.5]), [0.5, 0.5, 0.5]);
       expect(smoothBars([]), isEmpty);
+    });
+  });
+
+  group('waveforms of downloads', () {
+    test('are fetched once each, one song at a time, and never without the extension', () async {
+      final requests = <Uri>[];
+      var running = 0;
+      var most = 0;
+      final client = SubsonicClient(
+        _credentials,
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          if (request.url.pathSegments.last == 'getOpenSubsonicExtensions') {
+            return _ok(_extensions);
+          }
+          running++;
+          most = running > most ? running : most;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          running--;
+          return _ok(_waveform);
+        }),
+      );
+      client.loadExtensions();
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final repository = LibraryRepository(client, db, isOffline: () => false);
+      await Future.wait([
+        repository.storeWaveforms(['a', 'b']),
+        repository.storeWaveforms(['b', 'c']),
+      ]);
+      final asked = [
+        for (final u in requests)
+          if (u.pathSegments.last == 'getWaveform') u.queryParameters['id'],
+      ];
+      expect(asked, ['a', 'b', 'c']);
+      expect(most, 1);
+      expect(await repository.storedWaveform('c'), [0, 64, 255, 128]);
+
+      final bare = _client({
+        'getOpenSubsonicExtensions': _ok({'openSubsonicExtensions': []}),
+      }, requests: requests..clear());
+      bare.loadExtensions();
+      await LibraryRepository(
+        bare,
+        db,
+        isOffline: () => false,
+      ).storeWaveforms(['d']);
+      expect(
+        requests.map((u) => u.pathSegments.last),
+        isNot(contains('getWaveform')),
+      );
     });
   });
 }

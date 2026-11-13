@@ -27,6 +27,7 @@ import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
 import '../playback/sleep_timer.dart';
 import '../playback/transcode_decider.dart';
+import 'experience.dart';
 import 'playback_providers.dart';
 
 // ------------------------------------------------------------ overridden in main()
@@ -708,23 +709,31 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
   final artwork = ref.watch(artworkStoreProvider);
   if (repository == null || client == null || artwork == null) return null;
 
-  // The artwork downloads alongside the tracks rather than before them, so a slow cover holds back no track. A song can have a cover of its own, as one with the artwork in its file or the album cover under another ID, and the player and the song rows show it; songs that share a cover fetch it once.
-  void storeArt(String? cover, Iterable<Track> tracks) =>
-      unawaited(artwork.ensureAll([cover, for (final t in tracks) t.coverArt]));
+  // The waveforms of the downloaded songs, which the seek bar shows offline; none while the person has turned waveforms off.
+  void storeWaveforms(Iterable<Track> tracks) {
+    if (ref.read(waveformStyleProvider) == WaveformStyle.off) return;
+    unawaited(repository.storeWaveforms([for (final t in tracks) t.id]));
+  }
+
+  // The artwork and the waveforms download alongside the tracks rather than before them, so a slow cover holds back no track. A song can have a cover of its own, as one with the artwork in its file or the album cover under another ID, and the player and the song rows show it; songs that share a cover fetch it once.
+  void storeExtras(String? cover, Iterable<Track> tracks) {
+    unawaited(artwork.ensureAll([cover, for (final t in tracks) t.coverArt]));
+    storeWaveforms(tracks);
+  }
 
   Future<List<Track>> resolve(PinKind kind, String id) async {
     switch (kind) {
       case PinKind.track:
         final track = await repository.track(id);
-        storeArt(null, [track]);
+        storeExtras(null, [track]);
         return [track];
       case PinKind.album:
         final album = await repository.album(id);
-        storeArt(album.coverArt, album.songs);
+        storeExtras(album.coverArt, album.songs);
         return album.songs;
       case PinKind.playlist:
         final playlist = await repository.playlist(id);
-        storeArt(playlist.coverArt, playlist.entries);
+        storeExtras(playlist.coverArt, playlist.entries);
         return playlist.entries;
       case PinKind.artist:
         final artist = await repository.artist(id);
@@ -753,6 +762,7 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
             for (final t in songs) t.coverArt,
           ]),
         );
+        storeWaveforms(songs);
         return songs;
     }
   }

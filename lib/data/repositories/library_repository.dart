@@ -348,7 +348,58 @@ class LibraryRepository {
     return [for (final id in idList) ?byId[id]];
   }
 
-  /// Empties the cache except what downloads need offline, then reloads that part from the server. Kept are the tracks with a file, their albums and artists, and the downloaded playlists (with their mosaic covers) and artists. [onProgress] receives the number of reloaded items and their total.
+  /// The waveform of the track [id] kept for offline, when there is one.
+  Future<List<int>?> storedWaveform(String id) async {
+    final json = await _cached('waveform', id);
+    return json is List ? [for (final v in json) (v as num).toInt()] : null;
+  }
+
+  /// Whether a waveform is kept for any track, so the seek bar has room for waveforms offline.
+  Future<bool> hasStoredWaveforms() async {
+    final row =
+        await (db.select(db.cachedItems)
+              ..where((t) => t.kind.equals('waveform'))
+              ..limit(1))
+            .getSingleOrNull();
+    return row != null;
+  }
+
+  Future<void> storeWaveform(String id, List<int> peaks) =>
+      _put('waveform', id, peaks);
+
+  /// Fetches the waveforms of the tracks [ids] that have none kept, so the seek bar shows them offline. Only with the `songWaveform` extension. One track at a time, and one call after the other, so a large download asks the server for one waveform at a time and no waveform twice.
+  Future<void> storeWaveforms(Iterable<String> ids) {
+    final list = ids.toList();
+    return _waveforms = _waveforms
+        .then((_) => _storeWaveforms(list))
+        .catchError((Object _) {});
+  }
+
+  Future<void> _waveforms = Future.value();
+
+  Future<void> _storeWaveforms(List<String> ids) async {
+    if (ids.isEmpty || isOffline() || !await client.supports('songWaveform')) {
+      return;
+    }
+    final kept = {
+      for (final row in await (db.select(
+        db.cachedItems,
+      )..where((t) => t.kind.equals('waveform') & t.id.isIn(ids))).get())
+        row.id,
+    };
+    for (final id in ids) {
+      if (kept.contains(id)) continue;
+      if (isOffline()) return;
+      try {
+        final peaks = await client.getWaveform(id);
+        if (peaks.isNotEmpty) await storeWaveform(id, peaks);
+      } on Exception {
+        // Offline, the seek bar shows its line alone for this song.
+      }
+    }
+  }
+
+  /// Empties the cache except what downloads need offline, then reloads that part from the server. Kept are the tracks with a file, with their waveforms, their albums and artists, and the downloaded playlists (with their mosaic covers) and artists. [onProgress] receives the number of reloaded items and their total.
   Future<void> refreshCache({
     void Function(int done, int total)? onProgress,
   }) async {
@@ -374,6 +425,7 @@ class LibraryRepository {
     await (db.delete(db.cachedItems)..where(
           (t) =>
               (t.kind.equals('track') & t.id.isIn(trackIds)).not() &
+              (t.kind.equals('waveform') & t.id.isIn(trackIds)).not() &
               (t.kind.equals('album') & t.id.isIn(albums)).not() &
               (t.kind.equals('artist') & t.id.isIn(artists)).not() &
               (t.kind.equals('playlist') & t.id.isIn(playlists)).not() &

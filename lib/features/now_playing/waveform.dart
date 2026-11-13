@@ -7,24 +7,37 @@ import '../../app/experience.dart';
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 
-/// Whether the seek bar shows waveforms: the person has not turned them off, the server reports the `songWaveform` extension and the app is online. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
+/// Whether the seek bar shows waveforms: the person has not turned them off, and the server reports the `songWaveform` extension or, offline, the downloads keep waveforms. The player sets its layout from this rather than from each waveform, so the layout stays the same while a waveform loads.
 final waveformSupportedProvider = FutureProvider.autoDispose<bool>((ref) async {
   final client = ref.watch(clientProvider);
-  if (client == null || ref.watch(isOfflineProvider)) return false;
+  if (client == null) return false;
   if (ref.watch(waveformStyleProvider) == WaveformStyle.off) return false;
+  if (ref.watch(isOfflineProvider)) {
+    return await ref.watch(repositoryProvider)?.hasStoredWaveforms() ?? false;
+  }
   return client.supports('songWaveform');
 });
 
-/// Loudness of the track [id] for the seek bar, or null when waveforms are not supported or the request fails.
+/// Loudness of the track [id] for the seek bar, or null when waveforms are not supported or the request fails. The waveform kept with a download comes first; a downloaded song whose waveform comes from the server keeps it.
 final waveformProvider = FutureProvider.autoDispose.family<List<int>?, String>((
   ref,
   id,
 ) async {
   if (!await ref.watch(waveformSupportedProvider.future)) return null;
+  final repository = ref.read(repositoryProvider);
+  final kept = await repository?.storedWaveform(id);
+  if (kept != null) {
+    ref.keepAlive();
+    return kept;
+  }
+  if (ref.read(isOfflineProvider)) return null;
   final client = ref.read(clientProvider)!;
   try {
     final peaks = await client.getWaveform(id);
     if (peaks.isEmpty) return null;
+    if (ref.read(downloadedTrackIdSetProvider).contains(id)) {
+      await repository?.storeWaveform(id, peaks);
+    }
     ref.keepAlive();
     return peaks;
   } on Exception {
