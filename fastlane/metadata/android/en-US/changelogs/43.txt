@@ -1,0 +1,4 @@
+- Radio from a menu starts with the song picked; from the player it changes only the queue
+- The screen stays on while lyrics show and while downloads are in progress, with a switch in Settings > Downloads
+- A globe marks songs from external providers in the player
+- A group of speakers shows how many it holds and the album it plays
