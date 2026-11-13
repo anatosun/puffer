@@ -135,17 +135,20 @@ class _SongInfo extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.tune),
-              title: const Text('Streaming quality'),
-              subtitle: Text(ref.watch(streamingQualityProvider).label),
-              trailing: Icon(Icons.chevron_right, color: context.faint),
-              onTap: () {
-                Navigator.pop(context);
-                showQualitySheet(context);
-              },
-            ),
-            const Divider(height: 8),
+            // Offline, nothing streams.
+            if (!ref.watch(isOfflineProvider)) ...[
+              ListTile(
+                leading: const Icon(Icons.tune),
+                title: const Text('Streaming quality'),
+                subtitle: Text(ref.watch(streamingQualityProvider).label),
+                trailing: Icon(Icons.chevron_right, color: context.faint),
+                onTap: () {
+                  Navigator.pop(context);
+                  showQualitySheet(context);
+                },
+              ),
+              const Divider(height: 8),
+            ],
             for (final (label, value) in rows)
               Padding(
                 padding: const EdgeInsets.symmetric(

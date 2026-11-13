@@ -322,6 +322,7 @@ void main() {
               AsyncData(atQueueEnd(repeat: Repeat.one)),
             ),
             canMixProvider.overrideWithValue(true),
+            isOfflineProvider.overrideWithValue(false),
           ],
         );
         expect(here.read(outputEndlessRadioProvider), (

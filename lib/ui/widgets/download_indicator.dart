@@ -107,10 +107,15 @@ class PinButton extends ConsumerWidget {
         ref.watch(pinStateProvider((kind, id))).value ?? PinState.none;
     final manager = ref.watch(downloadManagerProvider);
     final display = displayForPin(state);
+    // Offline, a download can be removed but not started: the button goes, unless it shows songs that other downloads hold.
+    final offline = ref.watch(isOfflineProvider);
+    if (offline && !state.pinned && display == DownloadDisplay.none) {
+      return const SizedBox.shrink();
+    }
     return IconButton(
       tooltip: state.pinned ? 'Remove download' : 'Download',
       iconSize: 28,
-      onPressed: manager == null
+      onPressed: manager == null || (offline && !state.pinned)
           ? null
           : () async {
               HapticFeedback.mediumImpact();

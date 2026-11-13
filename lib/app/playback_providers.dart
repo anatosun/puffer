@@ -566,8 +566,9 @@ final outputEndlessRadioProvider =
         );
         return (available: true, on: on && !blocked, blocked: blocked);
       }
+      // Its songs come from the server, so offline the button goes.
       return (
-        available: ref.watch(canMixProvider),
+        available: ref.watch(canMixProvider) && !ref.watch(isOfflineProvider),
         on: ref.watch(endlessRadioProvider) && !blocked,
         blocked: blocked,
       );

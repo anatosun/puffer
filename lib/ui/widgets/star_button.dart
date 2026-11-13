@@ -47,7 +47,8 @@ class _StarButtonState extends ConsumerState<StarButton> {
 
   @override
   Widget build(BuildContext context) {
-    final offline = ref.watch(isOfflineProvider);
+    // Adding to the library needs the server, so offline the heart goes.
+    if (ref.watch(isOfflineProvider)) return const SizedBox.shrink();
     final starred = isStarred(ref, _target, fallback: widget.starred);
     return IconButton(
       iconSize: widget.dense ? 24 : 26,
@@ -60,9 +61,7 @@ class _StarButtonState extends ConsumerState<StarButton> {
             )
           : null,
       tooltip: starred ? 'Remove from library' : 'Add to library',
-      onPressed: offline
-          ? null
-          : () => saveStar(ref, _target, !starred, json: widget.json),
+      onPressed: () => saveStar(ref, _target, !starred, json: widget.json),
       icon: Icon(
         starred ? Icons.favorite : Icons.favorite_border,
         color: starred ? widget.color : widget.offColor,

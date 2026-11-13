@@ -157,7 +157,8 @@ Future<void> showItemActions(
                     },
                   ),
                 ],
-                if (manager != null)
+                // Offline, a download can be removed but not started.
+                if (manager != null && (pin.pinned || !offline))
                   pin.pinned
                       ? ListTile(
                           leading: const Icon(Icons.remove_circle_outline),
@@ -168,7 +169,6 @@ Future<void> showItemActions(
                           },
                         )
                       : ListTile(
-                          enabled: !offline,
                           leading: const Icon(Icons.arrow_circle_down_outlined),
                           title: const Text('Download'),
                           onTap: () async {
@@ -181,6 +181,7 @@ Future<void> showItemActions(
                         ),
                 if (starred != null &&
                     repository != null &&
+                    !offline &&
                     kind != PinKind.playlist)
                   Builder(
                     builder: (_) {
@@ -191,7 +192,6 @@ Future<void> showItemActions(
                       );
                       final on = isStarred(ref, target, fallback: starred);
                       return ListTile(
-                        enabled: !offline,
                         leading: Icon(
                           on ? Icons.favorite : Icons.favorite_border,
                         ),
