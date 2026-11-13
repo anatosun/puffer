@@ -788,6 +788,7 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
     },
     settings: () => ref.read(downloadSettingsProvider),
     fetchArtwork: artwork.ensure,
+    storedArtwork: artwork.existing,
     folder: ref.read(libraryFolderProvider),
     privateRoot: ref.watch(supportDirectoryProvider).path,
     cachedPlaylist: repository.cachedPlaylist,

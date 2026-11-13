@@ -321,7 +321,7 @@ Future<void> _writeWhole(File file, String content) async {
   await temp.rename(file.path);
 }
 
-/// Deletes the empty folders from the folder of [file] up to [root], left behind once their last song is removed. [root] itself stays.
+/// Deletes the empty folders from the folder of [file] up to [root], left behind once their last song is removed. The cover Puffer put in an album folder goes with its last song. [root] itself stays.
 Future<void> pruneEmptyFolders(String file, String root) async {
   var dir = Directory(p.dirname(file));
   while (p.isWithin(root, dir.path)) {
@@ -329,10 +329,69 @@ Future<void> pruneEmptyFolders(String file, String root) async {
       dir = dir.parent;
       continue;
     }
-    if (!await dir.list().isEmpty) return;
+    final entries = await dir.list().toList();
+    if (entries.any((e) => e is! File || !isFolderCover(e.path))) return;
+    for (final cover in entries) {
+      await cover.delete();
+    }
     await dir.delete();
     dir = dir.parent;
   }
+}
+
+/// Whether [path] names the cover Puffer writes in an album folder, or the temporary file it writes it through.
+bool isFolderCover(String path) =>
+    RegExp(r'^cover\.(jpg|png|webp)(\.part)?$').hasMatch(p.basename(path));
+
+/// The extension of an image that starts with [head], its first twelve bytes, or null for a format that players do not read as a folder cover.
+String? imageExtension(List<int> head) {
+  bool at(int offset, List<int> bytes) {
+    if (head.length < offset + bytes.length) return false;
+    for (var i = 0; i < bytes.length; i++) {
+      if (head[offset + i] != bytes[i]) return false;
+    }
+    return true;
+  }
+
+  if (at(0, const [0xFF, 0xD8, 0xFF])) return 'jpg';
+  if (at(0, const [0x89, 0x50, 0x4E, 0x47])) return 'png';
+  if (at(0, ascii.encode('RIFF')) && at(8, ascii.encode('WEBP'))) return 'webp';
+  return null;
+}
+
+/// Puts a cover in each folder of [tracks] that has none, a copy of [artwork], the stored cover of a song by its cover-art ID, so that players reading the folder show the album with its cover even when its files carry none. Each cover is written to a temporary name first, so a player never reads half of it.
+Future<void> writeFolderCovers(
+  List<FolderTrack> tracks,
+  File? Function(String coverArt) artwork,
+) async {
+  final byFolder = <String, List<FolderTrack>>{};
+  for (final t in tracks) {
+    (byFolder[p.dirname(t.path)] ??= []).add(t);
+  }
+  for (final MapEntry(key: folder, value: songs) in byFolder.entries) {
+    if (await _hasCover(folder)) continue;
+    for (final song in songs) {
+      final coverArt = song.track.coverArt;
+      final source = coverArt == null ? null : artwork(coverArt);
+      if (source == null) continue;
+      final head = await source
+          .openRead(0, 12)
+          .fold(<int>[], (all, chunk) => all..addAll(chunk));
+      final extension = imageExtension(head);
+      if (extension == null) continue;
+      final target = File(p.join(folder, 'cover.$extension'));
+      final temp = await source.copy('${target.path}.part');
+      await temp.rename(target.path);
+      break;
+    }
+  }
+}
+
+Future<bool> _hasCover(String folder) async {
+  for (final extension in const ['jpg', 'png', 'webp']) {
+    if (await File(p.join(folder, 'cover.$extension')).exists()) return true;
+  }
+  return false;
 }
 
 /// Moves [from] to [to], copying when they are on different file systems, where a rename fails.

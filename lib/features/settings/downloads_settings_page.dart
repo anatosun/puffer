@@ -263,7 +263,7 @@ class _LibraryFolder extends ConsumerWidget {
     final hint = Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Text(
-        'Songs go in Music/Artist/Album/01 Title, an M3U8 file for each downloaded playlist in Playlists, and an iTunes library at the top for other players and DJ software. Changing the folder moves the songs already downloaded.',
+        'Songs go in Music/Artist/Album/01 Title with the album cover, an M3U8 file for each downloaded playlist in Playlists, and an iTunes library at the top for other players and DJ software. Changing the folder moves the songs already downloaded.',
         style: TextStyle(color: context.muted, fontSize: 13),
       ),
     );

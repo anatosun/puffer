@@ -196,4 +196,62 @@ void main() {
     expect(await Directory(p.join(root, 'X')).exists(), isFalse);
     expect(await Directory(root).exists(), isTrue);
   });
+
+  test('each album folder gets the cover of its songs, once, and the cover goes with its last song', () async {
+    final root = (await Directory.systemTemp.createTemp('folder')).path;
+    addTearDown(() => Directory(root).delete(recursive: true));
+    final store = Directory(p.join(root, 'store'))..createSync();
+    final jpeg = File(p.join(store.path, 'al-1.img'))
+      ..writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]);
+    final png = File(p.join(store.path, 'al-2.img'))
+      ..writeAsBytesSync([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9]);
+    File? artwork(String id) => switch (id) {
+      'al-1' => jpeg,
+      'al-2' => png,
+      _ => null,
+    };
+    FolderTrack song(String path, String? coverArt) => (
+      track: Track({'id': path, 'coverArt': ?coverArt}),
+      path: p.join(root, 'Music', path),
+      size: 1,
+      added: DateTime(2026),
+    );
+    final songs = [
+      song('A/One/01 S.flac', null),
+      song('A/One/02 T.flac', 'al-1'),
+      song('B/Two/01 U.flac', 'al-2'),
+      song('C/Three/01 V.flac', 'gone'),
+    ];
+    for (final s in songs) {
+      await File(s.path).create(recursive: true);
+    }
+    await writeFolderCovers(songs, artwork);
+    final one = File(p.join(root, 'Music', 'A', 'One', 'cover.jpg'));
+    expect(await one.readAsBytes(), await jpeg.readAsBytes());
+    expect(
+      await File(p.join(root, 'Music', 'B', 'Two', 'cover.png')).exists(),
+      isTrue,
+    );
+    expect(
+      Directory(p.join(root, 'Music', 'C', 'Three')).listSync(),
+      hasLength(1),
+    );
+    // A cover already there stays as it is.
+    await one.writeAsBytes([0xFF, 0xD8, 0xFF, 7]);
+    await writeFolderCovers(songs, artwork);
+    expect(await one.readAsBytes(), [0xFF, 0xD8, 0xFF, 7]);
+    for (final s in songs.take(2)) {
+      await File(s.path).delete();
+      await pruneEmptyFolders(s.path, root);
+    }
+    expect(await Directory(p.join(root, 'Music', 'A')).exists(), isFalse);
+  });
+
+  test('a cover takes the extension of its format', () {
+    expect(imageExtension([0xFF, 0xD8, 0xFF, 0xDB]), 'jpg');
+    expect(imageExtension([0x89, 0x50, 0x4E, 0x47, 0x0D]), 'png');
+    expect(imageExtension('RIFF\x00\x00\x00\x00WEBP'.codeUnits), 'webp');
+    expect(imageExtension('{"subsonic-response"'.codeUnits), isNull);
+    expect(imageExtension(const []), isNull);
+  });
 }

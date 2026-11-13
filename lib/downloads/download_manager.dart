@@ -87,6 +87,7 @@ typedef UrlBuilder = Future<DownloadSource> Function(
   DownloadQuality quality,
 );
 typedef ArtworkFetcher = Future<void> Function(String coverArt);
+typedef StoredArtwork = File? Function(String coverArt);
 typedef PlaylistReader = Future<Playlist?> Function(String id);
 
 /// Keeps the track files on disk in line with the pins.
@@ -100,6 +101,7 @@ class DownloadManager {
     required this.urlFor,
     required this.settings,
     this.fetchArtwork,
+    this.storedArtwork,
     this._folder,
     this.privateRoot,
     this.cachedPlaylist,
@@ -112,6 +114,9 @@ class DownloadManager {
   final UrlBuilder urlFor;
   final DownloadSettings Function() settings;
   final ArtworkFetcher? fetchArtwork;
+
+  /// The stored cover of a song by its cover-art ID, copied into its album folder in the library folder.
+  final StoredArtwork? storedArtwork;
 
   /// The absolute path of the private store, where files go while no library folder is set; files move back there when the folder is turned off.
   final String? privateRoot;
@@ -467,7 +472,7 @@ class DownloadManager {
     _playlistTimer = Timer(playlistDelay, () => unawaited(writePlaylists()));
   }
 
-  /// Writes the M3U8 file of every downloaded playlist and the iTunes library of every downloaded song into the library folder. Songs whose file is not there yet are left out until it is.
+  /// Writes the M3U8 file of every downloaded playlist and the iTunes library of every downloaded song into the library folder, and a cover in each album folder without one. Songs whose file is not there yet are left out until it is.
   Future<void> writePlaylists() => _playlistWrites = _playlistWrites
       .then((_) => _writePlaylists())
       .catchError((Object e) {
@@ -475,16 +480,15 @@ class DownloadManager {
         debugPrint('Writing the playlist files failed: ${e.runtimeType}');
       });
 
-  Future<void> _writePlaylists() async {
-    final root = _folder;
-    if (root == null) return;
+  /// The downloaded songs in the library folder [root], by path.
+  Future<List<FolderTrack>> _inFolder(String root) async {
     final files = await (db.select(
       db.trackFiles,
     )..where((t) => t.status.equalsValue(FileStatus.complete))).get();
     final tracks = {
       for (final t in await _cachedTracks(files.map((f) => f.trackId))) t.id: t,
     };
-    final inFolder = <FolderTrack>[
+    return [
       for (final f in files)
         if (f.path case final path? when p.isWithin(root, path))
           (
@@ -494,6 +498,12 @@ class DownloadManager {
             added: f.createdAt,
           ),
     ]..sort((a, b) => a.path.compareTo(b.path));
+  }
+
+  Future<void> _writePlaylists() async {
+    final root = _folder;
+    if (root == null) return;
+    final inFolder = await _inFolder(root);
     final playlists = <({Playlist playlist, List<String> trackIds})>[];
     for (final pin in await watchPins(PinKind.playlist).first) {
       final playlist = await cachedPlaylist?.call(pin.itemId);
@@ -514,6 +524,9 @@ class DownloadManager {
       playlists: playlists,
       version: appVersion,
     );
+    if (storedArtwork case final artwork?) {
+      await writeFolderCovers(inFolder, artwork);
+    }
   }
 
   /// Holds back or releases the transfers, for "Download over cellular". Holding cancels the transfers in progress and keeps their files queued. Releasing hands every queued file to [backend] again, which also replaces transfers queued by an earlier version with a Wi-Fi constraint.
