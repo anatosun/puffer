@@ -332,19 +332,24 @@ class _OutputSheet extends ConsumerWidget {
           ownPlayer.id != leader.id &&
           (ownPlayer.syncedTo == leader.id ||
               leader.groupMembers.contains(ownPlayer.id));
-      // A sync group is the speakers listed under it, so its row has no name of its own: the group icon, what it plays, the volume of the group. Idle, it names its speakers so the row is not empty. A fixed group keeps the name it was given in Music Assistant.
+      // A sync group is the speakers listed under it and has no name in Music Assistant, so its row is titled by how many speakers it holds, then shows what it plays and the album, or, idle, the names of its speakers. A fixed group keeps the name it was given in Music Assistant.
       final syncGroup = (members.isNotEmpty || phoneInGroup) && !fixed;
-      final speakerNames = [
+      final speakers = [
         leader.name,
         for (final m in members) m.name,
         if (phoneInGroup) 'This device',
-      ].join(', ');
+      ];
+      final speakerNames = speakers.join(', ');
       rows.add(
         _OutputTile(
           icon: syncGroup ? 'speakers' : leader.icon,
-          title: syncGroup ? null : leader.name,
+          title: syncGroup ? '${speakers.length} speakers' : leader.name,
           label: syncGroup ? speakerNames : null,
-          detail: syncGroup && !active ? speakerNames : null,
+          detail: !syncGroup
+              ? null
+              : active
+              ? queue?.currentItem?.album
+              : speakerNames,
           state: state,
           media: active ? _describe(queue?.currentItem) : null,
           selected: selected,
@@ -567,13 +572,13 @@ class _OutputTile extends StatelessWidget {
   /// The icon ID of the shared Music Assistant icon set.
   final String icon;
 
-  /// The name of the player; null for a sync group, which shows no name.
+  /// The name of the player, or the number of speakers of a sync group, which has no name.
   final String? title;
 
   /// What screen readers and tooltips call a row without [title].
   final String? label;
 
-  /// The group the player leads or follows.
+  /// A line below what plays: the album of a sync group, or the names of its speakers while it is idle.
   final String? detail;
   final MaPlaybackState? state;
 
@@ -600,7 +605,7 @@ class _OutputTile extends StatelessWidget {
     final colors = context.colors;
     final accent = selected ? colors.primary : colors.onSurface;
     final playing = state == MaPlaybackState.playing;
-    final name = title ?? label ?? 'group';
+    final name = label ?? title ?? 'group';
     final left = indent ? 40.0 : 12.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(left, 2, 12, 2),

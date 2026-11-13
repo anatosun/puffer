@@ -115,7 +115,8 @@ void main() {
         player('living', syncedTo: 'kitchen'),
       ]);
 
-      // The group has no name: the group icon and, while idle, its speakers. Every speaker follows under it, the leading one included, without a caption.
+      // The group has no name: the group icon, the number of its speakers and, while idle, their names. Every speaker follows under it, the leading one included, without a caption.
+      expect(find.text('2 speakers'), findsOneWidget);
       expect(find.text('Kitchen, Living'), findsOneWidget);
       expect(find.text('Kitchen'), findsOneWidget);
       expect(find.text('Living'), findsOneWidget);
@@ -179,6 +180,40 @@ void main() {
     expect(find.text('Party'), findsOneWidget);
     expect(find.text('Kitchen'), findsNWidgets(2));
     expect(find.text('Living'), findsNWidgets(2));
+  });
+
+  testWidgets('a playing group shows its speakers, the song and the album', (
+    tester,
+  ) async {
+    await openSheet(
+      tester,
+      [
+        player('kitchen', members: ['kitchen', 'living'], state: 'playing'),
+        player('living', syncedTo: 'kitchen'),
+      ],
+      queues: {
+        'kitchen': const MaQueue({
+          'queue_id': 'kitchen',
+          'state': 'playing',
+          'current_item': {
+            'queue_item_id': 'q1',
+            'name': 'Song',
+            'media_item': {
+              'name': 'Song',
+              'artists': [
+                {'name': 'Band'},
+              ],
+              'album': {'name': 'Record'},
+            },
+          },
+        }),
+      },
+    );
+    expect(find.text('2 speakers'), findsOneWidget);
+    expect(find.text('Song · Band'), findsOneWidget);
+    expect(find.text('Record'), findsOneWidget);
+    // While it plays, the names of the speakers are in the rows below rather than on the group.
+    expect(find.text('Kitchen, Living'), findsNothing);
   });
 
   testWidgets('players show their icon, what they play and their volume', (
