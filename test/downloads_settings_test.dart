@@ -168,4 +168,18 @@ void main() {
     await tester.pumpAndSettle();
     await leave(tester);
   });
+
+  testWidgets('the screen stays on while downloading unless switched off', (
+    tester,
+  ) async {
+    await pumpPage(tester);
+    final tile = find.widgetWithText(SwitchListTile, 'Keep the screen on');
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('downloads.keepScreenOn'), isFalse);
+    await leave(tester);
+  });
 }

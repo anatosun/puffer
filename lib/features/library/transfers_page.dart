@@ -6,6 +6,7 @@ import '../../data/db/database.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../../ui/widgets/keep_screen_on.dart';
 import 'album_lists.dart';
 import 'downloaded.dart';
 
@@ -17,28 +18,36 @@ class TransfersPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final waitingForWifi = ref.watch(waitingForWifiProvider);
     final manager = ref.watch(downloadManagerProvider);
-    return Backdrop(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Downloading')),
-        body: AsyncList(ref.watch(transfersProvider), (transfers) {
-          final failed = transfers
-              .where((t) => t.file.status == FileStatus.failed)
-              .length;
-          return ListView.builder(
-            itemCount: transfers.length + 1,
-            itemBuilder: (context, i) => i == 0
-                ? _Summary(
-                    count: transfers.length,
-                    failed: failed,
-                    onRetry: manager?.retryFailed,
-                  )
-                : _TransferTile(
-                    transfers[i - 1],
-                    waitingForWifi: waitingForWifi,
-                  ),
-          );
-        }, empty: 'No downloads in progress'),
+    final transfers = ref.watch(transfersProvider);
+    // The screen stays on while songs download, so the transfers can be followed, unless the person turned this off in the settings; downloads that wait for Wi-Fi let it sleep.
+    return KeepScreenOn(
+      active:
+          ref.watch(keepScreenOnWhileDownloadingProvider) &&
+          !waitingForWifi &&
+          (transfers.value?.isNotEmpty ?? false),
+      child: Backdrop(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(title: const Text('Downloading')),
+          body: AsyncList(transfers, (transfers) {
+            final failed = transfers
+                .where((t) => t.file.status == FileStatus.failed)
+                .length;
+            return ListView.builder(
+              itemCount: transfers.length + 1,
+              itemBuilder: (context, i) => i == 0
+                  ? _Summary(
+                      count: transfers.length,
+                      failed: failed,
+                      onRetry: manager?.retryFailed,
+                    )
+                  : _TransferTile(
+                      transfers[i - 1],
+                      waitingForWifi: waitingForWifi,
+                    ),
+            );
+          }, empty: 'No downloads in progress'),
+        ),
       ),
     );
   }

@@ -18,6 +18,7 @@ import 'album_lists.dart';
 import 'downloaded.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../../ui/widgets/keep_screen_on.dart';
 
 /// Every artist. The Subsonic API lists them in one response, so the list shows from the cache at once while the server answers.
 final artistsProvider = StreamProvider.autoDispose<List<Artist>>((ref) {
@@ -89,89 +90,97 @@ class LibraryPage extends ConsumerWidget {
       onTap: () => context.push(path),
     );
 
-    return Backdrop(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: Text(
-            downloaded ? 'Downloaded' : 'Library',
-            style: Theme.of(context).textTheme.headlineMedium,
+    // The screen stays on while the downloads in progress show, as on the page of the transfers.
+    return KeepScreenOn(
+      active:
+          transfers > 0 &&
+          ref.watch(keepScreenOnWhileDownloadingProvider) &&
+          !ref.watch(waitingForWifiProvider),
+      child: Backdrop(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              downloaded ? 'Downloaded' : 'Library',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            actions: const [OutputButton()],
           ),
-          actions: const [OutputButton()],
-        ),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = ref
-                .watch(coverSizeProvider)
-                .columns(constraints.maxWidth);
-            final width = (constraints.maxWidth - 16 * (columns + 1)) / columns;
-            return CustomScrollView(
-              slivers: [
-                SliverList.list(
-                  children: [
-                    if (transfers > 0)
-                      ListTile(
-                        leading: Icon(Icons.downloading, color: primary),
-                        title: const Text(
-                          'Downloading',
-                          style: TextStyle(fontSize: 18),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = ref
+                  .watch(coverSizeProvider)
+                  .columns(constraints.maxWidth);
+              final width =
+                  (constraints.maxWidth - 16 * (columns + 1)) / columns;
+              return CustomScrollView(
+                slivers: [
+                  SliverList.list(
+                    children: [
+                      if (transfers > 0)
+                        ListTile(
+                          leading: Icon(Icons.downloading, color: primary),
+                          title: const Text(
+                            'Downloading',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$transfers',
+                                style: TextStyle(color: context.muted),
+                              ),
+                              Icon(Icons.chevron_right, color: context.faint),
+                            ],
+                          ),
+                          onTap: () =>
+                              context.push('/library/downloaded/progress'),
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$transfers',
-                              style: TextStyle(color: context.muted),
-                            ),
-                            Icon(Icons.chevron_right, color: context.faint),
-                          ],
+                      for (final section in sections)
+                        row(
+                          section.icon,
+                          section.title,
+                          '$prefix/${section.name}',
                         ),
-                        onTap: () =>
-                            context.push('/library/downloaded/progress'),
-                      ),
-                    for (final section in sections)
-                      row(
-                        section.icon,
-                        section.title,
-                        '$prefix/${section.name}',
-                      ),
-                    if (!downloaded && !offline)
-                      row(
-                        Icons.arrow_circle_down,
-                        'Downloaded',
-                        '/library/downloaded',
-                      ),
-                    if (!downloaded)
-                      row(Icons.settings_outlined, 'Settings', '/settings'),
-                    if (albums.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                        child: Text(
-                          showDownloaded
-                              ? 'Recently downloaded'
-                              : 'Recently added',
-                          style: Theme.of(context).textTheme.titleLarge,
+                      if (!downloaded && !offline)
+                        row(
+                          Icons.arrow_circle_down,
+                          'Downloaded',
+                          '/library/downloaded',
                         ),
-                      ),
-                  ],
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverGrid.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: width / (width + 48),
-                    ),
-                    itemCount: albums.length,
-                    itemBuilder: (context, i) =>
-                        AlbumCard(albums[i], width: width),
+                      if (!downloaded)
+                        row(Icons.settings_outlined, 'Settings', '/settings'),
+                      if (albums.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                          child: Text(
+                            showDownloaded
+                                ? 'Recently downloaded'
+                                : 'Recently added',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-              ],
-            );
-          },
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: width / (width + 48),
+                      ),
+                      itemCount: albums.length,
+                      itemBuilder: (context, i) =>
+                          AlbumCard(albums[i], width: width),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../playback/playback_controller.dart';
+import '../../ui/widgets/keep_screen_on.dart';
 
 /// The lyrics of a song. Null while they load or when there are none.
 final lyricsProvider = FutureProvider.autoDispose.family<Lyrics?, String>((
@@ -33,11 +34,16 @@ class LyricsPanel extends ConsumerWidget {
       AsyncData(value: final l?) => _Lines(np: np, lyrics: l),
       _ => const _Message('No lyrics for this song'),
     };
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: 0.72),
-        child: body,
+    // The screen stays on while lyrics show and the song plays, so they can be read along.
+    return KeepScreenOn(
+      active:
+          np.playing && lyrics is AsyncData<Lyrics?> && lyrics.value != null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: ColoredBox(
+          color: Colors.black.withValues(alpha: 0.72),
+          child: body,
+        ),
       ),
     );
   }

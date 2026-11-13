@@ -169,6 +169,14 @@ class DownloadsSettingsPage extends ConsumerWidget {
               ),
             ),
             SwitchListTile(
+              title: const Text('Keep the screen on'),
+              subtitle: const Text('While downloads in progress show'),
+              value: ref.watch(keepScreenOnWhileDownloadingProvider),
+              onChanged: (v) => ref
+                  .read(keepScreenOnWhileDownloadingProvider.notifier)
+                  .set(v),
+            ),
+            SwitchListTile(
               title: const Text('Automatic downloads'),
               subtitle: const Text(
                 'Download songs, albums and artists when you add them to your library',

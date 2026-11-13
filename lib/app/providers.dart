@@ -298,6 +298,12 @@ final endlessRadioProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('playback.endlessRadio', false),
 );
 
+/// Whether the screen stays on while the downloads in progress show, on the page of the transfers and on the Downloaded page. On by default; off, the screen sleeps on its own timeout.
+final keepScreenOnWhileDownloadingProvider =
+    NotifierProvider<BoolSettingNotifier, bool>(
+      () => BoolSettingNotifier('downloads.keepScreenOn', true),
+    );
+
 /// Plays are reported to the server, which uses them for "Recently played" and "Most played".
 final scrobblingProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('playback.scrobble', true),
