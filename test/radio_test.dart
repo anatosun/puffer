@@ -67,4 +67,29 @@ void main() {
     verifyNever(() => controller.replaceUpcoming(any()));
     verifyNever(() => controller.playTracks(any(), index: any(named: 'index')));
   });
+
+  test('a mix from a menu plays from the song it was made from', () async {
+    when(() => controller.current).thenReturn(_playing('now'));
+    final mix = [_song('seed'), _song('a')];
+    expect(await startMix(controller, mix, seed: 'seed'), isTrue);
+    verify(() => controller.playTracks(mix)).called(1);
+    verifyNever(() => controller.replaceUpcoming(any()));
+  });
+
+  test('a mix from a menu of the song that plays keeps it playing', () async {
+    when(() => controller.current).thenReturn(_playing('now'));
+    final mix = [_song('now'), _song('a')];
+    expect(await startMix(controller, mix, seed: 'now'), isTrue);
+    final sent =
+        verify(() => controller.replaceUpcoming(captureAny())).captured.single
+            as List<Track>;
+    expect([for (final t in sent) t.id], ['a']);
+    verifyNever(() => controller.playTracks(any(), index: any(named: 'index')));
+  });
+
+  test('a mix from a menu with only its seed changes nothing', () async {
+    when(() => controller.current).thenReturn(null);
+    expect(await startMix(controller, [_song('seed')], seed: 'seed'), isFalse);
+    verifyNever(() => controller.playTracks(any(), index: any(named: 'index')));
+  });
 }

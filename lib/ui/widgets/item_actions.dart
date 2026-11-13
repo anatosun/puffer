@@ -100,7 +100,11 @@ Future<void> showItemActions(
                     onTap: () async {
                       close();
                       await runPlayback(() async {
-                        if (!await playRadio(handler, await mix())) {
+                        if (!await startMix(
+                          handler,
+                          await mix(),
+                          seed: kind == PinKind.track ? id : null,
+                        )) {
                           showMessage('The server found no similar songs');
                         }
                       });

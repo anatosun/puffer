@@ -19,3 +19,18 @@ Future<bool> playRadio(PlaybackController controller, List<Track> mix) async {
   await controller.replaceUpcoming(rest);
   return true;
 }
+
+/// Starts [mix] from a menu, where a person picked a song, album or artist rather than the song that plays: the mix replaces the queue and plays from its first song. When that song already plays, as for an instant mix of the song playing, it plays on and only the songs after it change. Returns false, and changes nothing, when the mix has no song besides [seed], the song it was made from.
+Future<bool> startMix(
+  PlaybackController controller,
+  List<Track> mix, {
+  String? seed,
+}) async {
+  if (!mix.any((t) => t.id != seed)) return false;
+  final playing = controller.current?.track?.id;
+  if (playing != null && mix.first.id == playing) {
+    return playRadio(controller, mix);
+  }
+  await controller.playTracks(mix);
+  return true;
+}
