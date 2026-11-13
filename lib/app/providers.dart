@@ -864,6 +864,39 @@ final startupSyncProvider = FutureProvider<void>((ref) async {
   await ref.read(syncAutomaticDownloadsProvider)();
 });
 
+/// "Refresh downloads": the sync of the start-up, run when the person asks. True while it runs.
+class DownloadRefreshNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  /// Returns the number of downloads that could not be checked, or null when no refresh ran.
+  Future<int?> run() async {
+    final manager = ref.read(downloadManagerProvider);
+    if (manager == null || state || ref.read(isOfflineProvider)) return null;
+    state = true;
+    try {
+      final failed = await manager.syncPins();
+      await ref.read(syncAutomaticDownloadsProvider)();
+      return failed;
+    } finally {
+      state = false;
+    }
+  }
+}
+
+final downloadRefreshProvider = NotifierProvider<DownloadRefreshNotifier, bool>(
+  DownloadRefreshNotifier.new,
+);
+
+/// Removes every download, with the covers and waveforms kept for them.
+final removeAllDownloadsProvider = Provider<Future<void> Function()>(
+  (ref) => () async {
+    await ref.read(downloadManagerProvider)?.removeAll();
+    await ref.read(artworkStoreProvider)?.clear();
+    await ref.read(repositoryProvider)?.clearWaveforms();
+  },
+);
+
 /// The download state of an album, playlist, artist or track. Released when no widget shows it, so the items scrolled past do not keep their queries running.
 final pinStateProvider = StreamProvider.autoDispose
     .family<PinState, (PinKind, String)>((ref, key) {

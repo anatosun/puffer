@@ -367,6 +367,9 @@ class LibraryRepository {
   Future<void> storeWaveform(String id, List<int> peaks) =>
       _put('waveform', id, peaks);
 
+  Future<void> clearWaveforms() =>
+      (db.delete(db.cachedItems)..where((t) => t.kind.equals('waveform'))).go();
+
   /// Fetches the waveforms of the tracks [ids] that have none kept, so the seek bar shows them offline. Only with the `songWaveform` extension. One track at a time, and one call after the other, so a large download asks the server for one waveform at a time and no waveform twice.
   Future<void> storeWaveforms(Iterable<String> ids) {
     final list = ids.toList();

@@ -249,8 +249,10 @@ class DownloadManager {
   }
 
   /// Re-resolves every pinned album, playlist and artist, so added tracks are downloaded and removed tracks are released.
-  Future<void> syncPins() async {
+  /// Brings every pin in line with the server: the songs it holds now are downloaded, the ones it no longer holds released, and failed files tried again. Returns the number of pins that could not be checked.
+  Future<int> syncPins() async {
     final pins = await db.select(db.pins).get();
+    var failed = 0;
     for (final p in pins) {
       final kind = PinKind.values.byName(p.kind);
       try {
@@ -263,11 +265,13 @@ class DownloadManager {
         );
       } catch (e) {
         // The server is unreachable, the item is gone or its data is malformed; keep the current files and sync the other pins. Only the type of the error is logged, since its text may hold a URL with credentials.
+        failed++;
         debugPrint(
           'Sync of ${kind.name} pin ${p.itemId} failed: ${e.runtimeType}',
         );
       }
     }
+    return failed;
   }
 
   /// Pins every starred item automatically and unpins automatic pins whose item is no longer starred.

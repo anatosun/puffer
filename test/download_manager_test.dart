@@ -125,6 +125,18 @@ void main() {
     expect(await fileIds(), {'t3', 't4'});
   });
 
+  test(
+    'a sync counts the downloads it could not check, and keeps their files',
+    () async {
+      await manager.pin(PinKind.album, 'album1');
+      await manager.pin(PinKind.playlist, 'pl1');
+      // The playlist is gone from the server, or the server does not answer.
+      library.remove((PinKind.playlist, 'pl1'));
+      expect(await manager.syncPins(), 1);
+      expect(await fileIds(), {'t1', 't2', 't3'});
+    },
+  );
+
   test('automatic downloads do not take over a pin the person made', () async {
     await manager.pin(PinKind.track, 't1');
     await manager.syncAutomatic(

@@ -91,7 +91,19 @@ class DownloadsSettingsPage extends ConsumerWidget {
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Downloads')),
+        appBar: AppBar(
+          title: const Text('Downloads'),
+          actions: [
+            if (manager != null && !ref.watch(isOfflineProvider))
+              const _RefreshButton(),
+            if (manager != null)
+              IconButton(
+                tooltip: 'Remove all downloads',
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                onPressed: () => _removeAll(context, ref),
+              ),
+          ],
+        ),
         body: ListView(
           children: [
             ListTile(
@@ -208,48 +220,67 @@ class DownloadsSettingsPage extends ConsumerWidget {
                   ],
                 ),
             ],
-            const Divider(height: 32),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
-              ),
-              title: const Text(
-                'Remove all downloads',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: manager == null
-                  ? null
-                  : () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Remove all downloads?'),
-                          content: const Text(
-                            'Your library stays on the server and can be streamed.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Remove all'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed ?? false) {
-                        await manager.removeAll();
-                        await ref.read(artworkStoreProvider)?.clear();
-                      }
-                    },
-            ),
             const SizedBox(height: 24),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Asks before removing every download, then removes them.
+Future<void> _removeAll(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Remove all downloads?'),
+      content: const Text(
+        'Your library stays on the server and can be streamed.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Remove all'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed ?? false) await ref.read(removeAllDownloadsProvider)();
+}
+
+/// Syncs every download with the server: new songs of the downloaded playlists, missing covers and waveforms, and the files that are missing or failed.
+class _RefreshButton extends ConsumerWidget {
+  const _RefreshButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(downloadRefreshProvider)) {
+      return const SizedBox.square(
+        dimension: 48,
+        child: Center(
+          child: SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    return IconButton(
+      tooltip: 'Refresh downloads',
+      icon: const Icon(Icons.refresh),
+      onPressed: () async {
+        final failed = await ref.read(downloadRefreshProvider.notifier).run();
+        if (failed == null) return;
+        showMessage(
+          failed == 0
+              ? 'Downloads are up to date'
+              : '${countOf(failed, 'download')} could not be checked',
+        );
+      },
     );
   }
 }
