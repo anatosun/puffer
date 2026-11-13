@@ -708,26 +708,26 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
   final artwork = ref.watch(artworkStoreProvider);
   if (repository == null || client == null || artwork == null) return null;
 
-  Future<void> art(String? coverArt) async {
-    if (coverArt != null) await artwork.ensure(coverArt).catchError((_) {});
-  }
+  // The artwork downloads alongside the tracks rather than before them, so a slow cover holds back no track. A song can have a cover of its own, as one with the artwork in its file or the album cover under another ID, and the player and the song rows show it; songs that share a cover fetch it once.
+  void storeArt(String? cover, Iterable<Track> tracks) =>
+      unawaited(artwork.ensureAll([cover, for (final t in tracks) t.coverArt]));
 
-  // The artwork downloads alongside the tracks rather than before them, so a slow cover holds back no track.
   Future<List<Track>> resolve(PinKind kind, String id) async {
     switch (kind) {
       case PinKind.track:
-        return [await repository.track(id)];
+        final track = await repository.track(id);
+        storeArt(null, [track]);
+        return [track];
       case PinKind.album:
         final album = await repository.album(id);
-        unawaited(art(album.coverArt));
+        storeArt(album.coverArt, album.songs);
         return album.songs;
       case PinKind.playlist:
         final playlist = await repository.playlist(id);
-        unawaited(art(playlist.coverArt));
+        storeArt(playlist.coverArt, playlist.entries);
         return playlist.entries;
       case PinKind.artist:
         final artist = await repository.artist(id);
-        unawaited(art(artist.coverArt));
         final external = ref.read(externalInBackgroundProvider);
         final ids = [
           for (final a in forBackground(
@@ -745,10 +745,15 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
             await Future.wait(ids.skip(i).take(parallel).map(repository.album)),
           );
         }
-        for (final album in albums) {
-          unawaited(art(album.coverArt));
-        }
-        return [for (final album in albums) ...album.songs];
+        final songs = [for (final album in albums) ...album.songs];
+        unawaited(
+          artwork.ensureAll([
+            artist.coverArt,
+            for (final album in albums) album.coverArt,
+            for (final t in songs) t.coverArt,
+          ]),
+        );
+        return songs;
     }
   }
 
@@ -782,7 +787,7 @@ final downloadManagerProvider = Provider<DownloadManager?>((ref) {
       );
     },
     settings: () => ref.read(downloadSettingsProvider),
-    fetchArtwork: art,
+    fetchArtwork: artwork.ensure,
     folder: ref.read(libraryFolderProvider),
     privateRoot: ref.watch(supportDirectoryProvider).path,
     cachedPlaylist: repository.cachedPlaylist,
