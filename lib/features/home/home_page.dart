@@ -45,6 +45,35 @@ final recentPlaylistsProvider = Provider<AsyncValue<List<Playlist>>>((ref) {
   return ref.watch(playlistsProvider).whenData((p) => byRecency(p, played));
 });
 
+/// The albums of the Home shelf [type]. Offline, those of them with downloaded songs, which can play, in the same order.
+final shelfAlbumsProvider = Provider.autoDispose
+    .family<AsyncValue<List<Album>>, String>((ref, type) {
+      final albums = ref.watch(albumListProvider(type));
+      if (!ref.watch(isOfflineProvider)) return albums;
+      final downloaded = ref.watch(downloadedTracksProvider).value;
+      if (downloaded == null || (albums.isLoading && !albums.hasValue)) {
+        return const AsyncLoading();
+      }
+      final ids = {for (final t in downloaded) ?t.albumId};
+      return AsyncData([
+        for (final a in albums.value ?? const <Album>[])
+          if (ids.contains(a.id)) a,
+      ]);
+    });
+
+/// The playlists of the Home shelf, most recent first. Offline, the downloaded ones.
+final shelfPlaylistsProvider = Provider.autoDispose<AsyncValue<List<Playlist>>>(
+  (ref) {
+    if (!ref.watch(isOfflineProvider)) {
+      return ref.watch(recentPlaylistsProvider);
+    }
+    final played = ref.watch(playlistHistoryProvider);
+    return ref
+        .watch(downloadedPlaylistsProvider)
+        .whenData((p) => byRecency(p, played));
+  },
+);
+
 String _greeting(DateTime now) => switch (now.hour) {
   >= 5 && < 12 => 'Good morning',
   >= 12 && < 18 => 'Good afternoon',
@@ -158,9 +187,9 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(startupSyncProvider);
     final offline = ref.watch(isOfflineProvider);
-    final last = offline || !ref.watch(continueListeningProvider)
-        ? null
-        : ref.watch(albumListProvider('recent')).value?.firstOrNull;
+    final last = ref.watch(continueListeningProvider)
+        ? ref.watch(shelfAlbumsProvider('recent')).value?.firstOrNull
+        : null;
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -191,10 +220,8 @@ class HomePage extends ConsumerWidget {
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               if (last != null) _ContinueListening(last),
-              // Offline, only downloaded albums can play.
               for (final setting in ref.watch(homeShelvesProvider))
-                if (setting.visible &&
-                    (!offline || setting.item == HomeShelf.downloaded))
+                if (setting.visible)
                   switch (setting.item) {
                     HomeShelf.downloaded => _Shelf(
                       shelf: setting.item,
@@ -204,7 +231,7 @@ class HomePage extends ConsumerWidget {
                     ),
                     HomeShelf.playlists => _Shelf(
                       shelf: setting.item,
-                      items: ref.watch(recentPlaylistsProvider),
+                      items: ref.watch(shelfPlaylistsProvider),
                       builder: (playlists, loading) => PlaylistShelf(
                         playlists.take(20).toList(),
                         loading: loading,
@@ -213,7 +240,7 @@ class HomePage extends ConsumerWidget {
                     _ => _Shelf(
                       shelf: setting.item,
                       items: ref.watch(
-                        albumListProvider(setting.item.albumList!),
+                        shelfAlbumsProvider(setting.item.albumList!),
                       ),
                       builder: (albums, loading) =>
                           AlbumShelf(albums, loading: loading),
@@ -289,12 +316,18 @@ class ShelfPage extends ConsumerWidget {
             empty: 'No downloaded albums',
           ),
           HomeShelf.playlists => AsyncList(
-            ref.watch(recentPlaylistsProvider),
+            ref.watch(shelfPlaylistsProvider),
             (playlists) => ListView.builder(
               itemCount: playlists.length,
               itemBuilder: (_, i) => PlaylistTile(playlists[i]),
             ),
             onRetry: () => ref.invalidate(playlistsProvider),
+          ),
+          // Offline, the albums of the shelf that can play; the server has the others.
+          _ when ref.watch(isOfflineProvider) => AsyncList(
+            ref.watch(shelfAlbumsProvider(shelf.albumList!)),
+            (albums) => AlbumGrid(albums),
+            empty: 'No downloaded albums',
           ),
           _ => PagedAlbumGrid(albumQuery(shelf.albumList!)),
         },
