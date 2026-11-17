@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply the system section of /boot/firmware/puffer.json
+After=NetworkManager.service
+Wants=NetworkManager.service
+ConditionPathExists=/boot/firmware/puffer.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/lib/puffer/setup.py /boot/firmware/puffer.json
+
+[Install]
+WantedBy=multi-user.target

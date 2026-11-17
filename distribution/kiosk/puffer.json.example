@@ -1,0 +1,28 @@
+{
+  "subsonic": {
+    "url": "https://music.example.org",
+    "username": "kitchen",
+    "password": "change me",
+    "localUrl": "http://192.168.1.10:4533"
+  },
+  "musicAssistant": {
+    "url": "http://192.168.1.20:8095",
+    "token": "a long-lived token from your Music Assistant profile"
+  },
+  "settings": {
+    "sendspin.enabled": true,
+    "sendspin.name": "Kitchen",
+    "ma.stayOnSpeaker": true
+  },
+  "system": {
+    "hostname": "puffer-kitchen",
+    "timezone": "Europe/Zurich",
+    "wifi": {
+      "ssid": "Home",
+      "password": "change me",
+      "country": "CH"
+    },
+    "sshAuthorizedKeys": [],
+    "rotation": 0
+  }
+}
