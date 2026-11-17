@@ -199,6 +199,102 @@ void main() {
     });
   });
 
+  group('staying on the speaker', () {
+    MaPlayer kitchen({required bool available}) => MaPlayer({
+      'player_id': 'kitchen',
+      'name': 'Kitchen',
+      'available': available,
+    });
+
+    test('starts on the last speaker and waits for it while out of '
+        'reach', () async {
+      SharedPreferences.setMockInitialValues({
+        'ma.stayOnSpeaker': true,
+        'ma.output': 'kitchen',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      fakeAsync((async) {
+        final status = StreamController<MaConnectionStatus>();
+        final players = StreamController<List<MaPlayer>>();
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            maStatusProvider.overrideWith((ref) => status.stream),
+            maAllPlayersProvider.overrideWith((ref) => players.stream),
+          ],
+        );
+        container.listen(outputProvider, (_, _) {});
+        expect(container.read(outputProvider), 'kitchen');
+
+        status.add(MaConnectionStatus.disconnected);
+        async.elapse(maFallbackDelay * 10);
+        expect(container.read(outputProvider), 'kitchen');
+
+        status.add(MaConnectionStatus.connected);
+        players.add([kitchen(available: false)]);
+        async.elapse(maFallbackDelay * 10);
+        expect(container.read(outputProvider), 'kitchen');
+
+        // Gone from Music Assistant altogether.
+        players.add([
+          MaPlayer({
+            'player_id': 'living',
+            'name': 'Living',
+            'available': true,
+          }),
+        ]);
+        async.elapse(maFallbackDelay);
+        expect(container.read(outputProvider), isNull);
+        expect(prefs.getString('ma.output'), isNull);
+        container.dispose();
+      });
+    });
+
+    test('remembers the speaker picked, and forgets it when turned '
+        'off', () async {
+      SharedPreferences.setMockInitialValues({'ma.stayOnSpeaker': true});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          maStatusProvider.overrideWithValue(
+            const AsyncData(MaConnectionStatus.connected),
+          ),
+          maAllPlayersProvider.overrideWithValue(const AsyncData([])),
+        ],
+      );
+      container.listen(outputProvider, (_, _) {});
+      container.read(outputProvider.notifier).select('kitchen');
+      expect(prefs.getString('ma.output'), 'kitchen');
+      await container.read(stayOnSpeakerProvider.notifier).set(false);
+      expect(prefs.getString('ma.output'), isNull);
+      expect(container.read(outputProvider), 'kitchen');
+      container.dispose();
+    });
+
+    test('offline mode brings playback back to this device', () async {
+      SharedPreferences.setMockInitialValues({
+        'ma.stayOnSpeaker': true,
+        'ma.output': 'kitchen',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          maStatusProvider.overrideWithValue(
+            const AsyncData(MaConnectionStatus.connected),
+          ),
+          maAllPlayersProvider.overrideWithValue(const AsyncData([])),
+        ],
+      );
+      container.listen(outputProvider, (_, _) {});
+      expect(container.read(outputProvider), 'kitchen');
+      await container.read(manualOfflineProvider.notifier).set(true);
+      expect(container.read(outputProvider), isNull);
+      container.dispose();
+    });
+  });
+
   test('a song counts as played after half of it or four minutes', () {
     const song = Duration(minutes: 3);
     expect(countsAsPlayed(const Duration(seconds: 89), song), isFalse);

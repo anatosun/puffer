@@ -38,11 +38,11 @@ class MaCredentials {
   );
 }
 
-const _maCredentialsKey = 'music_assistant';
+const maCredentialsKey = 'music_assistant';
 
 Future<MaCredentials?> loadMaCredentials() async {
   try {
-    final raw = await secureStorage.read(key: _maCredentialsKey);
+    final raw = await secureStorage.read(key: maCredentialsKey);
     return raw == null
         ? null
         : MaCredentials.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -72,7 +72,7 @@ class MaCredentialsNotifier extends Notifier<MaCredentials?> {
 
   Future<void> _save(MaCredentials credentials) async {
     await secureStorage.write(
-      key: _maCredentialsKey,
+      key: maCredentialsKey,
       value: jsonEncode(credentials.toJson()),
     );
     state = credentials;
@@ -80,7 +80,7 @@ class MaCredentialsNotifier extends Notifier<MaCredentials?> {
 
   Future<void> signOut() async {
     ref.read(outputProvider.notifier).select(null);
-    await secureStorage.delete(key: _maCredentialsKey);
+    await secureStorage.delete(key: maCredentialsKey);
     state = null;
   }
 }
@@ -200,42 +200,75 @@ final movePausedQueueProvider = NotifierProvider<BoolSettingNotifier, bool>(
 /// How long Music Assistant may stay unreachable before playback falls back to this device.
 const maFallbackDelay = Duration(seconds: 30);
 
-/// The Music Assistant player the app plays on, or null for this device. The app starts on this device, and comes back to it only when the connection to the player is lost for [maFallbackDelay]: Music Assistant stays unreachable, or the player stays unavailable or gone.
+/// Keeps the app on the speaker it plays on: the speaker comes back after a restart, and the app waits for it while Music Assistant or the speaker is out of reach instead of falling back to this device. Only a speaker that Music Assistant no longer lists, offline mode or signing out bring the app back to this device.
+final stayOnSpeakerProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('ma.stayOnSpeaker', false),
+);
+
+const _outputKey = 'ma.output';
+
+/// The Music Assistant player the app plays on, or null for this device. The app starts on this device, and comes back to it only when the connection to the player is lost for [maFallbackDelay]: Music Assistant stays unreachable, or the player stays unavailable or gone. With [stayOnSpeakerProvider] on, the app starts on the last player and comes back to this device only when the player is gone or the app goes offline.
 class OutputNotifier extends Notifier<String?> {
   Timer? _fallback;
 
   @override
   String? build() {
-    // Earlier versions kept the player across restarts.
-    unawaited(ref.read(sharedPreferencesProvider).remove('ma.output'));
     ref.listen(maStatusProvider, (_, _) => _watchConnection());
     ref.listen(maAllPlayersProvider, (_, _) => _watchConnection());
+    ref.listen(manualOfflineProvider, (_, _) => _watchConnection());
+    ref.listen(stayOnSpeakerProvider, (_, on) => _remember(on ? state : null));
     ref.onDispose(() => _fallback?.cancel());
-    return null;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (!ref.read(stayOnSpeakerProvider)) {
+      unawaited(prefs.remove(_outputKey));
+      return null;
+    }
+    if (ref.read(manualOfflineProvider)) return null;
+    final saved = prefs.getString(_outputKey);
+    // Arms the fallback once the state is set, in case the player is already known to be gone.
+    if (saved != null) Future.microtask(_watchConnection);
+    return saved;
   }
 
   void select(String? playerId) {
     state = playerId;
+    if (ref.read(stayOnSpeakerProvider)) _remember(playerId);
     _watchConnection();
+  }
+
+  void _remember(String? playerId) {
+    final prefs = ref.read(sharedPreferencesProvider);
+    unawaited(
+      playerId == null
+          ? prefs.remove(_outputKey)
+          : prefs.setString(_outputKey, playerId),
+    );
   }
 
   /// Arms the fallback to this device while a player is selected and out of reach, and disarms it otherwise.
   void _watchConnection() {
+    if (state != null && ref.read(manualOfflineProvider)) {
+      _fallback?.cancel();
+      _fallback = null;
+      select(null);
+      return;
+    }
+    final stay = ref.read(stayOnSpeakerProvider);
     final connected =
         ref.read(maStatusProvider).value == MaConnectionStatus.connected;
     final players = ref.read(maAllPlayersProvider).value;
-    // An empty list is one not loaded yet, which says nothing about the player.
+    // An empty list is one not loaded yet, which says nothing about the player. Staying on the speaker, only a player missing from a list Music Assistant sent while connected counts as out of reach.
     final playerReachable =
         players == null ||
         players.isEmpty ||
-        players.any((p) => p.id == state && p.available);
-    if ((connected && playerReachable) || state == null) {
+        players.any((p) => p.id == state && (stay || p.available));
+    if (((connected || stay) && playerReachable) || state == null) {
       _fallback?.cancel();
       _fallback = null;
     } else {
       _fallback ??= Timer(maFallbackDelay, () {
         _fallback = null;
-        state = null;
+        select(null);
       });
     }
   }

@@ -231,6 +231,14 @@ class _Connected extends ConsumerWidget {
           value: ref.watch(movePausedQueueProvider),
           onChanged: (v) => ref.read(movePausedQueueProvider.notifier).set(v),
         ),
+        SwitchListTile(
+          title: const Text('Stay on the speaker'),
+          subtitle: const Text(
+            'Puffer starts on the speaker it last played on, and waits for it while Music Assistant or the speaker is out of reach. Off, Puffer starts on this device and comes back to it after 30 seconds out of reach.',
+          ),
+          value: ref.watch(stayOnSpeakerProvider),
+          onChanged: (v) => ref.read(stayOnSpeakerProvider.notifier).set(v),
+        ),
         const Divider(height: 32),
         ListTile(
           leading: const Icon(Icons.logout, color: Colors.redAccent),
