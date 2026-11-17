@@ -272,12 +272,12 @@ final lyricsShownProvider = NotifierProvider<BoolSettingNotifier, bool>(
 
 /// Home greets the person by the time of day; otherwise its title is "Home".
 final greetingProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.greeting', true),
+  () => BoolSettingNotifier('experience.greeting', false),
 );
 
 /// Home opens with the album played last, to resume it.
 final continueListeningProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.continueListening', true),
+  () => BoolSettingNotifier('experience.continueListening', false),
 );
 
 /// The running sleep timer, or null. [sleepTimerRunnerProvider] pauses playback when it ends.
