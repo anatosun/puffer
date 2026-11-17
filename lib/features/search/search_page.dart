@@ -109,7 +109,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     )
                     .show(),
               ),
-            const OutputButton(),
+            const PageOutputButton(),
           ],
           title: TextField(
             controller: _field,

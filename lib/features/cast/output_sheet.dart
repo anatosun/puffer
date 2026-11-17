@@ -12,6 +12,7 @@ import '../../ui/player_icons.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/playing_bars.dart';
 import '../../ui/sheets.dart';
+import '../../ui/layout.dart';
 
 /// Opens the output picker. It shows once Music Assistant is set up, highlighted while a player is the output.
 class OutputButton extends ConsumerWidget {
@@ -79,6 +80,19 @@ class OutputButton extends ConsumerWidget {
       icon: icon,
       onPressed: () => showOutputSheet(context),
     );
+  }
+}
+
+/// The speaker button at the top of a page. A wide window hides it while the player bar shows, which has its own.
+class PageOutputButton extends ConsumerWidget {
+  const PageOutputButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (isWide(context) && ref.watch(nowPlayingProvider).value != null) {
+      return const SizedBox.shrink();
+    }
+    return const OutputButton();
   }
 }
 

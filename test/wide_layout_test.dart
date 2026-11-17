@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:puffer/app/playback_providers.dart';
 import 'package:puffer/app/providers.dart';
 import 'package:puffer/data/subsonic/models.dart';
+import 'package:puffer/features/cast/output_sheet.dart';
 import 'package:puffer/features/collection/album_page.dart';
 import 'package:puffer/features/now_playing/now_playing_below.dart';
 import 'package:puffer/features/now_playing/player_bar.dart';
@@ -277,4 +279,46 @@ void main() {
     await tester.pumpAndSettle();
     verify(() => controller.addTracks([song])).called(1);
   });
+
+  for (final (window, playing, shown) in [
+    (const Size(1400, 900), true, false),
+    (const Size(1400, 900), false, true),
+    (const Size(400, 800), true, true),
+  ]) {
+    testWidgets('the speaker button of a page shows: $shown, in a window '
+        '${window.width.toInt()} wide, playing: $playing', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      tester.view
+        ..physicalSize = window
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            connectivityProvider.overrideWithValue(
+              const AsyncData([ConnectivityResult.wifi]),
+            ),
+            initialMaCredentialsProvider.overrideWithValue(
+              MaCredentials(baseUrl: Uri.parse('http://ma:8095'), token: 't'),
+            ),
+            maClientProvider.overrideWithValue(null),
+            nowPlayingProvider.overrideWithValue(
+              AsyncData(
+                playing
+                    ? NowPlaying(title: 'Song', positionAt: DateTime(2026))
+                    : null,
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: Center(child: PageOutputButton())),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byTooltip('Play on'), shown ? findsOneWidget : findsNothing);
+    });
+  }
 }

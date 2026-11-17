@@ -198,7 +198,7 @@ class HomePage extends ConsumerWidget {
             ref.watch(greetingProvider) ? _greeting(DateTime.now()) : 'Home',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          actions: const [OutputButton()],
+          actions: const [PageOutputButton()],
         ),
         body: RefreshIndicator(
           onRefresh: () async {
@@ -296,7 +296,7 @@ class ShelfPage extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(shelf.label),
-          actions: const [OutputButton()],
+          actions: const [PageOutputButton()],
         ),
         body: switch (shelf) {
           HomeShelf.downloaded => AsyncList(

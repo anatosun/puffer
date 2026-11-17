@@ -171,7 +171,7 @@ class AlbumQueryPage extends StatelessWidget {
   Widget build(BuildContext context) => Backdrop(
     child: Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(title: Text(title), actions: const [OutputButton()]),
+      appBar: AppBar(title: Text(title), actions: const [PageOutputButton()]),
       body: PagedAlbumGrid(query),
     ),
   );

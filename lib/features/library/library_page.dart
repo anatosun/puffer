@@ -104,7 +104,7 @@ class LibraryPage extends ConsumerWidget {
               downloaded ? 'Downloaded' : 'Library',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            actions: const [OutputButton()],
+            actions: const [PageOutputButton()],
           ),
           body: LayoutBuilder(
             builder: (context, constraints) {
@@ -395,7 +395,7 @@ class _LibrarySectionPageState extends ConsumerState<LibrarySectionPage> {
                     : () => setState(() => _searching = true),
               ),
             if (playlists && !_searching) const _PlaylistMenu(),
-            const OutputButton(),
+            const PageOutputButton(),
           ],
         ),
         floatingActionButton: playlists && !downloaded && !_searching
