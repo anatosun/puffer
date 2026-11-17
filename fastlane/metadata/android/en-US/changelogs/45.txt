@@ -1,0 +1,7 @@
+- The greeting and Continue listening on Home are off by default
+- A login refused with HTTP 401 shows the error of the server
+- On a desktop or a tablet in landscape: a sidebar with the playlists, a player bar with the waveform, a queue panel, and album pages with the cover beside the title
+- With a mouse: right-click menus at the pointer, a play button over covers, and songs dragged onto a playlist or the queue
+- Songs show their artist and album in columns in a wide window
+- Media controls of Linux and Windows, and the window keeps its size
+- The Raspberry Pi image and the arm64 Linux build are part of the release
