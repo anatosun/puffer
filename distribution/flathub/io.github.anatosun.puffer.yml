@@ -1,0 +1,127 @@
+# Flatpak manifest for Flathub, submitted to https://github.com/flathub/flathub as io.github.anatosun.puffer.yml. It repackages the Linux bundle of a GitHub release and builds libmpv, which the runtime lacks. The x-checker-data entries let the Flathub bot open a pull request for each new release.
+id: io.github.anatosun.puffer
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: puffer
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  # The keychain for the server credentials.
+  - --talk-name=org.freedesktop.secrets
+  # The default library folder of downloads; another folder comes through the file chooser portal.
+  - --filesystem=xdg-music
+
+modules:
+  - name: libass
+    config-opts:
+      - --disable-static
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - '*.la'
+    sources:
+      - type: archive
+        url: https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.xz
+        sha256: 2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc
+        x-checker-data:
+          type: anitya
+          project-id: 1560
+          url-template: https://github.com/libass/libass/releases/download/$version/libass-$version.tar.xz
+
+  - name: libplacebo
+    buildsystem: meson
+    # Puffer plays audio only, so the renderer needs no GPU backend.
+    config-opts:
+      - -Dvulkan=disabled
+      - -Dopengl=disabled
+      - -Dd3d11=disabled
+      - -Ddemos=false
+      - -Dtests=false
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+    sources:
+      - type: git
+        url: https://github.com/haasn/libplacebo.git
+        tag: v7.387.0
+        commit: 275f7dea27924cdd34ab2e6c20e448b6bc4fab65
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+
+  - name: mpv
+    buildsystem: meson
+    config-opts:
+      - -Dlibmpv=true
+      - -Dcplayer=false
+      - -Dlua=disabled
+      - -Djavascript=disabled
+      - -Dmanpage-build=disabled
+      - -Dvulkan=disabled
+      - -Dgl=disabled
+      - -Dx11=disabled
+      - -Dwayland=disabled
+      - -Dcaca=disabled
+      - -Dpulse=enabled
+      - -Dalsa=enabled
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /share
+    sources:
+      - type: archive
+        url: https://github.com/mpv-player/mpv/archive/refs/tags/v0.42.0.tar.gz
+        sha256: bcfebbfa2b65a6d88dc97ea18117831072373e38b5785a2afb874ed4df5070dd
+        x-checker-data:
+          type: anitya
+          project-id: 5348
+          url-template: https://github.com/mpv-player/mpv/archive/refs/tags/v$version.tar.gz
+
+  - name: puffer
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/puffer
+      - cp -r bundle/. /app/lib/puffer/
+      - mkdir -p /app/bin
+      - ln -s /app/lib/puffer/puffer /app/bin/puffer
+      - install -Dm644 io.github.anatosun.puffer.desktop -t /app/share/applications
+      - install -Dm644 io.github.anatosun.puffer.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 puffer-app-icon-1024.svg /app/share/icons/hicolor/scalable/apps/io.github.anatosun.puffer.svg
+    sources:
+      - type: archive
+        only-arches: [x86_64]
+        url: https://github.com/anatosun/puffer/releases/download/v0.1.44/puffer-0.1.44-linux-x64.tar.gz
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+        strip-components: 0
+        dest: bundle
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/anatosun/puffer/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: '"https://github.com/anatosun/puffer/releases/download/v" + $version + "/puffer-" + $version + "-linux-x64.tar.gz"'
+          is-main-source: true
+      - type: archive
+        only-arches: [aarch64]
+        url: https://github.com/anatosun/puffer/releases/download/v0.1.44/puffer-0.1.44-linux-arm64.tar.gz
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+        strip-components: 0
+        dest: bundle
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/anatosun/puffer/releases/latest
+          version-query: .tag_name | sub("^v"; "")
+          url-query: '"https://github.com/anatosun/puffer/releases/download/v" + $version + "/puffer-" + $version + "-linux-arm64.tar.gz"'
+      - type: file
+        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/distribution/flathub/io.github.anatosun.puffer.desktop
+        sha256: b56455d25a1d2ad257b37a44e1c006d7e4f1cb631332b17ac53d1d7bb5c4d2b2
+      - type: file
+        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/distribution/flathub/io.github.anatosun.puffer.metainfo.xml
+        sha256: 03427d5bcc0cb1120cf67e78dd0eacddf76c32eda1367528c0a352137b10226e
+      - type: file
+        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/assets/brand/puffer-app-icon-1024.svg
+        sha256: d5d1dc99a7786f9120653c9ee2d1d984d2f1e9376233d3e9d931e821aaf79b62

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Puffer
+Comment=Play music from your Subsonic or Navidrome server
+Exec=puffer
+Icon=io.github.anatosun.puffer
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;subsonic;navidrome;opensubsonic;music assistant;
+StartupWMClass=io.github.anatosun.puffer
