@@ -581,3 +581,51 @@ class _PastQueues extends ConsumerWidget {
     );
   }
 }
+
+/// The queue beside the pages of a wide window, which the queue button of the player bar shows and hides.
+final queuePanelProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('desktop.queuePanel', false),
+);
+
+/// The queue as a panel of its own: the same list as in the player, with its moves and removals. Songs dragged onto it with the mouse go to the end of the queue.
+class QueuePanel extends ConsumerWidget {
+  const QueuePanel({super.key});
+
+  static const width = 360.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => DragTarget<DraggedSongs>(
+    onAcceptWithDetails: (details) => runPlayback(() async {
+      await ref
+          .read(playbackControllerProvider)
+          .addTracks(await details.data.tracks());
+      showMessage('Added to the queue');
+    }),
+    builder: (context, candidates, _) => Material(
+      color: candidates.isEmpty
+          ? context.colors.surfaceContainerLow
+          : Color.alphaBlend(
+              context.colors.primary.withValues(alpha: 0.15),
+              context.colors.surfaceContainerLow,
+            ),
+      child: SizedBox(
+        width: width,
+        child: const CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 20, 16, 4),
+              sliver: SliverToBoxAdapter(
+                child: Text(
+                  'Queue',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            _QueueSliver(),
+            SliverPadding(padding: EdgeInsets.only(bottom: 12)),
+          ],
+        ),
+      ),
+    ),
+  );
+}

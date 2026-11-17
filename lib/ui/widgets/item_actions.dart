@@ -14,6 +14,7 @@ import '../messages.dart';
 import '../open_page.dart';
 import 'artwork.dart';
 import 'download_indicator.dart';
+import '../sheets.dart';
 
 /// The long-press menu of a track, album, playlist or artist. "Remove Download" and "Remove from Library" are separate entries. The header shows [cover] when there is one, such as the cover of a playlist, and the artwork of [coverArt] otherwise.
 Future<void> showItemActions(
@@ -36,9 +37,8 @@ Future<void> showItemActions(
   VoidCallback? info,
   List<ItemAction> extras = const [],
 }) {
-  return showModalBottomSheet<void>(
+  return showSheet<void>(
     context: context,
-    useRootNavigator: true,
     builder: (sheetContext) => Consumer(
       builder: (sheetContext, ref, _) {
         final pin =

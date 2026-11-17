@@ -11,6 +11,7 @@ import '../../ui/widgets/text_input_dialog.dart';
 import '../../ui/widgets/tiles.dart';
 import '../home/home_page.dart';
 import 'playlist_page.dart';
+import '../../ui/sheets.dart';
 
 /// Whether the signed-in person may edit [playlist].
 bool ownsPlaylist(WidgetRef ref, Playlist playlist) {
@@ -48,7 +49,6 @@ Future<void> showAddToPlaylist(
 ) async {
   // The ref of a menu that closed before a dialog returns is unusable; the container of the app is not.
   final container = ProviderScope.containerOf(context, listen: false);
-  final client = container.read(clientProvider)!;
   final playlists = byRecency(
     (await container.read(playlistsProvider.future))
         .where((p) => ownsPlaylist(ref, p))
@@ -56,9 +56,8 @@ Future<void> showAddToPlaylist(
     container.read(playlistHistoryProvider),
   );
   if (!context.mounted) return;
-  final choice = await showModalBottomSheet<Object>(
+  final choice = await showSheet<Object>(
     context: context,
-    useRootNavigator: true,
     isScrollControlled: true,
     builder: (context) => SafeArea(
       child: ConstrainedBox(
@@ -102,13 +101,30 @@ Future<void> showAddToPlaylist(
     ),
   );
   if (choice == null || !context.mounted) return;
+  if (choice is! Playlist) {
+    try {
+      final ids = [for (final t in await tracks()) t.id];
+      if (context.mounted) await createPlaylistFrom(context, ref, ids);
+    } on Exception catch (e) {
+      showMessage('$e');
+    }
+    return;
+  }
+  await addToPlaylist(context, choice, tracks);
+}
+
+/// Adds the tracks to [choice], and asks first when some are in it already. A drop on a playlist of the sidebar calls it too.
+Future<void> addToPlaylist(
+  BuildContext context,
+  Playlist choice,
+  Future<List<Track>> Function() tracks,
+) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final client = container.read(clientProvider);
+  if (client == null) return;
   try {
     final ids = [for (final t in await tracks()) t.id];
     if (!context.mounted) return;
-    if (choice is! Playlist) {
-      await createPlaylistFrom(context, ref, ids);
-      return;
-    }
     final repository = container.read(repositoryProvider)!;
     final current =
         await repository.cachedPlaylist(choice.id) ??

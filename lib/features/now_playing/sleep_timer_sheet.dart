@@ -5,14 +5,11 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../playback/sleep_timer.dart';
 import '../../ui/theme.dart';
+import '../../ui/sheets.dart';
 
 /// Opens the sleep timer: a length, the end of the song or album that plays, or off when one runs.
 Future<void> showSleepTimerSheet(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => const _SleepTimerSheet(),
-    );
+    showSheet<void>(context: context, builder: (_) => const _SleepTimerSheet());
 
 class _SleepTimerSheet extends ConsumerWidget {
   const _SleepTimerSheet();

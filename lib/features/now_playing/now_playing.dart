@@ -37,7 +37,8 @@ ImageProvider? _image(WidgetRef ref, NowPlaying np, {int size = 300}) {
       : CachedNetworkImageProvider(np.imageUrl.toString());
 }
 
-ColorScheme? _scheme(BuildContext context, WidgetRef ref, NowPlaying? np) {
+/// The colours of the artwork of what plays, or null with artwork colours off.
+ColorScheme? playerScheme(BuildContext context, WidgetRef ref, NowPlaying? np) {
   if (np == null || !ref.watch(artworkColoursProvider)) return null;
   final brightness = Theme.of(context).brightness;
   if (np.coverArt != null) return artworkScheme(ref, np.coverArt, brightness);
@@ -100,7 +101,7 @@ class MiniPlayer extends ConsumerWidget {
     if (np == null) return const SizedBox.shrink();
     ref.watch(positionClockProvider);
     final controller = ref.read(playbackControllerProvider);
-    final scheme = _scheme(context, ref, np);
+    final scheme = playerScheme(context, ref, np);
     final position = np.positionNow();
 
     return GestureDetector(
@@ -227,7 +228,7 @@ class NowPlayingPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final np = ref.watch(nowPlayingProvider).value;
     final controller = ref.read(playbackControllerProvider);
-    final scheme = _scheme(context, ref, np);
+    final scheme = playerScheme(context, ref, np);
     final top =
         scheme?.primaryContainer ?? context.colors.surfaceContainerHighest;
     final background = context.background;
@@ -345,7 +346,7 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: _minGap),
                               const Spacer(),
-                              _SeekBar(np: np, color: highlight),
+                              SeekBar(np: np, color: highlight),
                               const SizedBox(height: _minGap),
                               const Spacer(),
                               _TrackText(
@@ -603,19 +604,24 @@ class _CloseWhenEmptyState extends ConsumerState<_CloseWhenEmpty> {
   }
 }
 
-class _SeekBar extends ConsumerStatefulWidget {
-  const _SeekBar({required this.np, required this.color});
+/// The seek bar with the waveform of the song, when the server has one, between the position and the length. The player bar of a wide window shows it lower, with [height].
+class SeekBar extends ConsumerStatefulWidget {
+  const SeekBar({
+    super.key,
+    required this.np,
+    required this.color,
+    this.height = 40,
+  });
 
   final NowPlaying np;
   final Color color;
+  final double height;
 
   @override
-  ConsumerState<_SeekBar> createState() => _SeekBarState();
+  ConsumerState<SeekBar> createState() => _SeekBarState();
 }
 
-class _SeekBarState extends ConsumerState<_SeekBar> {
-  static const _waveformHeight = 40.0;
-
+class _SeekBarState extends ConsumerState<SeekBar> {
   double? _dragValue;
 
   @override
@@ -676,7 +682,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
         // The seek bar always takes the height of the waveform, so the layout stays the same with a waveform, without one, and while one loads.
         Expanded(
           child: SizedBox(
-            height: _waveformHeight,
+            height: widget.height,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -712,7 +718,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
               .set(!ref.read(remainingTimeProvider)),
           child: SizedBox(
             width: 48,
-            height: _waveformHeight,
+            height: widget.height,
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(

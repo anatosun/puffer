@@ -7,6 +7,7 @@ import '../../data/subsonic/models.dart';
 import '../../playback/audio_format.dart';
 import '../../ui/theme.dart';
 import 'quality_sheet.dart';
+import '../../ui/sheets.dart';
 
 /// What the server reports about [track], as label and value, in reading order. Fields the server leaves out are skipped. With [delivery], the rows describe what this device gets: a transcoded stream or download shows its own format, bit rate and size, and the file on the server moves to an "Original" row.
 List<(String, String)> songInfo(Track track, {Delivery? delivery}) {
@@ -99,13 +100,11 @@ List<(String, String)> songInfo(Track track, {Delivery? delivery}) {
 }
 
 /// The details of [track] as this device gets it, with the streaming quality on top.
-Future<void> showSongInfo(BuildContext context, Track track) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      builder: (_) => _SongInfo(track),
-    );
+Future<void> showSongInfo(BuildContext context, Track track) => showSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => _SongInfo(track),
+);
 
 class _SongInfo extends ConsumerWidget {
   const _SongInfo(this.track);

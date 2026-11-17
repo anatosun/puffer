@@ -4,12 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/subsonic/models.dart';
 import '../../downloads/download_manager.dart';
+import '../../ui/layout.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/download_indicator.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../ui/theme.dart';
 
-/// The page of an album, playlist or artist. The artwork sits in a top bar that stretches when pulled down and collapses to the title when scrolled; below it come the title, the play, shuffle and download buttons, and [slivers].
+/// The page of an album, playlist or artist. In a wide window the artwork sits beside the title and the buttons. Otherwise the artwork sits in a top bar that stretches when pulled down and collapses to the title when scrolled; below it come the title, the play, shuffle and download buttons, and [slivers].
 class CollectionView extends ConsumerWidget {
   const CollectionView({
     super.key,
@@ -104,6 +105,122 @@ class CollectionView extends ConsumerWidget {
         child: image == null
             ? picture
             : ClipRRect(borderRadius: BorderRadius.circular(8), child: picture),
+      );
+    }
+
+    final controls = Row(
+      children: [
+        PinButton(pinKind, pinId),
+        ?trailing,
+        const Spacer(),
+        IconButton.filledTonal(
+          iconSize: 26,
+          tooltip: 'Shuffle',
+          onPressed: tracks.isEmpty
+              ? null
+              : () => playFrom(
+                  ref,
+                  tracks,
+                  0,
+                  shuffle: true,
+                  playlistId: _playlistId,
+                ),
+          icon: const Icon(Icons.shuffle),
+        ),
+        const SizedBox(width: 12),
+        IconButton.filled(
+          iconSize: 34,
+          tooltip: 'Play',
+          style: IconButton.styleFrom(
+            backgroundColor: scheme?.primary,
+            foregroundColor: scheme?.onPrimary,
+          ),
+          onPressed: tracks.isEmpty
+              ? null
+              : () => playFrom(ref, tracks, 0, playlistId: _playlistId),
+          icon: const Icon(Icons.play_arrow_rounded),
+        ),
+      ],
+    );
+
+    if (isWide(context)) {
+      return CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: blurred ? Colors.transparent : tint,
+            surfaceTintColor: Colors.transparent,
+            actions: actions,
+          ),
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: blurred
+                  ? null
+                  : BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [tint, context.background],
+                      ),
+                    ),
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  artwork(220),
+                  const SizedBox(width: 32),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (subtitle != null)
+                          MouseRegion(
+                            cursor: onSubtitleTap == null
+                                ? MouseCursor.defer
+                                : SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: onSubtitleTap,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  subtitle!,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color:
+                                        scheme?.primary ??
+                                        context.colors.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (details != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              details!,
+                              style: TextStyle(color: context.muted),
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        SizedBox(width: 420, child: controls),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          ...slivers,
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
       );
     }
 
@@ -211,45 +328,7 @@ class CollectionView extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    PinButton(pinKind, pinId),
-                    ?trailing,
-                    const Spacer(),
-                    IconButton.filledTonal(
-                      iconSize: 26,
-                      tooltip: 'Shuffle',
-                      onPressed: tracks.isEmpty
-                          ? null
-                          : () => playFrom(
-                              ref,
-                              tracks,
-                              0,
-                              shuffle: true,
-                              playlistId: _playlistId,
-                            ),
-                      icon: const Icon(Icons.shuffle),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton.filled(
-                      iconSize: 34,
-                      tooltip: 'Play',
-                      style: IconButton.styleFrom(
-                        backgroundColor: scheme?.primary,
-                        foregroundColor: scheme?.onPrimary,
-                      ),
-                      onPressed: tracks.isEmpty
-                          ? null
-                          : () => playFrom(
-                              ref,
-                              tracks,
-                              0,
-                              playlistId: _playlistId,
-                            ),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                    ),
-                  ],
-                ),
+                controls,
               ],
             ),
           ),

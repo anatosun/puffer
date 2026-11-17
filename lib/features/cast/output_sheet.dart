@@ -11,6 +11,7 @@ import '../../ui/messages.dart';
 import '../../ui/player_icons.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/playing_bars.dart';
+import '../../ui/sheets.dart';
 
 /// Opens the output picker. It shows once Music Assistant is set up, highlighted while a player is the output.
 class OutputButton extends ConsumerWidget {
@@ -127,13 +128,11 @@ extension on String {
 String? _describe(MaQueueItem? item) =>
     item == null ? null : [item.title, item.artist].nonNulls.join(' · ');
 
-Future<void> showOutputSheet(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      builder: (_) => const _WaitForMusicAssistant(child: _OutputSheet()),
-    );
+Future<void> showOutputSheet(BuildContext context) => showSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => const _WaitForMusicAssistant(child: _OutputSheet()),
+);
 
 /// Keeps Music Assistant retrying every few seconds while [child] shows, rather than backing off to half a minute, so an unreachable server is found as soon as it answers again. Opening it also retries at once.
 class _WaitForMusicAssistant extends ConsumerStatefulWidget {

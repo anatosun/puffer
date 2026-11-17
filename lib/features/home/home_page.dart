@@ -105,6 +105,7 @@ class _ContinueListening extends ConsumerWidget {
           child: InkWell(
             onTap: () => context.push('/album/${album.id}'),
             onLongPress: () => showAlbumActions(context, ref, album),
+            onSecondaryTap: () => showAlbumActions(context, ref, album),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(

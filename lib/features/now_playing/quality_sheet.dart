@@ -6,14 +6,11 @@ import '../../app/providers.dart';
 import '../../downloads/download_settings.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
+import '../../ui/sheets.dart';
 
 /// Opens the streaming quality of the current network, from the format badges of the player.
 Future<void> showQualitySheet(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => const _QualitySheet(),
-    );
+    showSheet<void>(context: context, builder: (_) => const _QualitySheet());
 
 class _QualitySheet extends ConsumerWidget {
   const _QualitySheet();

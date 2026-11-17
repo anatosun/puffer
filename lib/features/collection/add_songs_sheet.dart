@@ -10,6 +10,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/tiles.dart';
 import 'playlist_edit.dart';
+import '../../ui/sheets.dart';
 
 /// Songs on the server matching a search of the "Add songs" sheet.
 final songSearchProvider = FutureProvider.autoDispose
@@ -60,9 +61,8 @@ Future<void> showAddSongs(
     inPlaylist,
     onError: (e) => showMessage('$e'),
   );
-  await showModalBottomSheet<void>(
+  await showSheet<void>(
     context: context,
-    useRootNavigator: true,
     isScrollControlled: true,
     builder: (context) => _AddSongs(playlist.name, adder),
   );

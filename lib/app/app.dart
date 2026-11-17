@@ -14,6 +14,8 @@ import '../features/library/library_page.dart';
 import '../features/library/transfers_page.dart';
 import '../features/login/login_page.dart';
 import '../features/now_playing/now_playing.dart';
+import '../features/now_playing/now_playing_below.dart';
+import '../features/now_playing/player_bar.dart';
 import '../features/now_playing/speaker_bar.dart';
 import '../features/now_playing/waveform.dart';
 import '../features/search/search_page.dart';
@@ -23,13 +25,16 @@ import '../features/settings/experience_settings_page.dart';
 import '../features/settings/playback_settings_page.dart';
 import '../features/settings/server_settings_page.dart';
 import '../features/settings/settings_page.dart';
+import '../ui/layout.dart';
 import '../ui/messages.dart';
+import '../ui/sheets.dart';
 import '../ui/theme.dart';
 import '../ui/widgets/launch_gate.dart';
 import 'experience.dart';
 import 'playback_providers.dart';
 import 'providers.dart';
 import 'shortcuts.dart';
+import 'sidebar.dart';
 import 'sendspin_providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -195,7 +200,9 @@ class App extends ConsumerWidget {
           // On a cold start, the launch animation plays over the first screen, unless the person turned it off. The gate reads it once, so the setting applies at the next start.
           builder: (context, child) => LaunchGate(
             enabled: ref.read(launchAnimationProvider),
-            child: KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
+            child: PointerRecorder(
+              child: KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
+            ),
           ),
         );
       },
@@ -203,7 +210,7 @@ class App extends ConsumerWidget {
   }
 }
 
-/// The navigation bar with the tabs the person chose. Pages outside every tab, such as an album, keep the tab they were opened from selected.
+/// The navigation bar with the tabs the person chose, or in a wide window the sidebar and the player bar. Pages outside every tab, such as an album, keep the tab they were opened from selected.
 class _Shell extends ConsumerStatefulWidget {
   const _Shell({required this.location, required this.child});
 
@@ -223,6 +230,36 @@ class _ShellState extends ConsumerState<_Shell> {
     final tab = tabFor(widget.location, tabs) ?? _last;
     _last = tab;
     final index = tab == null ? 0 : tabs.indexOf(tab).clamp(0, tabs.length);
+    if (isWide(context)) {
+      return Scaffold(
+        body: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Sidebar(location: widget.location, selected: tab),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const SpeakerBar(),
+                        Expanded(child: widget.child),
+                      ],
+                    ),
+                  ),
+                  if (ref.watch(queuePanelProvider) &&
+                      ref.watch(nowPlayingProvider).value != null) ...[
+                    const VerticalDivider(width: 1),
+                    const QueuePanel(),
+                  ],
+                ],
+              ),
+            ),
+            const PlayerBar(),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: Column(

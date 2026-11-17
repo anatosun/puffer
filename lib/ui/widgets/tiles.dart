@@ -11,6 +11,7 @@ import '../../app/providers.dart';
 import '../../data/subsonic/models.dart';
 import '../../features/home/home_page.dart';
 import '../../downloads/download_manager.dart';
+import '../layout.dart';
 import '../messages.dart';
 import '../theme.dart';
 import 'artwork.dart';
@@ -60,7 +61,9 @@ class TrackTile extends ConsumerWidget {
         ? ref.watch(ratingOverridesProvider)[track.id] ?? track.rating
         : null;
 
-    final tile = ListTile(
+    // A wide window shows the artist and the album in columns of their own, as a table.
+    final wide = isWide(context);
+    Widget tile = ListTile(
       leading: showArtwork
           ? Stack(
               alignment: Alignment.center,
@@ -93,9 +96,40 @@ class TrackTile extends ConsumerWidget {
                     ),
             )
           : null,
-      title: TrackTitle(track.title, color: color),
-      subtitle: TrackSubtitle(track.artist, stars: stars),
-      isThreeLine: TrackSubtitle.showsStars(stars),
+      title: wide
+          ? Row(
+              children: [
+                Expanded(flex: 5, child: TrackTitle(track.title, color: color)),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 3,
+                  child: _Column(
+                    track.artist,
+                    path: track.artistId == null
+                        ? null
+                        : '/artist/${track.artistId}',
+                  ),
+                ),
+                // The album column says nothing on the page of the album.
+                if (!showNumber) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 3,
+                    child: _Column(
+                      track.album,
+                      path: track.albumId == null
+                          ? null
+                          : '/album/${track.albumId}',
+                    ),
+                  ),
+                ],
+              ],
+            )
+          : TrackTitle(track.title, color: color),
+      subtitle: wide
+          ? (TrackSubtitle.showsStars(stars) ? TrackStars(stars!) : null)
+          : TrackSubtitle(track.artist, stars: stars),
+      isThreeLine: !wide && TrackSubtitle.showsStars(stars),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -111,6 +145,13 @@ class TrackTile extends ConsumerWidget {
           ? () => playFrom(ref, tracks, index, playlistId: playlistId)
           : null,
       onLongPress: () => showTrackActions(context, ref, track),
+    );
+    tile = SongsDraggable(
+      songs: DraggedSongs(track.title, () async => [track]),
+      child: SecondaryTap(
+        onTap: () => showTrackActions(context, ref, track),
+        child: tile,
+      ),
     );
     // An Opacity of 1 still makes Impeller composite the row in a layer.
     return playable ? tile : Opacity(opacity: 0.35, child: tile);
@@ -300,36 +341,51 @@ class AlbumCard extends ConsumerWidget {
     final pin =
         ref.watch(pinStateProvider((PinKind.album, album.id))).value ??
         PinState.none;
-    return Pressable(
-      child: SizedBox(
-        width: width,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () => context.push('/album/${album.id}'),
-          onLongPress: () => showAlbumActions(context, ref, album),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  Artwork(album.coverArt, size: width),
-                  if (pin.pinned) CardDownloadBadge(pin),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                album.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text(
-                album.artist ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.muted, fontSize: 13),
-              ),
-            ],
+    return SongsDraggable(
+      songs: DraggedSongs(
+        album.name,
+        () async => (await ref.read(repositoryProvider)!.album(album.id)).songs,
+      ),
+      child: Pressable(
+        child: SizedBox(
+          width: width,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => context.push('/album/${album.id}'),
+            onLongPress: () => showAlbumActions(context, ref, album),
+            onSecondaryTap: () => showAlbumActions(context, ref, album),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HoverPlay(
+                  tooltip: 'Play ${album.name}',
+                  onPlay: () async => playFrom(
+                    ref,
+                    (await ref.read(repositoryProvider)!.album(album.id)).songs,
+                    0,
+                  ),
+                  child: Stack(
+                    children: [
+                      Artwork(album.coverArt, size: width),
+                      if (pin.pinned) CardDownloadBadge(pin),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  album.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  album.artist ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: context.muted, fontSize: 13),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -422,14 +478,25 @@ class PlaylistCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           onTap: () => context.push('/playlist/${playlist.id}'),
           onLongPress: () => showPlaylistActions(context, ref, playlist),
+          onSecondaryTap: () => showPlaylistActions(context, ref, playlist),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                children: [
-                  PlaylistArtwork(playlist, size: width, radius: 6),
-                  if (pin.pinned) CardDownloadBadge(pin),
-                ],
+              HoverPlay(
+                tooltip: 'Play ${playlist.name}',
+                onPlay: () async => playFrom(
+                  ref,
+                  (await ref.read(repositoryProvider)!.playlist(playlist.id))
+                      .entries,
+                  0,
+                  playlistId: playlist.id,
+                ),
+                child: Stack(
+                  children: [
+                    PlaylistArtwork(playlist, size: width, radius: 6),
+                    if (pin.pinned) CardDownloadBadge(pin),
+                  ],
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -517,33 +584,39 @@ class ArtistTile extends ConsumerWidget {
     final pin =
         ref.watch(pinStateProvider((PinKind.artist, artist.id))).value ??
         PinState.none;
-    return ListTile(
-      leading: ClipOval(
-        child: Artwork(
-          artist.coverArt,
-          size: 44,
-          radius: 0,
-          icon: Icons.person,
+    void actions() => showItemActions(
+      context,
+      ref,
+      kind: PinKind.artist,
+      id: artist.id,
+      title: artist.name,
+      coverArt: artist.coverArt,
+      starred: artist.starred,
+      mix: () => ref.read(repositoryProvider)!.radio(artistId: artist.id),
+      artists: [(id: artist.id, name: artist.name)],
+    );
+    return SecondaryTap(
+      onTap: actions,
+      child: ListTile(
+        leading: ClipOval(
+          child: Artwork(
+            artist.coverArt,
+            size: 44,
+            radius: 0,
+            icon: Icons.person,
+          ),
         ),
-      ),
-      title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      // Always a second line, so artist rows are as tall as each other and as song rows.
-      subtitle: Text(
-        artist.albumCount > 0 ? countOf(artist.albumCount, 'album') : 'Artist',
-        style: TextStyle(color: context.muted),
-      ),
-      trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
-      onTap: () => context.push('/artist/${artist.id}'),
-      onLongPress: () => showItemActions(
-        context,
-        ref,
-        kind: PinKind.artist,
-        id: artist.id,
-        title: artist.name,
-        coverArt: artist.coverArt,
-        starred: artist.starred,
-        mix: () => ref.read(repositoryProvider)!.radio(artistId: artist.id),
-        artists: [(id: artist.id, name: artist.name)],
+        title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        // Always a second line, so artist rows are as tall as each other and as song rows.
+        subtitle: Text(
+          artist.albumCount > 0
+              ? countOf(artist.albumCount, 'album')
+              : 'Artist',
+          style: TextStyle(color: context.muted),
+        ),
+        trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
+        onTap: () => context.push('/artist/${artist.id}'),
+        onLongPress: actions,
       ),
     );
   }
@@ -621,16 +694,23 @@ class PlaylistTile extends ConsumerWidget {
     final pin =
         ref.watch(pinStateProvider((PinKind.playlist, playlist.id))).value ??
         PinState.none;
-    return ListTile(
-      leading: PlaylistArtwork(playlist, size: 52),
-      title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        countOf(playlist.songCount, 'song'),
-        style: TextStyle(color: context.muted),
+    return SecondaryTap(
+      onTap: () => showPlaylistActions(context, ref, playlist),
+      child: ListTile(
+        leading: PlaylistArtwork(playlist, size: 52),
+        title: Text(
+          playlist.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          countOf(playlist.songCount, 'song'),
+          style: TextStyle(color: context.muted),
+        ),
+        trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
+        onTap: () => context.push('/playlist/${playlist.id}'),
+        onLongPress: () => showPlaylistActions(context, ref, playlist),
       ),
-      trailing: DownloadIcon(displayForPin(pin), progress: pin.fraction),
-      onTap: () => context.push('/playlist/${playlist.id}'),
-      onLongPress: () => showPlaylistActions(context, ref, playlist),
     );
   }
 }
@@ -696,4 +776,157 @@ class MessageView extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Calls [onTap] on a right click, for the menus that a long press opens on a touch screen.
+class SecondaryTap extends StatelessWidget {
+  const SecondaryTap({super.key, required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onSecondaryTap: onTap, child: child);
+}
+
+/// Shows a play button over [child] while the mouse is over it. A touch screen has no hover, so it never shows there.
+class HoverPlay extends StatefulWidget {
+  const HoverPlay({
+    super.key,
+    required this.onPlay,
+    required this.tooltip,
+    required this.child,
+  });
+
+  final Future<void> Function() onPlay;
+  final String tooltip;
+  final Widget child;
+
+  @override
+  State<HoverPlay> createState() => _HoverPlayState();
+}
+
+class _HoverPlayState extends State<HoverPlay> {
+  bool _hover = false;
+
+  void _set(bool hover) {
+    if (_hover != hover) setState(() => _hover = hover);
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _set(true),
+    onExit: (_) => _set(false),
+    child: Stack(
+      children: [
+        widget.child,
+        if (_hover)
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: IconButton.filled(
+              tooltip: widget.tooltip,
+              style: IconButton.styleFrom(
+                backgroundColor: context.colors.primary,
+                foregroundColor: context.colors.onPrimary,
+              ),
+              icon: const Icon(Icons.play_arrow_rounded),
+              onPressed: () => runPlayback(widget.onPlay),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// Songs dragged with the mouse, which a playlist of the sidebar takes.
+class DraggedSongs {
+  const DraggedSongs(this.label, this.tracks);
+
+  /// What the pointer carries, such as the title of the song or the album.
+  final String label;
+  final Future<List<Track>> Function() tracks;
+}
+
+/// Lets the mouse drag [songs] from [child]. A finger scrolls the list instead, so dragging starts only once a mouse has been over the child; a touch screen sends no hover.
+class SongsDraggable extends StatefulWidget {
+  const SongsDraggable({super.key, required this.songs, required this.child});
+
+  final DraggedSongs songs;
+  final Widget child;
+
+  @override
+  State<SongsDraggable> createState() => _SongsDraggableState();
+}
+
+class _SongsDraggableState extends State<SongsDraggable> {
+  bool _mouse = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) {
+      if (!_mouse) setState(() => _mouse = true);
+    },
+    child: Draggable<DraggedSongs>(
+      data: widget.songs,
+      maxSimultaneousDrags: _mouse ? null : 0,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Material(
+        color: context.colors.inverseSurface,
+        borderRadius: BorderRadius.circular(8),
+        elevation: 6,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.music_note,
+                size: 18,
+                color: context.colors.onInverseSurface,
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: Text(
+                  widget.songs.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: context.colors.onInverseSurface),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: widget.child,
+    ),
+  );
+}
+
+/// A column of a song row in a wide window: muted text that opens [path] on a click.
+class _Column extends StatelessWidget {
+  const _Column(this.text, {this.path});
+
+  final String? text;
+  final String? path;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Text(
+      text ?? '',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: context.muted, fontSize: 14),
+    );
+    if (path == null || text == null) return label;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(onTap: () => context.push(path!), child: label),
+      ),
+    );
+  }
 }
