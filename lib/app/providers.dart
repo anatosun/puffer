@@ -6,10 +6,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/secret_store.dart';
 import '../data/artwork_cache.dart';
 import '../data/artwork_store.dart';
 import '../data/db/database.dart';
@@ -48,15 +48,14 @@ final initialCredentialsProvider = Provider<ServerCredentials?>((ref) => null);
 
 // ------------------------------------------------------------ session
 
-const _credentialsKey = 'credentials';
-// On macOS the data protection keychain needs a team entitlement, which an app built without a paid signing identity lacks; the login keychain needs none.
-const secureStorage = FlutterSecureStorage(
-  mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-);
+const credentialsKey = 'credentials';
+
+/// Where credentials and keys live. A kiosk replaces it with a [FileSecretStore] before anything reads it.
+SecretStore secureStorage = const KeychainSecretStore();
 
 Future<ServerCredentials?> loadCredentials() async {
   try {
-    final raw = await secureStorage.read(key: _credentialsKey);
+    final raw = await secureStorage.read(key: credentialsKey);
     return raw == null
         ? null
         : ServerCredentials.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -96,7 +95,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
 
   Future<void> _store(ServerCredentials credentials) async {
     await secureStorage.write(
-      key: _credentialsKey,
+      key: credentialsKey,
       value: jsonEncode(credentials.toJson()),
     );
     state = credentials;
@@ -110,7 +109,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
     await ref.read(prefetchCacheProvider).clear();
     await ref.read(queueStoreProvider).clear();
     await ref.read(pastQueuesProvider.notifier).clear();
-    await secureStorage.delete(key: _credentialsKey);
+    await secureStorage.delete(key: credentialsKey);
     state = null;
   }
 }

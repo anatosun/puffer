@@ -12,6 +12,7 @@ import 'app/app.dart';
 import 'app/licences.dart';
 import 'app/playback_providers.dart';
 import 'app/providers.dart';
+import 'app/provisioning.dart';
 import 'data/db/database.dart';
 import 'playback/player_handler.dart';
 
@@ -34,9 +35,12 @@ Future<void> main() async {
   registerFontLicences();
 
   final handler = await _initAudio();
-  final results = await (
+  final (prefs, support) = await (
     SharedPreferences.getInstance(),
     getApplicationSupportDirectory(),
+  ).wait;
+  await provision(prefs, support);
+  final (credentials, maCredentials) = await (
     loadCredentials(),
     loadMaCredentials(),
   ).wait;
@@ -44,10 +48,10 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
-        sharedPreferencesProvider.overrideWithValue(results.$1),
-        supportDirectoryProvider.overrideWithValue(results.$2),
-        initialCredentialsProvider.overrideWithValue(results.$3),
-        initialMaCredentialsProvider.overrideWithValue(results.$4),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        supportDirectoryProvider.overrideWithValue(support),
+        initialCredentialsProvider.overrideWithValue(credentials),
+        initialMaCredentialsProvider.overrideWithValue(maCredentials),
         databaseProvider.overrideWithValue(AppDatabase()),
         playerHandlerProvider.overrideWithValue(handler),
       ],
