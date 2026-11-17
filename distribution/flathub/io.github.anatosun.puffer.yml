@@ -91,7 +91,7 @@ modules:
       - ln -s /app/lib/puffer/puffer /app/bin/puffer
       - install -Dm644 io.github.anatosun.puffer.desktop -t /app/share/applications
       - install -Dm644 io.github.anatosun.puffer.metainfo.xml -t /app/share/metainfo
-      - install -Dm644 puffer-app-icon-1024.svg /app/share/icons/hicolor/scalable/apps/io.github.anatosun.puffer.svg
+      - install -Dm644 io.github.anatosun.puffer.svg -t /app/share/icons/hicolor/scalable/apps
     sources:
       - type: archive
         only-arches: [x86_64]
@@ -123,5 +123,5 @@ modules:
         url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/distribution/flathub/io.github.anatosun.puffer.metainfo.xml
         sha256: 03427d5bcc0cb1120cf67e78dd0eacddf76c32eda1367528c0a352137b10226e
       - type: file
-        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/assets/brand/puffer-app-icon-1024.svg
-        sha256: d5d1dc99a7786f9120653c9ee2d1d984d2f1e9376233d3e9d931e821aaf79b62
+        url: https://raw.githubusercontent.com/anatosun/puffer/72ec567d085ddba75d66090a0ddeb2751ecdf83a/distribution/flathub/io.github.anatosun.puffer.svg
+        sha256: c47dd802e3b9dcf52043a30254f65c83e92cba282522c9a970bacbcdd530c8fa
