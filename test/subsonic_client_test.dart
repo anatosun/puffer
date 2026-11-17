@@ -104,4 +104,44 @@ void main() {
       await failing.setRating('a', 3).catchError((_) {});
     },
   );
+
+  group('a failed request reports', () {
+    SubsonicClient answering(int status, String body) => SubsonicClient(
+      const ServerCredentials(
+        baseUrl: 'http://navidrome',
+        username: 'u',
+        token: 't',
+        salt: 's',
+      ),
+      httpClient: MockClient((_) async => http.Response(body, status)),
+    );
+
+    test('the Subsonic error inside an HTTP 401', () async {
+      final client = answering(
+        401,
+        jsonEncode({
+          'subsonic-response': {
+            'status': 'failed',
+            'error': {'code': 40, 'message': 'Wrong username or password'},
+          },
+        }),
+      );
+      await expectLater(
+        client.ping(),
+        throwsA(isA<SubsonicException>().having((e) => e.code, 'code', 40)),
+      );
+    });
+
+    test('a login asked by a proxy', () async {
+      final client = answering(401, '<html>Unauthorized</html>');
+      await expectLater(
+        client.ping(),
+        throwsA(
+          isA<SubsonicException>()
+              .having((e) => e.code, 'code', 401)
+              .having((e) => e.message, 'message', contains('proxy')),
+        ),
+      );
+    });
+  });
 }

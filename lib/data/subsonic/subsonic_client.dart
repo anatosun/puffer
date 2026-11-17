@@ -141,18 +141,25 @@ class SubsonicClient {
     return _body(response, endpoint);
   }
 
-  /// The `subsonic-response` of [response], or the error it reports.
+  /// The `subsonic-response` of [response], or the error it reports. Some servers send an authentication error with HTTP 401, so the error inside the body comes first.
   Json _body(http.Response response, String endpoint) {
-    if (response.statusCode != 200) {
-      throw SubsonicException(
-        response.statusCode,
-        'HTTP ${response.statusCode} from $endpoint',
-      );
+    Json? body;
+    try {
+      body =
+          (jsonDecode(utf8.decode(response.bodyBytes))
+                  as Json)['subsonic-response']
+              as Json?;
+    } on Object {
+      body = null;
     }
-    final body =
-        (jsonDecode(utf8.decode(response.bodyBytes))
-                as Json)['subsonic-response']
-            as Json?;
+    if (body == null && response.statusCode != 200) {
+      throw SubsonicException(response.statusCode, switch (response
+          .statusCode) {
+        401 || 403 =>
+          'HTTP ${response.statusCode} from $endpoint: something in front of the server, such as a proxy, asks for a login of its own',
+        _ => 'HTTP ${response.statusCode} from $endpoint',
+      });
+    }
     if (body == null) throw const SubsonicException(0, 'Not a Subsonic server');
     if (body['status'] != 'ok') {
       final error = body['error'] as Json? ?? const {};
