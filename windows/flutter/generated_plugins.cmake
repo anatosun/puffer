@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audio_service_win
   bonsoir_windows
   connectivity_plus
   dynamic_color

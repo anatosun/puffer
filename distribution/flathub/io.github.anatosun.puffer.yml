@@ -13,6 +13,8 @@ finish-args:
   - --device=dri
   # The keychain for the server credentials.
   - --talk-name=org.freedesktop.secrets
+  # The media controls of the desktop through MPRIS.
+  - --own-name=org.mpris.MediaPlayer2.puffer.*
   # The default library folder of downloads; another folder comes through the file chooser portal.
   - --filesystem=xdg-music
 

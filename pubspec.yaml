@@ -65,6 +65,8 @@ dependencies:
   flutter_svg: ^2.3.2
   file_selector: ^1.1.0
   wakelock_plus: ^1.8.2
+  audio_service_mpris: ^1.0.0-beta.4
+  audio_service_win: ^0.0.3
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
