@@ -28,6 +28,15 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // Whether the window was maximised when it last closed, so it shows maximised.
+  bool maximized_ = false;
+
+  // Puts the window where it was when it last closed.
+  void RestorePlacement();
+
+  // Remembers where the window is, for the next start.
+  void SavePlacement();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

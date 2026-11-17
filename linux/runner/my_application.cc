@@ -14,6 +14,65 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// The smallest window that still fits the phone layout.
+static const int kMinWidth = 400;
+static const int kMinHeight = 560;
+
+// The size of the window while it is neither maximised nor full screen, kept across starts in window.ini. Wayland gives no window position, so only the size and the maximised state are kept.
+static int saved_width = 1280;
+static int saved_height = 720;
+
+static gchar* window_state_path() {
+  return g_build_filename(g_get_user_config_dir(), APPLICATION_ID,
+                          "window.ini", nullptr);
+}
+
+static void restore_window_state(GtkWindow* window) {
+  GdkGeometry geometry = {};
+  geometry.min_width = kMinWidth;
+  geometry.min_height = kMinHeight;
+  gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
+
+  gboolean maximized = FALSE;
+  g_autoptr(GKeyFile) file = g_key_file_new();
+  g_autofree gchar* path = window_state_path();
+  if (g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, nullptr)) {
+    int width = g_key_file_get_integer(file, "window", "width", nullptr);
+    int height = g_key_file_get_integer(file, "window", "height", nullptr);
+    if (width >= kMinWidth && height >= kMinHeight) {
+      saved_width = width;
+      saved_height = height;
+    }
+    maximized = g_key_file_get_boolean(file, "window", "maximized", nullptr);
+  }
+  gtk_window_set_default_size(window, saved_width, saved_height);
+  if (maximized) gtk_window_maximize(window);
+}
+
+// Follows the size of the window while it is not maximised, so a maximised window comes back to the size it had before.
+static gboolean window_configured_cb(GtkWidget* widget, GdkEvent* event,
+                                     gpointer data) {
+  GtkWindow* window = GTK_WINDOW(widget);
+  if (!gtk_window_is_maximized(window)) {
+    gtk_window_get_size(window, &saved_width, &saved_height);
+  }
+  return FALSE;
+}
+
+static gboolean window_closing_cb(GtkWidget* widget, GdkEvent* event,
+                                  gpointer data) {
+  g_autoptr(GKeyFile) file = g_key_file_new();
+  g_key_file_set_integer(file, "window", "width", saved_width);
+  g_key_file_set_integer(file, "window", "height", saved_height);
+  g_key_file_set_boolean(file, "window", "maximized",
+                         gtk_window_is_maximized(GTK_WINDOW(widget)));
+  g_autofree gchar* path = window_state_path();
+  g_autofree gchar* dir = g_path_get_dirname(path);
+  g_mkdir_with_parents(dir, 0700);
+  g_key_file_save_to_file(file, path, nullptr);
+  return FALSE;
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -52,7 +111,11 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Puffer");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  restore_window_state(window);
+  g_signal_connect(window, "configure-event",
+                   G_CALLBACK(window_configured_cb), nullptr);
+  g_signal_connect(window, "delete-event", G_CALLBACK(window_closing_cb),
+                   nullptr);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
