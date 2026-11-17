@@ -1,5 +1,5 @@
 {
-  "/etc/issue.net": "Ubuntu 24.04.5 LTS",
+  "/etc/issue.net": "Ubuntu 26.04.1 LTS",
   "antiFeatures": {},
   "apksigner": "/usr/local/lib/android/sdk/build-tools/37.0.0/apksigner",
   "archivePolicy0": [],
@@ -9,7 +9,7 @@
     "--pretty"
   ],
   "disabled": [],
-  "endTimestamp": 1794588446424,
+  "endTimestamp": 1794943870042,
   "failedBuilds": {},
   "jarsigner": "/usr/bin/jarsigner",
   "keytool": "/usr/bin/keytool",
@@ -23,14 +23,14 @@
     "io.github.anatosun.puffer"
   ],
   "stages": {
-    "delete_disabled_builds": 1794588436811,
-    "index.make repo": 1794588442538,
-    "prepare_apps repo": 1794588440844,
-    "process_apks": 1794588436811,
-    "read_added_date_from_all_apks": 1794588440844,
-    "remove_apks": 1794588440843,
-    "scan_repo_files": 1794588440842
+    "delete_disabled_builds": 1794943858958,
+    "index.make repo": 1794943865835,
+    "prepare_apps repo": 1794943864164,
+    "process_apks": 1794943858958,
+    "read_added_date_from_all_apks": 1794943864164,
+    "remove_apks": 1794943864163,
+    "scan_repo_files": 1794943864162
   },
-  "startTimestamp": 1794588436000,
+  "startTimestamp": 1794943858000,
   "subcommand": "update"
 }
