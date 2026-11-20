@@ -25,6 +25,7 @@ import '../playback/player_handler.dart';
 import '../playback/prefetch_cache.dart';
 import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
+import '../playback/scrobble_queue.dart';
 import '../playback/sleep_timer.dart';
 import '../playback/transcode_decider.dart';
 import 'experience.dart';
@@ -109,6 +110,7 @@ class CredentialsNotifier extends Notifier<ServerCredentials?> {
     await ref.read(prefetchCacheProvider).clear();
     await ref.read(queueStoreProvider).clear();
     await ref.read(pastQueuesProvider.notifier).clear();
+    await ref.read(scrobbleQueueProvider).clear();
     await secureStorage.delete(key: credentialsKey);
     state = null;
   }
@@ -1144,31 +1146,50 @@ class SessionPlaybackSource implements PlaybackSource {
       ? Duration.zero
       : Duration(seconds: ref.read(crossfadeProvider));
 
-  /// Plays of this device are reported only while it is the output; a Music Assistant player reports through [maScrobbleRunnerProvider].
+  /// Plays of this device are reported only while it is the output; a Music Assistant player reports through [maScrobbleRunnerProvider]. What plays now goes through [playbackReportRunnerProvider].
   bool get _reports =>
-      !ref.read(isOfflineProvider) &&
-      ref.read(scrobblingProvider) &&
-      ref.read(outputProvider) == null;
+      ref.read(scrobblingProvider) && ref.read(outputProvider) == null;
 
   @override
-  Future<void> nowPlaying(Track track) async {
-    if (!_reports) return;
-    await ref
-        .read(clientProvider)
-        ?.scrobble(track.id, submission: false)
-        .catchError((_) {});
-  }
-
-  @override
-  Future<void> played(Track track) async {
+  Future<void> played(Track track, DateTime at) async {
     await ref.read(downloadManagerProvider)?.markPlayed(track.id);
     if (!_reports) return;
-    await ref
-        .read(clientProvider)
-        ?.scrobble(track.id, submission: true)
-        .catchError((_) {});
+    await reportPlay(ref, Play(track.id, at));
   }
 }
+
+/// Reports [play] to the server, or keeps it for later while the app is offline or the server cannot be reached.
+Future<void> reportPlay(Ref ref, Play play) {
+  final queue = ref.read(scrobbleQueueProvider);
+  return ref.read(isOfflineProvider) || ref.read(clientProvider) == null
+      ? queue.add(play)
+      : queue.report(play);
+}
+
+/// Thrown by the sender of [scrobbleQueueProvider] when the app went offline, so the plays wait.
+class _Offline implements Exception {
+  const _Offline();
+}
+
+/// The plays waiting to reach the server.
+final scrobbleQueueProvider = Provider<ScrobbleQueue>(
+  (ref) => ScrobbleQueue(
+    File(p.join(ref.watch(supportDirectoryProvider).path, 'scrobbles.json')),
+    send: (plays) async {
+      final client = ref.read(clientProvider);
+      if (client == null || ref.read(isOfflineProvider)) throw const _Offline();
+      await client.scrobblePlays([for (final p in plays) (p.trackId, p.at)]);
+    },
+  ),
+);
+
+/// Sends the plays kept while offline once the app is online, at start-up and each time it comes back online. It does no work while the app stays offline.
+final scrobbleFlushProvider = Provider<void>((ref) {
+  final offline = ref.watch(isOfflineProvider);
+  final client = ref.watch(clientProvider);
+  if (offline || client == null || !ref.watch(scrobblingProvider)) return;
+  unawaited(ref.read(scrobbleQueueProvider).flush());
+});
 
 final queueStoreProvider = Provider<QueueStore>(
   (ref) => QueueStore(

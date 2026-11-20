@@ -487,11 +487,41 @@ class SubsonicClient {
     await _get('setRating', {'id': id, 'rating': rating});
   }
 
-  Future<void> scrobble(String id, {required bool submission}) async {
+  /// Tells the server that [id] plays now, when [submission] is false, or that it was played, when true. [time] is when listening began, and defaults to now.
+  Future<void> scrobble(
+    String id, {
+    required bool submission,
+    DateTime? time,
+  }) async {
     await _get('scrobble', {
       'id': id,
       'submission': submission,
-      'time': DateTime.now().millisecondsSinceEpoch,
+      'time': (time ?? DateTime.now()).millisecondsSinceEpoch,
+    });
+  }
+
+  /// Tells the server that the song [id] is in [state] (`starting`, `playing`, `paused` or `stopped`) at [position]. Requires the OpenSubsonic `playbackReport` extension. With [ignoreScrobble], the server shows the state but counts no play, which [scrobble] reports.
+  Future<void> reportPlayback(
+    String id, {
+    required String state,
+    required Duration position,
+    bool ignoreScrobble = false,
+  }) async {
+    await _get('reportPlayback', {
+      'mediaId': id,
+      'mediaType': 'song',
+      'positionMs': position.inMilliseconds,
+      'state': state,
+      if (ignoreScrobble) 'ignoreScrobble': true,
+    });
+  }
+
+  /// Reports several plays in one request, each with the time listening began.
+  Future<void> scrobblePlays(List<(String id, DateTime time)> plays) async {
+    await _get('scrobble', {
+      'id': [for (final p in plays) p.$1],
+      'time': [for (final p in plays) p.$2.millisecondsSinceEpoch],
+      'submission': true,
     });
   }
 

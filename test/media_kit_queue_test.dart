@@ -41,9 +41,7 @@ class _Files implements PlaybackSource {
   @override
   Future<Uri?> fetchArt(String? coverArt) async => null;
   @override
-  Future<void> nowPlaying(Track track) async {}
-  @override
-  Future<void> played(Track track) async {}
+  Future<void> played(Track track, DateTime at) async {}
   @override
   double volumeFor(Track track) => 0;
   @override

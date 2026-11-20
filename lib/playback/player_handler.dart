@@ -41,8 +41,9 @@ abstract class PlaybackSource {
 
   /// Fetches the artwork of [coverArt] to a local file and returns it, or null when it cannot be fetched.
   Future<Uri?> fetchArt(String? coverArt);
-  Future<void> nowPlaying(Track track);
-  Future<void> played(Track track);
+
+  /// [track] counts as played; listening began at [at].
+  Future<void> played(Track track, DateTime at);
 
   /// The volume from 0 to 1 at which [track] plays, for loudness normalisation.
   double volumeFor(Track track);
@@ -178,7 +179,6 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               .catchError((Object _) {}),
         );
       }
-      source?.nowPlaying(track);
       _scrobbled = null;
     });
     player.errorStream.listen((_) => unawaited(_recover()));
@@ -208,7 +208,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               : player.duration ?? track.duration;
           if (countsAsPlayed(position + _offset, duration)) {
             _scrobbled = track.id;
-            source?.played(track);
+            source?.played(track, DateTime.now().subtract(position + _offset));
           }
         });
   }

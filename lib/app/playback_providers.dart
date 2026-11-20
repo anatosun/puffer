@@ -12,7 +12,10 @@ import '../playback/audio_format.dart';
 import '../playback/endless_radio.dart';
 import '../playback/sleep_timer.dart';
 import '../playback/ma_playback_controller.dart';
+import '../data/subsonic/subsonic_client.dart';
 import '../playback/playback_controller.dart';
+import '../playback/playback_reporter.dart';
+import '../playback/scrobble_queue.dart';
 import '../ui/messages.dart';
 import 'providers.dart';
 import 'sendspin_providers.dart';
@@ -654,33 +657,26 @@ final endlessRadioRunnerProvider = Provider<void>((ref) {
   });
 });
 
-/// Reports plays on the Music Assistant player in use to the Subsonic server, when [maScrobblingProvider] and [scrobblingProvider] are on: "now playing" when a song starts, and a play once it [countsAsPlayed]. Music Assistant does not report them itself.
+/// Reports plays on the Music Assistant player in use to the Subsonic server, when [maScrobblingProvider] and [scrobblingProvider] are on, once a song [countsAsPlayed]. Music Assistant does not report them itself. What plays now goes through [playbackReportRunnerProvider].
 final maScrobbleRunnerProvider = Provider<void>((ref) {
-  String? started;
   String? submitted;
   Timer? check;
   bool reports() =>
       ref.read(outputProvider) != null &&
       ref.read(maScrobblingProvider) &&
-      ref.read(scrobblingProvider) &&
-      !ref.read(isOfflineProvider);
+      ref.read(scrobblingProvider);
 
   void evaluate(NowPlaying? np) {
     check?.cancel();
     final track = np?.track;
     if (np == null || track == null || !reports()) return;
-    final client = ref.read(clientProvider);
-    if (client == null) return;
-    if (np.playing && started != track.id) {
-      started = track.id;
-      unawaited(
-        client.scrobble(track.id, submission: false).catchError((_) {}),
-      );
-    }
     if (submitted == track.id || !np.playing) return;
-    if (countsAsPlayed(np.positionNow(), np.duration)) {
+    final position = np.positionNow();
+    if (countsAsPlayed(position, np.duration)) {
       submitted = track.id;
-      unawaited(client.scrobble(track.id, submission: true).catchError((_) {}));
+      unawaited(
+        reportPlay(ref, Play(track.id, DateTime.now().subtract(position))),
+      );
       return;
     }
     // Music Assistant reports the position only now and then, so the threshold is checked again while the song plays.
@@ -692,6 +688,65 @@ final maScrobbleRunnerProvider = Provider<void>((ref) {
   ref.listen(nowPlayingProvider, (_, next) => evaluate(next.value));
   ref.onDispose(() => check?.cancel());
 });
+
+/// Tells the Subsonic server what plays, on this device or, with [maScrobblingProvider], on the Music Assistant player in use. A server with the OpenSubsonic `playbackReport` extension hears each start, pause, resume, seek and stop through `reportPlayback`, with `ignoreScrobble` since plays are counted through `scrobble`. Any other server hears "now playing" through `scrobble` when a song starts or plays on after a pause, since that endpoint knows no pause. Reports go out only when the state changes, and not while offline, where they would be stale by the time they could be sent.
+final playbackReportRunnerProvider = Provider<void>((ref) {
+  final reporter = PlaybackReporter();
+  var sending = Future<void>.value();
+
+  Future<void> send(SubsonicClient client, List<PlaybackReport> list) async {
+    if (await client.supports('playbackReport')) {
+      for (final r in list) {
+        await client
+            .reportPlayback(
+              r.trackId,
+              state: r.state.name,
+              position: r.position,
+              ignoreScrobble: true,
+            )
+            .catchError((_) {});
+      }
+      return;
+    }
+    for (final (i, r) in list.indexed) {
+      final resumed =
+          r.state == PlaybackReportState.playing &&
+          (i == 0 || list[i - 1].state != PlaybackReportState.starting);
+      if (r.state == PlaybackReportState.starting || resumed) {
+        await client.scrobble(r.trackId, submission: false).catchError((_) {});
+      }
+    }
+  }
+
+  void update(NowPlaying? np) {
+    final now = DateTime.now();
+    final list = reporter.update(
+      trackId: ref.read(reportsPlaybackProvider) ? np?.track?.id : null,
+      playing: np?.playing ?? false,
+      position: np?.positionNow(now) ?? Duration.zero,
+      now: now,
+    );
+    final client = ref.read(clientProvider);
+    if (list.isEmpty || client == null || ref.read(isOfflineProvider)) return;
+    // One after another, so the server hears that a song stopped before the next one starts.
+    sending = sending.then((_) => send(client, list));
+  }
+
+  ref.listen(nowPlayingProvider, (_, next) => update(next.value));
+  // Turning reports off, or going offline, stops the song on the server; turning them on again starts it.
+  ref.listen(
+    reportsPlaybackProvider,
+    (_, _) => update(ref.read(nowPlayingProvider).value),
+  );
+});
+
+/// Whether what plays is reported to the Subsonic server now: reports are on, the app is online, and the output is this device or a Music Assistant player whose plays are reported.
+final reportsPlaybackProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(scrobblingProvider) &&
+      !ref.watch(isOfflineProvider) &&
+      (ref.watch(outputProvider) == null || ref.watch(maScrobblingProvider)),
+);
 
 /// Turns crossfade on or off for the queue of the Music Assistant player in use, following the crossfade setting. Music Assistant sets the length of the fade per player, and never fades between songs of the same album.
 final maCrossfadeProvider = Provider<void>((ref) {
