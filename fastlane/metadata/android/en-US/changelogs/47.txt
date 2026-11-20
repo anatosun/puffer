@@ -1,0 +1,2 @@
+- The server hears when a song pauses, plays on, seeks or stops, on servers with the playbackReport extension
+- Plays made offline are kept and reported once the app is back online
