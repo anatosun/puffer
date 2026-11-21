@@ -35,6 +35,13 @@ class MaPlayer {
 
   /// The volume a slider shows for this player: the group volume while it leads a group.
   int? get sliderVolume => isGroup ? groupVolume ?? volume : volume;
+
+  /// The volume a slider shows: 0 while the player is muted, else [sliderVolume], or [volume] when [alone].
+  int? shownVolume({bool alone = false}) {
+    final level = alone ? volume : sliderVolume;
+    return level != null && muted ? 0 : level;
+  }
+
   String? get syncedTo => json['synced_to'] as String?;
   String? get activeGroup => json['active_group'] as String?;
   List<String> get groupMembers => [

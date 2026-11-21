@@ -253,8 +253,9 @@ class NowPlayingPage extends ConsumerWidget {
           np: np,
           top: top,
           child: SafeArea(
+            // The page stays open with nothing playing only while the queue moves to another output, which then has nothing to report yet.
             child: np == null
-                ? const SizedBox.shrink()
+                ? Center(child: CircularProgressIndicator(color: highlight))
                 : _PlayerScroll(
                     // One focal point, the artwork, as in Plexamp; what is rarely needed lives in the menu of the toolbar.
                     player: Padding(

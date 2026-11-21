@@ -200,6 +200,52 @@ void main() {
     await client.close();
   });
 
+  test(
+    'raising the volume of a muted player unmutes it, and its group members',
+    () async {
+      final client = await connected();
+      MaPlayer player(String id, {bool muted = false, List<String>? members}) =>
+          MaPlayer({
+            'player_id': id,
+            'available': true,
+            'volume_level': 0,
+            'volume_muted': muted,
+            'group_members': ?members,
+          });
+      client.players = {
+        'living': player('living', members: ['living', 'kitchen', 'hall']),
+        'kitchen': player('kitchen', muted: true),
+        'hall': player('hall'),
+      };
+      List<Map<String, dynamic>> mutes() => [
+        for (final c in server.commands)
+          if (c['command'] == 'players/cmd/volume_mute') c['args'],
+      ];
+
+      await client.setVolume(player('kitchen', muted: true), 0);
+      expect(mutes(), isEmpty);
+
+      await client.setVolume(client.players['living']!, 20);
+      expect(mutes(), [
+        {'player_id': 'kitchen', 'muted': false},
+      ]);
+      await client.close();
+    },
+  );
+
+  test('a muted player shows a volume of 0', () {
+    const muted = MaPlayer({
+      'player_id': 'kitchen',
+      'volume_level': 40,
+      'volume_muted': true,
+    });
+    const unmuted = MaPlayer({'player_id': 'hall', 'volume_level': 40});
+    expect(muted.shownVolume(), 0);
+    expect(muted.shownVolume(alone: true), 0);
+    expect(unmuted.shownVolume(), 40);
+    expect(const MaPlayer({'player_id': 'x'}).shownVolume(), isNull);
+  });
+
   test('joins partial results', () async {
     final client = await connected();
     final items = await client.queueItems('kitchen');

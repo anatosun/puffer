@@ -176,7 +176,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
       ],
       index: track == null ? null : pending.index,
       outputName: thisDevice ? null : _player?.name ?? playerId,
-      volume: thisDevice ? null : _player?.sliderVolume,
+      volume: thisDevice ? null : _player?.shownVolume(),
     );
   }
 
@@ -244,7 +244,7 @@ class MusicAssistantPlaybackController implements PlaybackController {
       ],
       index: queue.currentIndex,
       outputName: thisDevice ? null : _player?.name ?? playerId,
-      volume: thisDevice ? null : _player?.sliderVolume,
+      volume: thisDevice ? null : _player?.shownVolume(),
       autoplay: queue.autoplay,
     );
   }

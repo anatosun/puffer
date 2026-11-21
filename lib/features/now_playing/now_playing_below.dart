@@ -341,7 +341,7 @@ class BelowContent extends ConsumerWidget {
   }
 }
 
-/// The queue: played tracks dimmed, the current one marked, upcoming ones below. Pressing and dragging a track moves it; swiping it away removes it.
+/// The queue: played tracks dimmed, the current one marked, upcoming ones below. Dragging the handle of a track moves it, swiping it away removes it, and a long press opens its menu.
 class _QueueSliver extends ConsumerStatefulWidget {
   const _QueueSliver({this.played = false});
 
@@ -360,6 +360,31 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
   /// The order after a move, shown until the output reports the new queue.
   List<QueueEntry>? _moved;
   List<QueueEntry>? _movedFrom;
+
+  /// Opens the menu of the song at [index] of the queue, with "Remove from queue" when [removable].
+  Future<void> _showActions(
+    String trackId,
+    int index, {
+    required bool removable,
+  }) async {
+    final track = await ref.read(queueTrackProvider(trackId).future);
+    if (track == null || !mounted) return;
+    final controller = ref.read(playbackControllerProvider);
+    await showTrackActions(
+      context,
+      ref,
+      track,
+      extras: [
+        if (removable)
+          (
+            icon: Icons.playlist_remove,
+            label: 'Remove from queue',
+            detail: null,
+            onTap: () => controller.removeAt(index),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -442,6 +467,9 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           ],
         ),
         onTap: playing ? null : () => controller.skipTo(i),
+        onLongPress: trackId == null
+            ? null
+            : () => _showActions(trackId, i, removable: removable),
       );
       if (!removable) return row;
       return Dismissible(
@@ -498,9 +526,9 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
             child: tile(i, removable: false, handleSpace: true),
           );
         }
-        return ReorderableDelayedDragStartListener(
+        // The handle drags, so a long press on the row is free for the menu of the song.
+        return KeyedSubtree(
           key: ValueKey('${item.id}-$i'),
-          index: j,
           child: tile(i, removable: true, dragIndex: j),
         );
       },

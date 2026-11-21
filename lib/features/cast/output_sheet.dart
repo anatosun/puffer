@@ -727,8 +727,7 @@ class _OutputTile extends StatelessWidget {
                   ],
                 ),
                 if (volume case final player?
-                    when (volumeAlone ? player.volume : player.sliderVolume) !=
-                        null)
+                    when player.shownVolume(alone: volumeAlone) != null)
                   Padding(
                     padding: const EdgeInsets.only(left: 46),
                     child: _PlayerVolume(
@@ -765,8 +764,7 @@ class _PlayerVolumeState extends ConsumerState<_PlayerVolume> {
 
   @override
   Widget build(BuildContext context) {
-    final volume =
-        (widget.alone ? widget.player.volume : widget.player.sliderVolume) ?? 0;
+    final volume = widget.player.shownVolume(alone: widget.alone) ?? 0;
     return Row(
       children: [
         Icon(

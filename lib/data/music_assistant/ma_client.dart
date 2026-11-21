@@ -336,14 +336,33 @@ class MusicAssistantClient {
     _events.add(event);
   }
 
-  /// Sets the volume of [player] from 0 to 100: of every member when it leads a group, unless [alone], which sets that of the player itself.
-  Future<void> setVolume(MaPlayer player, int volume, {bool alone = false}) =>
-      command(
-        player.isGroup && !alone
-            ? 'players/cmd/group_volume'
-            : 'players/cmd/volume_set',
-        {'player_id': player.id, 'volume_level': volume},
-      );
+  /// Sets the volume of [player] from 0 to 100: of every member when it leads a group, unless [alone], which sets that of the player itself. A volume above 0 unmutes the players it sets, since a muted player would otherwise stay silent at the new volume.
+  Future<void> setVolume(
+    MaPlayer player,
+    int volume, {
+    bool alone = false,
+  }) async {
+    final group = player.isGroup && !alone;
+    await command(
+      group ? 'players/cmd/group_volume' : 'players/cmd/volume_set',
+      {'player_id': player.id, 'volume_level': volume},
+    );
+    if (volume <= 0) return;
+    final targets = [
+      player,
+      if (group)
+        for (final id in player.groupMembers)
+          if (id != player.id) ?players[id],
+    ];
+    await Future.wait([
+      for (final p in targets)
+        if (p.muted)
+          command('players/cmd/volume_mute', {
+            'player_id': p.id,
+            'muted': false,
+          }),
+    ]);
+  }
 
   /// Pauses [player] while it plays and resumes it otherwise, whichever device chose what it plays. With its [queue], the queue toggles, which also resumes a player that went idle with the queue loaded.
   Future<void> playPause(MaPlayer player, [MaQueue? queue]) => queue == null
