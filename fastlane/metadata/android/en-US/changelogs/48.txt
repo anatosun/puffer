@@ -1,0 +1,3 @@
+- A long press on a song in the queue opens its menu; songs in the queue move by their handle
+- The player shows a loading spinner while the queue moves to a speaker
+- A muted speaker shows a volume of 0 and unmutes when the volume goes up
