@@ -1,0 +1,2 @@
+- The app icon has transparent corners around its rounded square
+- The Windows app builds again
