@@ -9,12 +9,12 @@
     "icon": {
       "en-US": {
         "name": "/icons/icon.png",
-        "sha256": "63900fdbe9192a01513570e581dcf00f9ce2a629d7b203bdc04d995beb97867c",
-        "size": 27164
+        "sha256": "56b6a4fea63a1219fa43302ede8b787997f002ad98c63c2ec9b270ef9d9ab1ed",
+        "size": 37009
       }
     },
     "address": "https://anatosun.github.io/puffer/fdroid/repo",
-    "timestamp": 1795352512000,
+    "timestamp": 1795352594000,
     "categories": {
       "Multimedia": {
         "name": {
