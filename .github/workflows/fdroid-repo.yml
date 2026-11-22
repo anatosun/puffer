@@ -71,8 +71,9 @@ jobs:
           mkdir -p "work/metadata/$APP_ID"
           cp -a src/fastlane/metadata/android/. "work/metadata/$APP_ID/"
 
+          # fdroid update reads repo_icon from the working directory and copies it to repo/icons; a missing file is replaced by a QR code of the repository URL.
+          cp src/distribution/fdroid/repo-icon.png work/icon.png
           mkdir -p work/repo/icons
-          cp src/fastlane/metadata/android/en-US/images/icon.png work/repo/icons/icon.png
 
           echo "$KEYSTORE_BASE64" | base64 -d > work/keystore.p12
           owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY#*/}"
