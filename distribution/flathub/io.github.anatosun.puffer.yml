@@ -13,6 +13,10 @@ finish-args:
   - --device=dri
   # The keychain for the server credentials.
   - --talk-name=org.freedesktop.secrets
+  # Whether the computer is online, through NetworkManager, so the app switches to the downloaded library offline.
+  - --system-talk-name=org.freedesktop.NetworkManager
+  # Music Assistant and Sendspin servers on the local network, found through Avahi.
+  - --system-talk-name=org.freedesktop.Avahi
   # The media controls of the desktop through MPRIS.
   - --own-name=org.mpris.MediaPlayer2.puffer.*
   # The default library folder of downloads; another folder comes through the file chooser portal.
@@ -97,8 +101,8 @@ modules:
     sources:
       - type: archive
         only-arches: [x86_64]
-        url: https://github.com/anatosun/puffer/releases/download/v0.1.44/puffer-0.1.44-linux-x64.tar.gz
-        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+        url: https://github.com/anatosun/puffer/releases/download/v0.1.50/puffer-0.1.50-linux-x64.tar.gz
+        sha256: 6def9b56bda3e3bab108d9263b1de1ae814af009bc3d4171fd1105d871c99ffd
         strip-components: 0
         dest: bundle
         x-checker-data:
@@ -109,8 +113,8 @@ modules:
           is-main-source: true
       - type: archive
         only-arches: [aarch64]
-        url: https://github.com/anatosun/puffer/releases/download/v0.1.44/puffer-0.1.44-linux-arm64.tar.gz
-        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+        url: https://github.com/anatosun/puffer/releases/download/v0.1.50/puffer-0.1.50-linux-arm64.tar.gz
+        sha256: 2f830f86396cea5f0be1d66a48374bdc0eb828986b12b01fb5a0fb8f3c5cb5c9
         strip-components: 0
         dest: bundle
         x-checker-data:
@@ -119,11 +123,11 @@ modules:
           version-query: .tag_name | sub("^v"; "")
           url-query: '"https://github.com/anatosun/puffer/releases/download/v" + $version + "/puffer-" + $version + "-linux-arm64.tar.gz"'
       - type: file
-        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/distribution/flathub/io.github.anatosun.puffer.desktop
+        url: https://raw.githubusercontent.com/anatosun/puffer/eec0c233b374632245537464266feb095272c269/distribution/flathub/io.github.anatosun.puffer.desktop
         sha256: b56455d25a1d2ad257b37a44e1c006d7e4f1cb631332b17ac53d1d7bb5c4d2b2
       - type: file
-        url: https://raw.githubusercontent.com/anatosun/puffer/v0.1.44/distribution/flathub/io.github.anatosun.puffer.metainfo.xml
-        sha256: 03427d5bcc0cb1120cf67e78dd0eacddf76c32eda1367528c0a352137b10226e
+        url: https://raw.githubusercontent.com/anatosun/puffer/eec0c233b374632245537464266feb095272c269/distribution/flathub/io.github.anatosun.puffer.metainfo.xml
+        sha256: 7332332d4119f88fc4ceba0cf20eca1c60dede321b4a5f0fcac983f5b6f541bc
       - type: file
-        url: https://raw.githubusercontent.com/anatosun/puffer/72ec567d085ddba75d66090a0ddeb2751ecdf83a/distribution/flathub/io.github.anatosun.puffer.svg
-        sha256: c47dd802e3b9dcf52043a30254f65c83e92cba282522c9a970bacbcdd530c8fa
+        url: https://raw.githubusercontent.com/anatosun/puffer/eec0c233b374632245537464266feb095272c269/distribution/flathub/io.github.anatosun.puffer.svg
+        sha256: 085592cf6d705069146452c7d3429ed2b168b5a90a337156fc3b84ed5856b52a
