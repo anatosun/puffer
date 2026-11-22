@@ -17,6 +17,8 @@ import 'dart:ui' show PathMetric;
 
 import 'package:flutter/material.dart';
 
+import 'puffer_shape.dart';
+
 class PufferLaunchAnimation extends StatefulWidget {
   const PufferLaunchAnimation({
     super.key,
@@ -152,60 +154,6 @@ class _PufferPainter extends CustomPainter {
   final double t;
   final Color color;
 
-  static const int n = 28;
-  static const List<double> pattern = [13, 4.5, 8, 4.5];
-  static const double r = 26;
-  static final double d = 2 * math.pi / n * 0.2;
-  static const Offset c = Offset(50, 50);
-
-  static double _ang(int i) => 2 * math.pi * i / n - math.pi / 2;
-  static Offset _p(double a, double rad) =>
-      Offset(50 + rad * math.cos(a), 50 + rad * math.sin(a));
-
-  Path _body(double amp, double wob, double ph) {
-    final pts = <Offset>[];
-    for (var i = 0; i < n; i++) {
-      final a = _ang(i);
-      final len =
-          pattern[i % 4] * amp * (1 + wob * math.sin(ph + i * 0.9)) + 0.001;
-      pts
-        ..add(_p(a - d, r))
-        ..add(_p(a, r + len))
-        ..add(_p(a + d, r));
-    }
-    final path = Path()..moveTo(pts[0].dx, pts[0].dy);
-    for (var k = 1; k < pts.length; k++) {
-      if (k % 3 == 0) {
-        path.arcToPoint(pts[k], radius: const Radius.circular(r));
-      } else {
-        path.lineTo(pts[k].dx, pts[k].dy);
-      }
-    }
-    path
-      ..arcToPoint(pts[0], radius: const Radius.circular(r))
-      ..close();
-    return path;
-  }
-
-  static Path _grooves() {
-    Path arc(double rad, double a0, double a1) {
-      final sweep = ((a1 - a0) % 360 + 360) % 360;
-      return Path()..addArc(
-        Rect.fromCircle(center: c, radius: rad),
-        a0 * math.pi / 180,
-        sweep * math.pi / 180,
-      );
-    }
-
-    return Path()
-      ..addPath(arc(19, -150, 40), Offset.zero)
-      ..addPath(arc(19, 70, 150), Offset.zero)
-      ..addPath(arc(13, 20, 200), Offset.zero);
-  }
-
-  static Path _label() =>
-      Path()..addOval(Rect.fromCircle(center: c, radius: 6));
-
   /// The first [f] (0..1) of [path]'s total length, for draw-on strokes.
   static Path _partial(Path path, double f) {
     if (f >= 1) return path;
@@ -243,8 +191,11 @@ class _PufferPainter extends CustomPainter {
     final wob = math.sin(math.pi * _seg(t, 2.0, 3.2)) * 0.35;
     final ph = t * 2 * math.pi * 1.6;
     canvas.drawPath(
-      _partial(_body(amp, wob, ph), _eio(_seg(t, -0.5, 0.55))),
-      stroke(2.8),
+      _partial(
+        PufferShape.body(amp: amp, wobble: wob, phase: ph),
+        _eio(_seg(t, -0.5, 0.55)),
+      ),
+      stroke(PufferShape.bodyStroke),
     );
 
     // Record: label ring and grooves draw in while the disc turns into place.
@@ -252,10 +203,13 @@ class _PufferPainter extends CustomPainter {
     canvas.translate(50, 50);
     canvas.rotate(_lerp(-90, 0, _eo(_seg(t, 2.1, 3.1))) * math.pi / 180);
     canvas.translate(-50, -50);
-    canvas.drawPath(_partial(_label(), _eio(_seg(t, 2.05, 2.5))), stroke(2.2));
     canvas.drawPath(
-      _partial(_grooves(), _eio(_seg(t, 2.15, 2.8))),
-      stroke(1.5),
+      _partial(PufferShape.label(), _eio(_seg(t, 2.05, 2.5))),
+      stroke(PufferShape.labelStroke),
+    );
+    canvas.drawPath(
+      _partial(PufferShape.grooves(), _eio(_seg(t, 2.15, 2.8))),
+      stroke(PufferShape.grooveStroke),
     );
     canvas.restore();
 

@@ -905,8 +905,8 @@ void main() {
     );
     expect(full[1], plain[1]);
     expect(full[2], plain[2]);
-    // The title is centred in the room of its two lines, so its centre is the same too.
-    expect(full[0], plain[0]);
+    // A long title stays on one line and scrolls, so it stands at the same height; it starts at the left edge instead of in the middle.
+    expect(full[0].dy, plain[0].dy);
   });
 
   testWidgets('the volume icons stand above the first and last buttons of '

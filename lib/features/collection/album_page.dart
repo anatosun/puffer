@@ -47,6 +47,7 @@ class AlbumPage extends ConsumerWidget {
           data: (album) {
             final songs = album.songs;
             final discs = groupBy(songs, (Track t) => t.discNumber);
+            final showArtist = albumShowsArtists(album.artist, songs);
             return Backdrop(
               coverArt: album.coverArt,
               top: 0.25,
@@ -93,6 +94,7 @@ class AlbumPage extends ConsumerWidget {
                               index: songs.indexOf(track),
                               showArtwork: false,
                               showNumber: true,
+                              showArtist: showArtist,
                             ),
                         ],
                       ],

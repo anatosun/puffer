@@ -194,6 +194,7 @@ class BelowContent extends ConsumerWidget {
       case BelowTab.album:
         final album = below.album!;
         final songs = album.songs;
+        final showArtist = albumShowsArtists(album.artist, songs);
         return SliverList.list(
           children: [
             ListTile(
@@ -223,6 +224,7 @@ class BelowContent extends ConsumerWidget {
                 index: i,
                 showArtwork: false,
                 showNumber: true,
+                showArtist: showArtist,
               ),
           ],
         );
@@ -443,8 +445,13 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
         ),
         selected: playing,
         title: TrackTitle(item.title),
-        subtitle: TrackSubtitle(item.artist, stars: stars),
-        isThreeLine: TrackSubtitle.showsStars(stars),
+        // The ratings of the queue load row by row, so with the stars on every row keeps their room.
+        subtitle: TrackSubtitle(
+          item.artist,
+          stars: stars,
+          reserveStars: showStars,
+        ),
+        isThreeLine: showStars,
         // The same columns on every row: download state, heart, drag handle.
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

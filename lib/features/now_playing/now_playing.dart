@@ -18,6 +18,7 @@ import '../../playback/radio.dart';
 import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
+import '../../ui/widgets/marquee.dart';
 import '../../ui/widgets/item_actions.dart';
 import '../cast/output_sheet.dart';
 import '../../ui/widgets/star_button.dart';
@@ -500,7 +501,7 @@ class _DragHandle extends StatelessWidget {
   );
 }
 
-/// The artist, the title and the album with its year, on three centred lines. The artist and the album open their pages.
+/// The artist, the title and the album with its year, on three centred lines that scroll when they are too long. The artist and the album open their pages.
 class _TrackText extends StatelessWidget {
   const _TrackText({required this.np, this.onArtist, this.onAlbum});
 
@@ -515,16 +516,11 @@ class _TrackText extends StatelessWidget {
       if (np.album case final album? when album.isNotEmpty) album,
       if (year != null) '($year)',
     ].join(' ');
+    // A line too long for the page scrolls now and then, so it can be read in full.
     Widget line(String text, TextStyle style, VoidCallback? onTap) =>
         GestureDetector(
           onTap: onTap,
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: style,
-          ),
+          child: MarqueeText(text, style: style),
         );
     return Column(
       children: [
@@ -550,7 +546,7 @@ class _TrackText extends StatelessWidget {
   }
 }
 
-/// Closes the player as soon as nothing plays, but not while the output is switching, when the new output can report nothing for a moment.
+/// Closes the player as soon as nothing plays, and when the queue starts moving to another output. While it moves, the new output can report nothing for a moment, which does not close the player.
 class _CloseWhenEmpty extends ConsumerStatefulWidget {
   const _CloseWhenEmpty({required this.child});
 
@@ -578,6 +574,10 @@ class _CloseWhenEmptyState extends ConsumerState<_CloseWhenEmpty> {
       _timer = null;
       return;
     }
+    _close();
+  }
+
+  void _close() {
     // The next turn of the event loop, since this can run while widgets build.
     _timer ??= Timer(Duration.zero, () {
       _timer = null;
@@ -600,7 +600,14 @@ class _CloseWhenEmptyState extends ConsumerState<_CloseWhenEmpty> {
   @override
   Widget build(BuildContext context) {
     ref.listen(nowPlayingProvider, (_, _) => _update());
-    ref.listen(outputSwitchingProvider, (_, _) => _update());
+    // Moving the queue to another output closes the player, and the mini player shows the song loading, as when a stream starts; the player can be opened again meanwhile.
+    ref.listen(outputSwitchingProvider, (was, switching) {
+      if (switching && was != true) {
+        _close();
+      } else {
+        _update();
+      }
+    });
     return widget.child;
   }
 }

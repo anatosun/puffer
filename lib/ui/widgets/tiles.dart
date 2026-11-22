@@ -24,6 +24,24 @@ import 'pressable.dart';
 import 'shimmer.dart';
 import 'star_button.dart';
 
+/// Whether the rows of an album by [albumArtist] show the artist: on every row once one song is by someone else.
+bool albumShowsArtists(String? albumArtist, List<Track> songs) =>
+    songs.any((t) => t.artist != null && t.artist != albumArtist);
+
+/// Whether any song of a list is rated, cached per list and per set of ratings, so each row asks once and a long list is scanned once.
+final _listRated = Expando<(Map<String, int>, bool)>();
+
+/// Whether the rows of [tracks] keep a line for the stars: the stars are on and a song of the list is rated, so every row has the same height.
+bool listShowsStars(WidgetRef ref, List<Track> tracks) {
+  if (!ref.watch(trackStarsProvider)) return false;
+  final overrides = ref.watch(ratingOverridesProvider);
+  final cached = _listRated[tracks];
+  if (cached != null && identical(cached.$1, overrides)) return cached.$2;
+  final rated = tracks.any((t) => (overrides[t.id] ?? t.rating) > 0);
+  _listRated[tracks] = (overrides, rated);
+  return rated;
+}
+
 /// A track row. Offline, tracks without a downloaded file are greyed out and cannot be played.
 class TrackTile extends ConsumerWidget {
   const TrackTile({
@@ -32,6 +50,7 @@ class TrackTile extends ConsumerWidget {
     required this.index,
     this.showArtwork = true,
     this.showNumber = false,
+    this.showArtist = true,
     this.handle,
     this.playlistId,
   });
@@ -43,6 +62,9 @@ class TrackTile extends ConsumerWidget {
   final String? playlistId;
   final bool showArtwork;
   final bool showNumber;
+
+  /// Shows the artist below the title, or in its column in a wide window. The page of an album hides it when every song is by the album artist.
+  final bool showArtist;
 
   /// A drag handle, shown last in rows of editable playlists.
   final Widget? handle;
@@ -63,7 +85,26 @@ class TrackTile extends ConsumerWidget {
 
     // A wide window shows the artist and the album in columns of their own, as a table.
     final wide = isWide(context);
-    Widget tile = ListTile(
+    final rated = TrackSubtitle.showsStars(stars);
+    final reserveStars = listShowsStars(ref, tracks);
+    final Widget? subtitle = wide
+        ? (rated
+              ? TrackStars(stars!, size: _CompactRow.starSize)
+              : reserveStars
+              ? const SizedBox(height: _CompactRow.starSize)
+              : null)
+        : !showArtist && !reserveStars
+        ? null
+        : TrackSubtitle(
+            showArtist ? track.artist : null,
+            stars: stars,
+            reserveStars: reserveStars,
+            starSize: _CompactRow.starSize,
+          );
+    Widget tile = _CompactRow(
+      // Rows with a cover are as tall as it; the rows of an album, numbered, are a little lower.
+      minHeight: showArtwork ? 44 : 36,
+      verticalPadding: showArtwork ? 4 : 6,
       leading: showArtwork
           ? Stack(
               alignment: Alignment.center,
@@ -100,16 +141,18 @@ class TrackTile extends ConsumerWidget {
           ? Row(
               children: [
                 Expanded(flex: 5, child: TrackTitle(track.title, color: color)),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 3,
-                  child: _Column(
-                    track.artist,
-                    path: track.artistId == null
-                        ? null
-                        : '/artist/${track.artistId}',
+                if (showArtist) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 3,
+                    child: _Column(
+                      track.artist,
+                      path: track.artistId == null
+                          ? null
+                          : '/artist/${track.artistId}',
+                    ),
                   ),
-                ),
+                ],
                 // The album column says nothing on the page of the album.
                 if (!showNumber) ...[
                   const SizedBox(width: 16),
@@ -126,10 +169,7 @@ class TrackTile extends ConsumerWidget {
               ],
             )
           : TrackTitle(track.title, color: color),
-      subtitle: wide
-          ? (TrackSubtitle.showsStars(stars) ? TrackStars(stars!) : null)
-          : TrackSubtitle(track.artist, stars: stars),
-      isThreeLine: !wide && TrackSubtitle.showsStars(stars),
+      subtitle: subtitle,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -158,6 +198,83 @@ class TrackTile extends ConsumerWidget {
   }
 }
 
+/// A song row, lower than a [ListTile]: the title, the artist and the stars stack to the height of the cover, with little room between rows.
+class _CompactRow extends StatelessWidget {
+  const _CompactRow({
+    required this.minHeight,
+    required this.verticalPadding,
+    this.leading,
+    required this.title,
+    this.subtitle,
+    required this.trailing,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  /// The height of the stars in a row.
+  static const double starSize = 11;
+
+  final double minHeight;
+  final double verticalPadding;
+  final Widget? leading;
+  final Widget title;
+  final Widget? subtitle;
+  final Widget trailing;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: verticalPadding,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minHeight),
+          child: Row(
+            children: [
+              if (leading case final leading?) ...[
+                leading,
+                const SizedBox(width: 14),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DefaultTextStyle.merge(
+                      style: text.bodyLarge?.copyWith(
+                        fontSize: 15,
+                        height: 1.1,
+                      ),
+                      child: title,
+                    ),
+                    if (subtitle case final subtitle?)
+                      DefaultTextStyle.merge(
+                        style: text.bodyMedium?.copyWith(
+                          fontSize: 13,
+                          height: 1.15,
+                        ),
+                        child: subtitle,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The title of a song, on the first line of its row.
 class TrackTitle extends StatelessWidget {
   const TrackTitle(this.title, {super.key, this.color});
@@ -174,43 +291,76 @@ class TrackTitle extends StatelessWidget {
   );
 }
 
-/// The lines under the title of a song row: the artist, then the rating as five small stars when the song is rated. Unrated songs, and rows with the stars turned off ([stars] null), show no stars.
+/// The lines under the title of a song row: the artist, then the rating as five small stars below it, so the stars of a list line up. Rows without a rating keep the room of the stars with [reserveStars], so every row of a list where one song is rated has the same height. Without [artist], the stars go right below the title.
 class TrackSubtitle extends StatelessWidget {
-  const TrackSubtitle(this.artist, {super.key, this.stars});
+  const TrackSubtitle(
+    this.artist, {
+    super.key,
+    this.stars,
+    this.reserveStars = false,
+    this.starSize = TrackStars.height,
+  });
 
   final String? artist;
+
+  /// The height of the stars.
+  final double starSize;
 
   /// The rating from 0 to 5, or null without stars.
   final int? stars;
 
-  /// Whether the row shows stars, which takes a third line.
+  /// Keeps the line of the stars when the song has none.
+  final bool reserveStars;
+
+  /// Whether the row shows stars.
   static bool showsStars(int? stars) => (stars ?? 0) > 0;
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        artist ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: context.muted),
-      ),
-      if (showsStars(stars))
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: TrackStars(stars!),
-        ),
-    ],
+  Widget build(BuildContext context) {
+    final starsLine = showsStars(stars)
+        ? TrackStars(stars!, size: starSize)
+        : reserveStars
+        ? SizedBox(height: starSize)
+        : null;
+    if (artist == null) return starsLine ?? const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TrackArtist(artist),
+        if (starsLine != null)
+          Padding(padding: const EdgeInsets.only(top: 2), child: starsLine),
+      ],
+    );
+  }
+}
+
+/// The artist of a song, on the second line of its row.
+class TrackArtist extends StatelessWidget {
+  const TrackArtist(this.artist, {super.key});
+
+  final String? artist;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    artist ?? '',
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(color: context.muted),
   );
 }
 
 /// Five small stars, filled up to [stars]. They only display; the menu of the song changes the rating.
 class TrackStars extends StatelessWidget {
-  const TrackStars(this.stars, {super.key});
+  const TrackStars(this.stars, {super.key, this.size = height});
 
   final int stars;
+
+  /// The height of each star.
+  final double size;
+
+  /// The usual height of the stars, which a row without them keeps when its neighbours have them.
+  static const double height = 12;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -222,7 +372,7 @@ class TrackStars extends StatelessWidget {
         for (var i = 1; i <= 5; i++)
           Icon(
             i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
-            size: 12,
+            size: size,
             color: i <= stars
                 ? Theme.of(context).colorScheme.primary
                 : context.faint,
@@ -630,7 +780,11 @@ final playlistCoversProvider = FutureProvider.autoDispose
           const [];
     });
 
-/// The cover of a playlist. With [titleCoversProvider] on, its name and the pufferfish on the colours of the theme. Otherwise the cover from the server, or without one, a 2×2 mosaic of its first four albums, or the cover of its first album when it has fewer. The mosaic needs the playlist to have been opened or downloaded once.
+/// The label at the top of the title cover of [playlist]: "Playlist" and its owner.
+String playlistLabel(Playlist playlist) =>
+    ['Playlist', ?playlist.owner].join(' · ');
+
+/// The cover of a playlist. With [titleCoversProvider] on, its name in large type over the colours of its albums. Otherwise the cover from the server, or without one, a 2×2 mosaic of its first four albums, or the cover of its first album when it has fewer. The mosaic needs the playlist to have been opened or downloaded once.
 class PlaylistArtwork extends ConsumerWidget {
   const PlaylistArtwork(this.playlist, {super.key, this.size, this.radius = 4});
 
@@ -640,8 +794,18 @@ class PlaylistArtwork extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final covers =
+        ref.watch(playlistCoversProvider(playlist.id)).value ?? const [];
     if (ref.watch(titleCoversProvider)) {
-      return TitleCover(playlist.name, size: size, radius: radius);
+      return TitleCover(
+        playlist.name,
+        seed: playlist.id,
+        artIds: [?playlist.coverArt, ...covers],
+        label: playlistLabel(playlist),
+        detail: countOf(playlist.songCount, 'song'),
+        size: size,
+        radius: radius,
+      );
     }
     if (playlist.coverArt != null) {
       return Artwork(
@@ -651,8 +815,6 @@ class PlaylistArtwork extends ConsumerWidget {
         icon: Icons.queue_music,
       );
     }
-    final covers =
-        ref.watch(playlistCoversProvider(playlist.id)).value ?? const [];
     if (covers.length < 4) {
       return Artwork(
         covers.firstOrNull,

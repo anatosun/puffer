@@ -3,12 +3,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:puffer/playback/player_handler.dart';
 
 void main() {
-  final playing = PlaybackState(
-    processingState: AudioProcessingState.ready,
-    playing: true,
-    updatePosition: const Duration(seconds: 10),
-    updateTime: DateTime.now().subtract(const Duration(seconds: 1)),
-  );
+  // Built for each test, as its position moves with the clock: one built when the file loads can be stale by the time a busy machine runs the test.
+  late PlaybackState playing;
+  setUp(() {
+    playing = PlaybackState(
+      processingState: AudioProcessingState.ready,
+      playing: true,
+      updatePosition: const Duration(seconds: 10),
+      updateTime: DateTime.now().subtract(const Duration(seconds: 1)),
+    );
+  });
 
   test(
     'the media controls hear nothing when only more of the song has loaded',

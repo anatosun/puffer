@@ -85,6 +85,31 @@ class NowPlaying {
   /// Whether the Music Assistant queue fills itself with similar songs (its Autoplay); null on this device, whose endless radio is a setting of the app.
   final bool? autoplay;
 
+  /// The same song shown as loading, paused where it stands, as while the queue moves to another output.
+  NowPlaying loading() {
+    final now = DateTime.now();
+    return NowPlaying(
+      track: track,
+      title: title,
+      artist: artist,
+      album: album,
+      coverArt: coverArt,
+      imageUrl: imageUrl,
+      duration: duration,
+      position: positionNow(now),
+      buffered: buffered,
+      positionAt: now,
+      buffering: true,
+      shuffle: shuffle,
+      repeat: repeat,
+      queue: queue,
+      index: index,
+      outputName: outputName,
+      volume: volume,
+      autoplay: autoplay,
+    );
+  }
+
   Duration positionNow([DateTime? now]) {
     if (!playing) return position;
     final value = position + (now ?? DateTime.now()).difference(positionAt);

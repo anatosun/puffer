@@ -166,7 +166,18 @@ class _PlaylistBodyState extends ConsumerState<_PlaylistBody> {
     return CollectionView(
       coverArt: playlist.headerCover,
       cover: ref.watch(titleCoversProvider)
-          ? (side) => TitleCover(playlist.name, size: side, radius: 8)
+          ? (side) => TitleCover(
+              playlist.name,
+              seed: playlist.id,
+              artIds: [
+                ?playlist.coverArt,
+                ...playlist.entries.map((t) => t.coverArt).nonNulls,
+              ],
+              label: playlistLabel(playlist),
+              detail: countOf(_entries.length, 'song'),
+              size: side,
+              radius: 8,
+            )
           : null,
       title: playlist.name,
       subtitle: playlist.owner,

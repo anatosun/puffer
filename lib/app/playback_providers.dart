@@ -768,9 +768,40 @@ final maCrossfadeProvider = Provider<void>((ref) {
   }());
 });
 
-final nowPlayingProvider = StreamProvider<NowPlaying?>(
-  (ref) => ref.watch(playbackControllerProvider).state,
-);
+/// The last song shown before a switch of output began, kept across the controllers the switch goes through.
+class _SwitchHold {
+  NowPlaying? last;
+}
+
+final _switchHoldProvider = Provider<_SwitchHold>((ref) => _SwitchHold());
+
+/// What plays on the selected output. While [OutputSwitcher] moves the queue, the song that was playing shows as loading instead: the new output reports nothing, or what it had before, until the queue has arrived.
+final nowPlayingProvider = StreamProvider<NowPlaying?>((ref) {
+  final controller = ref.watch(playbackControllerProvider);
+  final hold = ref.watch(_switchHoldProvider);
+  final out = StreamController<NowPlaying?>();
+  NowPlaying? latest = controller.current;
+  void emit() {
+    final held = hold.last;
+    if (ref.read(outputSwitchingProvider) && held != null) {
+      out.add(held.loading());
+    } else {
+      hold.last = latest;
+      out.add(latest);
+    }
+  }
+
+  final subscription = controller.state.listen((np) {
+    latest = np;
+    emit();
+  });
+  ref.listen(outputSwitchingProvider, (_, _) => emit());
+  ref.onDispose(() {
+    subscription.cancel();
+    out.close();
+  });
+  return out.stream;
+});
 
 /// Whether the app shows on the screen. The clocks below stop while it does not, so the phone can sleep between songs.
 class AppVisibleNotifier extends Notifier<bool> {
