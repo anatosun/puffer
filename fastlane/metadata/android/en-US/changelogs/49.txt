@@ -1,0 +1,4 @@
+- Playlist title covers show the Puffer mark in the colours of the playlist's artwork
+- Song rows are more compact, with the stars below the artist, and album pages show artists only when they differ
+- A long title, artist or album scrolls on the player so it can be read in full
+- Moving the queue to a speaker closes the player and shows the song loading in the mini player
