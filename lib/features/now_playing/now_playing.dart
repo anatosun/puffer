@@ -431,6 +431,9 @@ class NowPlayingPage extends ConsumerWidget {
                               fit: BoxFit.scaleDown,
                               child: _Transport(np: np, color: highlight),
                             ),
+                            // The buttons sit in the middle of the free room rather than on top of the volume slider. The gap stays when this device plays, so nothing moves when the slider comes and goes.
+                            const SizedBox(height: _minGap),
+                            const Spacer(),
                             // The room of the volume slider stays when this device plays, which has none.
                             SizedBox(
                               height: kMinInteractiveDimension,
@@ -516,7 +519,7 @@ double _belowArtwork(BuildContext context) {
       72 + // transport
       kMinInteractiveDimension + // volume slot
       kMinInteractiveDimension + // toolbar
-      4 * _minGap;
+      5 * _minGap;
 }
 
 /// The handle at the top of the player, which closes it on a tap; a swipe down anywhere closes it too.
