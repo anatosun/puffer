@@ -55,9 +55,9 @@ cp --remove-destination /etc/resolv.conf "$root/etc/resolv.conf"
 chroot "$root" /bin/bash -euo pipefail <<'EOF'
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-# cage is the Wayland compositor that shows one app full screen; PipeWire lets the player and the Sendspin speaker share the sound card.
+# cage is the Wayland compositor that shows one app full screen, and wlr-randr turns its screens; PipeWire lets the player and the Sendspin speaker share the sound card.
 apt-get install -y --no-install-recommends \
-  cage libgtk-3-0t64 libmpv2 libsecret-1-0 libegl1 libgles2 libgl1-mesa-dri \
+  cage wlr-randr libgtk-3-0t64 libmpv2 libsecret-1-0 libegl1 libgles2 libgl1-mesa-dri \
   dbus-user-session pipewire pipewire-alsa pipewire-pulse wireplumber python3
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -67,7 +67,8 @@ EOF
 mkdir -p "$root/opt/puffer"
 tar -xzf "$bundle" -C "$root/opt/puffer"
 cp -r "$here/rootfs/." "$root/"
-chmod 755 "$root/usr/local/lib/puffer/setup.py"
+chmod 755 "$root/usr/local/lib/puffer/setup.py" "$root/usr/local/lib/puffer/kiosk" "$root/usr/local/lib/puffer/session"
+python3 -I "$here/hidden-cursor.py" "$root/usr/share/icons/puffer-hidden"
 cp "$here/puffer.json.example" "$root/boot/firmware/puffer.json.example"
 
 chroot "$root" /bin/bash -euo pipefail <<'EOF'

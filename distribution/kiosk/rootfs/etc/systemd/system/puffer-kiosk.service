@@ -15,7 +15,9 @@ StandardInput=tty-fail
 StandardOutput=journal
 StandardError=journal
 Environment=PUFFER_CONFIG=/boot/firmware/puffer.json
-ExecStart=/usr/bin/cage -s -- /opt/puffer/puffer
+# The rotation and the pointer, which puffer-setup.service writes at every boot.
+EnvironmentFile=-/etc/puffer/kiosk.env
+ExecStart=/usr/local/lib/puffer/kiosk
 Restart=always
 RestartSec=3
 

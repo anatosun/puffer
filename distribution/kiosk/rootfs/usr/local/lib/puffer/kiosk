@@ -1,0 +1,15 @@
+#!/bin/sh
+# Starts the kiosk: hides the pointer when the system section asks for it, or by default when a touchscreen is connected, then runs the session in the compositor cage. The pointer hides through a cursor theme of transparent images, which both cage and Puffer load.
+set -eu
+cursor=${PUFFER_CURSOR:-auto}
+if [ "$cursor" = auto ]; then
+  if grep -qs '^E:ID_INPUT_TOUCHSCREEN=1' /run/udev/data/c13:*; then cursor=hide; else cursor=show; fi
+fi
+mkdir -p "$HOME/.icons"
+if [ "$cursor" = hide ]; then
+  ln -sfn /usr/share/icons/puffer-hidden "$HOME/.icons/default"
+  export XCURSOR_THEME=puffer-hidden
+else
+  rm -f "$HOME/.icons/default"
+fi
+exec /usr/bin/cage -s -- /usr/local/lib/puffer/session

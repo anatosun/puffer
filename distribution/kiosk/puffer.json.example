@@ -12,7 +12,8 @@
   "settings": {
     "sendspin.enabled": true,
     "sendspin.name": "Kitchen",
-    "ma.stayOnSpeaker": true
+    "ma.stayOnSpeaker": true,
+    "experience.interfaceSize": "standard"
   },
   "system": {
     "hostname": "puffer-kitchen",
@@ -23,6 +24,7 @@
       "country": "CH"
     },
     "sshAuthorizedKeys": [],
-    "rotation": 0
+    "rotation": 0,
+    "cursor": "auto"
   }
 }

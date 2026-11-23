@@ -1,0 +1,8 @@
+#!/bin/sh
+# Runs inside cage: turns every screen by the rotation of the system section through the output management of the compositor, which also turns the touch input with it, then starts Puffer.
+if [ "${PUFFER_ROTATION:-normal}" != normal ]; then
+  wlr-randr | grep -o '^[^ ]\+' | while read -r output; do
+    wlr-randr --output "$output" --transform "$PUFFER_ROTATION" || true
+  done
+fi
+exec /opt/puffer/puffer

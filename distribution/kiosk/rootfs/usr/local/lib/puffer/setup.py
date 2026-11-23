@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Applies the "system" section of the provisioning file at boot: host name, time zone, Wi-Fi, SSH keys and screen rotation. It applies a section only when it changed since the last boot, so a boot without changes costs a hash. Puffer itself reads the other sections."""
+"""Applies the "system" section of the provisioning file at boot: host name, time zone, Wi-Fi and SSH keys when the section changed since the last boot, so a boot without changes costs a hash, and at every boot the rotation of the screen and the pointer, which the kiosk session reads from /etc/puffer/kiosk.env. Puffer itself reads the other sections."""
 
 import hashlib
 import json
@@ -8,6 +8,9 @@ import subprocess
 import sys
 
 STATE = pathlib.Path("/var/lib/puffer/system.sha256")
+SESSION = pathlib.Path("/etc/puffer/kiosk.env")
+ROTATIONS = {0: "normal", 90: "90", 180: "180", 270: "270"}
+CURSORS = ("auto", "show", "hide")
 
 
 def run(*args):
@@ -38,18 +41,32 @@ def apply(system):
         (ssh / "authorized_keys").chmod(0o600)
         run("chown", "-R", "puffer:puffer", str(ssh))
         run("systemctl", "enable", "--now", "ssh.service")
-    if (rotation := system.get("rotation")) is not None:
-        # The KMS driver reads the rotation of the screen from the kernel command line.
-        cmdline = pathlib.Path("/boot/firmware/cmdline.txt")
-        words = [w for w in cmdline.read_text().split() if not w.startswith("video=")]
-        if rotation:
-            words.append(f"video=HDMI-A-1:rotate={int(rotation)}")
-        cmdline.write_text(" ".join(words) + "\n")
+    # Earlier images turned the screen on the kernel command line, which the compositor ignores; the session turns it now.
+    cmdline = pathlib.Path("/boot/firmware/cmdline.txt")
+    words = cmdline.read_text().split()
+    kept = [w for w in words if not (w.startswith("video=") and ":rotate=" in w)]
+    if kept != words:
+        cmdline.write_text(" ".join(kept) + "\n")
+
+
+def session(system):
+    """Writes what the kiosk session reads at every start: the transform of the screens for wlr-randr, and whether to hide the pointer ("auto" hides it when a touchscreen is connected)."""
+    rotation = int(system.get("rotation") or 0)
+    if rotation not in ROTATIONS:
+        raise SystemExit(f"rotation must be one of {sorted(ROTATIONS)}, not {rotation}")
+    cursor = system.get("cursor", "auto")
+    if cursor not in CURSORS:
+        raise SystemExit(f"cursor must be one of {CURSORS}, not {cursor}")
+    text = f"PUFFER_ROTATION={ROTATIONS[rotation]}\nPUFFER_CURSOR={cursor}\n"
+    if not SESSION.exists() or SESSION.read_text() != text:
+        SESSION.parent.mkdir(parents=True, exist_ok=True)
+        SESSION.write_text(text)
 
 
 def main():
     config = json.loads(pathlib.Path(sys.argv[1]).read_text())
     system = config.get("system") or {}
+    session(system)
     digest = hashlib.sha256(json.dumps(system, sort_keys=True).encode()).hexdigest()
     if STATE.exists() and STATE.read_text().strip() == digest:
         return
