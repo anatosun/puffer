@@ -315,6 +315,23 @@ void main() {
       expect(isExternalId('42'), isFalse);
     });
 
+    test('an album shows only the songs from its own side, the library or an external provider', () {
+      final songs = [
+        {'id': 'tr-1', 'title': 'A'},
+        {'id': 'ext-deezer-song-2', 'title': 'B'},
+        {'id': 'tr-3', 'title': 'C'},
+      ];
+      expect(Album({'id': 'al-1', 'song': songs}).songs.map((t) => t.id), [
+        'tr-1',
+        'tr-3',
+      ]);
+      expect(
+        Album({'id': 'ext-deezer-album-1', 'song': songs}).songs
+            .map((t) => t.id),
+        ['ext-deezer-song-2'],
+      );
+    });
+
     test('background work leaves external items out unless the setting allows them', () {
       final albums = ['al-1', 'ext-qobuz-album-2', 'al-3'];
       expect(forBackground(albums, (a) => a, includeExternal: false), [

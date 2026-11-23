@@ -64,7 +64,10 @@ class AlbumPage extends ConsumerWidget {
                     album.genre,
                     album.year,
                     countOf(songs.length, 'song'),
-                    formatDuration(album.duration),
+                    // The songs shown, since octo-fiesta counts the external songs it mixes in.
+                    formatDuration(
+                      songs.fold(Duration.zero, (sum, t) => sum + t.duration),
+                    ),
                   ].nonNulls.join(' · '),
                   tracks: songs,
                   pinKind: PinKind.album,

@@ -172,8 +172,14 @@ class Album {
     return ReleaseKind.album;
   }
 
-  /// Present only in `getAlbum` responses.
-  List<Track> get songs => _list(json['song']).map(Track.new).toList();
+  /// Present only in `getAlbum` responses. An album is either of the library or of an external provider, never both: octo-fiesta fills the albums of the library with songs from external providers, which are left out, as are songs of the library in an external album.
+  List<Track> get songs {
+    final external = isExternalId(id);
+    return [
+      for (final j in _list(json['song']))
+        if (isExternalId(j['id'] as String? ?? '') == external) Track(j),
+    ];
+  }
 }
 
 /// Release kinds in the order the artist page lists them.
