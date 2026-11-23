@@ -25,8 +25,10 @@ import '../features/settings/experience_settings_page.dart';
 import '../features/settings/playback_settings_page.dart';
 import '../features/settings/server_settings_page.dart';
 import '../features/settings/settings_page.dart';
+import '../ui/interface_scale.dart';
 import '../ui/layout.dart';
 import '../ui/messages.dart';
+import '../ui/on_screen_keyboard.dart';
 import '../ui/sheets.dart';
 import '../ui/theme.dart';
 import '../ui/widgets/launch_gate.dart';
@@ -200,10 +202,20 @@ class App extends ConsumerWidget {
           routerConfig: ref.watch(routerProvider),
           scaffoldMessengerKey: messengerKey,
           // On a cold start, the launch animation plays over the first screen, unless the person turned it off. The gate reads it once, so the setting applies at the next start.
-          builder: (context, child) => LaunchGate(
-            enabled: ref.read(launchAnimationProvider),
-            child: PointerRecorder(
-              child: KeyboardShortcuts(child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => InterfaceScale(
+            scale: ref.watch(interfaceSizeProvider).scale,
+            child: LaunchGate(
+              enabled: ref.read(launchAnimationProvider),
+              child: PointerRecorder(
+                child: KeyboardShortcuts(
+                  child: OnScreenKeyboardHost(
+                    enabled:
+                        onScreenKeyboardAvailable &&
+                        ref.watch(onScreenKeyboardProvider),
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -262,6 +274,26 @@ class _ShellState extends ConsumerState<_Shell> {
         ),
       );
     }
+    if (isShortLandscape(context)) {
+      // A short screen lying on its side, such as a Raspberry Pi panel of 800 × 480 or a phone turned over: the tabs move to a rail on the left, which gives the pages the height of the tab bar.
+      return Scaffold(
+        body: Row(
+          children: [
+            _TabRail(
+              tabs: tabs,
+              index: index,
+              onSelected: (i) => context.go(tabs[i].path),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: widget.child),
+          ],
+        ),
+        bottomNavigationBar: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [SpeakerBar(), MiniPlayer()],
+        ),
+      );
+    }
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: Column(
@@ -285,6 +317,44 @@ class _ShellState extends ConsumerState<_Shell> {
       ),
     );
   }
+}
+
+/// The tabs in a rail at the left edge, which scrolls when they do not fit the height.
+class _TabRail extends StatelessWidget {
+  const _TabRail({
+    required this.tabs,
+    required this.index,
+    required this.onSelected,
+  });
+
+  final List<MainTab> tabs;
+  final int index;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: box.maxHeight),
+        child: IntrinsicHeight(
+          child: NavigationRail(
+            selectedIndex: index,
+            onDestinationSelected: onSelected,
+            labelType: NavigationRailLabelType.all,
+            groupAlignment: 0,
+            destinations: [
+              for (final t in tabs)
+                NavigationRailDestination(
+                  icon: Icon(t.icon),
+                  selectedIcon: Icon(t.selectedIcon),
+                  label: Text(t.label),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Binds [keyBindings] for the whole app, the player and dialogs included. It sits above the navigator, so it reaches screens through the navigator of the router.

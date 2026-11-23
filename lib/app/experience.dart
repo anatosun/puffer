@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers.dart';
+import 'provisioning.dart';
 
 /// An enum setting stored by name under [key].
 class EnumSettingNotifier<T extends Enum> extends Notifier<T> {
@@ -153,6 +156,38 @@ final coverSizeProvider =
         CoverSize.medium,
       ),
     );
+
+/// The size of the whole interface, text, icons and touch targets together: larger on a small screen of many pixels, such as a five-inch panel of a Raspberry Pi, smaller to fit more on a large one.
+enum InterfaceSize {
+  smallest('80 %', 0.8),
+  smaller('90 %', 0.9),
+  standard('100 %', 1),
+  larger('115 %', 1.15),
+  large('130 %', 1.3),
+  largest('150 %', 1.5);
+
+  const InterfaceSize(this.label, this.scale);
+
+  final String label;
+  final double scale;
+}
+
+final interfaceSizeProvider =
+    NotifierProvider<EnumSettingNotifier<InterfaceSize>, InterfaceSize>(
+      () => EnumSettingNotifier(
+        'experience.interfaceSize',
+        InterfaceSize.values,
+        InterfaceSize.standard,
+      ),
+    );
+
+/// Whether this platform can show the keyboard of the app: the desktop, where a touchscreen has no keyboard of the system. Phones keep their own.
+bool get onScreenKeyboardAvailable => Platform.isLinux || Platform.isWindows;
+
+/// The keyboard of the app for text fields, on by default on a kiosk, which has a touchscreen and often no keyboard.
+final onScreenKeyboardProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('experience.onScreenKeyboard', isKiosk),
+);
 
 /// A shelf of the home screen. [albumList] is the `getAlbumList2` type of album shelves.
 enum HomeShelf {

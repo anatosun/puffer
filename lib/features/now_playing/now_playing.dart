@@ -271,6 +271,17 @@ class NowPlayingPage extends ConsumerWidget {
                               box.maxHeight - _belowArtwork(context),
                             ),
                           );
+                          // A short window lying on its side would leave the artwork a thumbnail above the controls, so they go beside it.
+                          final side =
+                              box.maxWidth > box.maxHeight &&
+                              artSize < box.maxHeight * 0.4;
+                          final sideArt = math.max(
+                            0.0,
+                            math.min(
+                              box.maxHeight - 2 * _minGap,
+                              box.maxWidth * 0.5,
+                            ),
+                          );
                           final artwork = _CoverGestures(
                             swipeToSkip: ref.watch(swipeToSkipProvider),
                             onNext: controller.next,
@@ -327,7 +338,7 @@ class NowPlayingPage extends ConsumerWidget {
                                       child: NowPlayingArtwork(
                                         np.coverArt,
                                         np.imageUrl,
-                                        size: artSize,
+                                        size: side ? sideArt : artSize,
                                         radius: 10,
                                       ),
                                     ),
@@ -338,6 +349,133 @@ class NowPlayingPage extends ConsumerWidget {
                               ],
                             ),
                           );
+                          final controls = <Widget>[
+                            SeekBar(np: np, color: highlight),
+                            const SizedBox(height: _minGap),
+                            const Spacer(),
+                            _TrackText(
+                              np: np,
+                              onArtist: track?.artistId == null
+                                  ? null
+                                  : () => open('/artist/${track!.artistId}'),
+                              onAlbum: track?.albumId == null
+                                  ? null
+                                  : () => open('/album/${track!.albumId}'),
+                            ),
+                            const SizedBox(height: 8),
+                            // The codec, the rating and the quality on one line, which keeps its height while the format of a new song loads, so nothing below jumps.
+                            SizedBox(
+                              height: _FormatBadges.height,
+                              // On a narrow screen the whole line scales down together rather than overflowing.
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // A song from an external provider, whose ID starts with `ext-`, shows a globe: the server fetches it from the internet rather than from its own library.
+                                    if (track != null && isExternalId(track.id))
+                                      Padding(
+                                        padding: const EdgeInsets.all(4),
+                                        child: Tooltip(
+                                          message: 'From an external provider',
+                                          child: Icon(
+                                            Icons.public,
+                                            size: 16,
+                                            color: highlight,
+                                          ),
+                                        ),
+                                      ),
+                                    if (format != null && track != null)
+                                      _FormatBadges(
+                                        format: format,
+                                        track: track,
+                                        color: highlight,
+                                        part: _BadgePart.codec,
+                                      ),
+                                    if (showRating)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: RatingStars(
+                                          key: ValueKey(track.id),
+                                          rating: track.rating,
+                                          color: highlight,
+                                          dense: true,
+                                          onChanged: (value) async {
+                                            if (await rate(
+                                              ref,
+                                              track.id,
+                                              value,
+                                            )) {
+                                              rememberRating(track.json, value);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    if (format != null && track != null)
+                                      _FormatBadges(
+                                        format: format,
+                                        track: track,
+                                        color: highlight,
+                                        part: _BadgePart.quality,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: _minGap),
+                            const Spacer(),
+                            // On a very narrow column, beside the artwork of a small screen, the buttons scale down together.
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: _Transport(np: np, color: highlight),
+                            ),
+                            // The room of the volume slider stays when this device plays, which has none.
+                            SizedBox(
+                              height: kMinInteractiveDimension,
+                              child: np.volume == null
+                                  ? null
+                                  : _VolumeSlider(
+                                      volume: np.volume!,
+                                      color: highlight,
+                                    ),
+                            ),
+                            _Toolbar(np: np, color: highlight),
+                          ];
+                          if (side) {
+                            final below = _belowArtwork(context);
+                            final width = box.maxWidth - sideArt - 24;
+                            // Under a large text size or on a very short screen, the column shrinks as a whole rather than overflowing, and lays out wider by the same factor so it still fills its width.
+                            final factor = math.min(1.0, box.maxHeight / below);
+                            Widget column = SizedBox(
+                              width: width / factor,
+                              height: box.maxHeight / factor,
+                              child: Column(
+                                children: [
+                                  const _DragHandle(),
+                                  const Spacer(),
+                                  ...controls,
+                                ],
+                              ),
+                            );
+                            if (factor < 1) {
+                              column = FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: column,
+                              );
+                            }
+                            return Row(
+                              children: [
+                                SizedBox.square(
+                                  dimension: sideArt,
+                                  child: artwork,
+                                ),
+                                const SizedBox(width: 24),
+                                Expanded(child: column),
+                              ],
+                            );
+                          }
                           return Column(
                             children: [
                               const _DragHandle(),
@@ -348,99 +486,7 @@ class NowPlayingPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: _minGap),
                               const Spacer(),
-                              SeekBar(np: np, color: highlight),
-                              const SizedBox(height: _minGap),
-                              const Spacer(),
-                              _TrackText(
-                                np: np,
-                                onArtist: track?.artistId == null
-                                    ? null
-                                    : () => open('/artist/${track!.artistId}'),
-                                onAlbum: track?.albumId == null
-                                    ? null
-                                    : () => open('/album/${track!.albumId}'),
-                              ),
-                              const SizedBox(height: 8),
-                              // The codec, the rating and the quality on one line, which keeps its height while the format of a new song loads, so nothing below jumps.
-                              SizedBox(
-                                height: _FormatBadges.height,
-                                // On a narrow screen the whole line scales down together rather than overflowing.
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // A song from an external provider, whose ID starts with `ext-`, shows a globe: the server fetches it from the internet rather than from its own library.
-                                      if (track != null &&
-                                          isExternalId(track.id))
-                                        Padding(
-                                          padding: const EdgeInsets.all(4),
-                                          child: Tooltip(
-                                            message:
-                                                'From an external provider',
-                                            child: Icon(
-                                              Icons.public,
-                                              size: 16,
-                                              color: highlight,
-                                            ),
-                                          ),
-                                        ),
-                                      if (format != null && track != null)
-                                        _FormatBadges(
-                                          format: format,
-                                          track: track,
-                                          color: highlight,
-                                          part: _BadgePart.codec,
-                                        ),
-                                      if (showRating)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                          ),
-                                          child: RatingStars(
-                                            key: ValueKey(track.id),
-                                            rating: track.rating,
-                                            color: highlight,
-                                            dense: true,
-                                            onChanged: (value) async {
-                                              if (await rate(
-                                                ref,
-                                                track.id,
-                                                value,
-                                              )) {
-                                                rememberRating(
-                                                  track.json,
-                                                  value,
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ),
-                                      if (format != null && track != null)
-                                        _FormatBadges(
-                                          format: format,
-                                          track: track,
-                                          color: highlight,
-                                          part: _BadgePart.quality,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: _minGap),
-                              const Spacer(),
-                              _Transport(np: np, color: highlight),
-                              // The room of the volume slider stays when this device plays, which has none.
-                              SizedBox(
-                                height: kMinInteractiveDimension,
-                                child: np.volume == null
-                                    ? null
-                                    : _VolumeSlider(
-                                        volume: np.volume!,
-                                        color: highlight,
-                                      ),
-                              ),
-                              _Toolbar(np: np, color: highlight),
+                              ...controls,
                             ],
                           );
                         },

@@ -116,6 +116,26 @@ class ExperienceSettingsPage extends ConsumerWidget {
                     ref.read(coverSizeProvider.notifier).set(s.single),
               ),
             ),
+            ListTile(
+              title: const Text('Interface size'),
+              subtitle: const Text('Text, icons and buttons together'),
+              trailing: DropdownButton<InterfaceSize>(
+                value: ref.watch(interfaceSizeProvider),
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final size in InterfaceSize.values)
+                    DropdownMenuItem(value: size, child: Text(size.label)),
+                ],
+                onChanged: (size) =>
+                    ref.read(interfaceSizeProvider.notifier).set(size!),
+              ),
+            ),
+            if (onScreenKeyboardAvailable)
+              _Switch(
+                provider: onScreenKeyboardProvider,
+                title: 'On-screen keyboard',
+                subtitle: 'A keyboard opens at the bottom of the window when a text field is tapped, for a touchscreen without a keyboard',
+              ),
             const SettingsSection('Lists'),
             _Switch(
               provider: trackStarsProvider,

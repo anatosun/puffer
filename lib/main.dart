@@ -33,6 +33,12 @@ Future<void> main() async {
     cache.createSync(recursive: true);
     JustAudioMediaKit.cacheDir = cache.path;
   }
+  // A board with little memory, such as a Raspberry Pi Zero 2 W (512 MB) or a Raspberry Pi 3 (1 GB), keeps a third of the decoded artwork Flutter keeps by default.
+  if (Platform.isLinux && (_memoryBytes() ?? 1 << 40) < 1536 << 20) {
+    PaintingBinding.instance.imageCache
+      ..maximumSizeBytes = 32 << 20
+      ..maximumSize = 300;
+  }
   registerFontLicences();
 
   final handler = await _initAudio();
@@ -59,6 +65,19 @@ Future<void> main() async {
       child: const App(),
     ),
   );
+}
+
+/// The memory of the machine from `/proc/meminfo`, or null where the file is missing or unreadable.
+int? _memoryBytes() {
+  try {
+    final line = File('/proc/meminfo')
+        .readAsLinesSync()
+        .firstWhere((l) => l.startsWith('MemTotal:'));
+    final kib = int.tryParse(line.split(RegExp(r'\s+'))[1]);
+    return kib == null ? null : kib * 1024;
+  } on Object {
+    return null;
+  }
 }
 
 /// Registers the handler with the system media controls: MPRIS on Linux, the System Media Transport Controls on Windows. Platforms without audio_service support use the handler directly.

@@ -12,6 +12,10 @@ import 'providers.dart';
 /// The environment variable that names the provisioning file of a kiosk.
 const provisioningVariable = 'PUFFER_CONFIG';
 
+/// Whether the app runs as a kiosk, started with a provisioning file.
+bool get isKiosk =>
+    Platform.environment[provisioningVariable]?.isNotEmpty ?? false;
+
 /// The servers, secrets and settings of a kiosk, read from one JSON file at every start, so the file stays the source of truth. See `distribution/kiosk/puffer.json.example`.
 class Provisioning {
   const Provisioning({
