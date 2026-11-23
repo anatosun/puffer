@@ -420,7 +420,10 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
           ? ref.watch(queueTrackProvider(trackId)).value
           : null;
       final stars = showStars ? ratings[trackId] ?? known?.rating : null;
-      final row = ListTile(
+      // The same row as the songs of a playlist, so the queue keeps their spacing.
+      final row = CompactRow(
+        minHeight: 44,
+        verticalPadding: 4,
         leading: Stack(
           alignment: Alignment.center,
           children: [
@@ -443,15 +446,17 @@ class _QueueSliverState extends ConsumerState<_QueueSliver> {
             ],
           ],
         ),
-        selected: playing,
-        title: TrackTitle(item.title),
+        title: TrackTitle(
+          item.title,
+          color: playing ? Theme.of(context).colorScheme.primary : null,
+        ),
         // The ratings of the queue load row by row, so with the stars on every row keeps their room.
         subtitle: TrackSubtitle(
           item.artist,
           stars: stars,
           reserveStars: showStars,
+          starSize: CompactRow.starSize,
         ),
-        isThreeLine: showStars,
         // The same columns on every row: download state, heart, drag handle.
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

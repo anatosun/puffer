@@ -89,9 +89,9 @@ class TrackTile extends ConsumerWidget {
     final reserveStars = listShowsStars(ref, tracks);
     final Widget? subtitle = wide
         ? (rated
-              ? TrackStars(stars!, size: _CompactRow.starSize)
+              ? TrackStars(stars!, size: CompactRow.starSize)
               : reserveStars
-              ? const SizedBox(height: _CompactRow.starSize)
+              ? const SizedBox(height: CompactRow.starSize)
               : null)
         : !showArtist && !reserveStars
         ? null
@@ -99,9 +99,9 @@ class TrackTile extends ConsumerWidget {
             showArtist ? track.artist : null,
             stars: stars,
             reserveStars: reserveStars,
-            starSize: _CompactRow.starSize,
+            starSize: CompactRow.starSize,
           );
-    Widget tile = _CompactRow(
+    Widget tile = CompactRow(
       // Rows with a cover are as tall as it; the rows of an album, numbered, are a little lower.
       minHeight: showArtwork ? 44 : 36,
       verticalPadding: showArtwork ? 4 : 6,
@@ -199,8 +199,9 @@ class TrackTile extends ConsumerWidget {
 }
 
 /// A song row, lower than a [ListTile]: the title, the artist and the stars stack to the height of the cover, with little room between rows.
-class _CompactRow extends StatelessWidget {
-  const _CompactRow({
+class CompactRow extends StatelessWidget {
+  const CompactRow({
+    super.key,
     required this.minHeight,
     required this.verticalPadding,
     this.leading,
