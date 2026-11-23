@@ -1,0 +1,5 @@
+- An on-screen keyboard and an interface size setting, with layouts for short screens
+- The queue spaces its songs like a playlist
+- The player buttons sit centred above the volume slider
+- With octo-fiesta, an album shows either the songs of your library or those of an external provider, never both
+- The kiosk image rotates the screen and hides the pointer on touchscreens

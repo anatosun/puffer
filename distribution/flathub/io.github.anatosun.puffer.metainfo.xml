@@ -50,6 +50,7 @@
     <category>Player</category>
   </categories>
   <releases>
+    <release version="0.1.51" date="2026-11-23"/>
     <release version="0.1.50" date="2026-11-22"/>
     <release version="0.1.44" date="2026-11-17"/>
   </releases>
