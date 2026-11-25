@@ -1,0 +1,1 @@
+- A song from an external provider shows its globe inside the codec badge, so the badges stay balanced around the rating
