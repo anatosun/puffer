@@ -372,19 +372,6 @@ class NowPlayingPage extends ConsumerWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // A song from an external provider, whose ID starts with `ext-`, shows a globe: the server fetches it from the internet rather than from its own library.
-                                    if (track != null && isExternalId(track.id))
-                                      Padding(
-                                        padding: const EdgeInsets.all(4),
-                                        child: Tooltip(
-                                          message: 'From an external provider',
-                                          child: Icon(
-                                            Icons.public,
-                                            size: 16,
-                                            color: highlight,
-                                          ),
-                                        ),
-                                      ),
                                     if (format != null && track != null)
                                       _FormatBadges(
                                         format: format,
@@ -914,15 +901,21 @@ class _FormatBadges extends StatelessWidget {
       _BadgePart.quality => format.quality,
     };
     if (text == null) return const SizedBox.shrink();
+    // A song from an external provider, whose ID starts with `ext-`, has a globe in its codec badge: the server fetches it from the internet rather than from its own library.
+    final external = part == _BadgePart.codec && isExternalId(track.id);
     return Semantics(
       button: true,
-      label: 'Song info',
+      label: external ? 'Song info, from an external provider' : 'Song info',
       child: InkWell(
         borderRadius: BorderRadius.circular(4),
         onTap: () => showSongInfo(context, track),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: _Badge(text, color: color),
+          child: _Badge(
+            text,
+            color: color,
+            icon: external ? Icons.public : null,
+          ),
         ),
       ),
     );
@@ -931,10 +924,13 @@ class _FormatBadges extends StatelessWidget {
 
 /// A small outlined label for the format of what plays.
 class _Badge extends StatelessWidget {
-  const _Badge(this.text, {required this.color});
+  const _Badge(this.text, {required this.color, this.icon});
 
   final String text;
   final Color color;
+
+  /// A glyph before the text, in the same colour.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -943,15 +939,24 @@ class _Badge extends StatelessWidget {
       border: Border.all(color: color.withValues(alpha: 0.6)),
       borderRadius: BorderRadius.circular(4),
     ),
-    child: Text(
-      text,
-      style: TextStyle(
-        color: color,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.5,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
     ),
   );
 }
