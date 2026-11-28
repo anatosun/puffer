@@ -8,6 +8,7 @@ import '../../ui/messages.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
 import '../../ui/widgets/brand_mark.dart';
+import '../cast/output_sheet.dart';
 
 /// The project on GitHub, where the source, the releases and the issue tracker live.
 const repositoryUrl = 'https://github.com/anatosun/puffer';
@@ -52,7 +53,10 @@ class AboutPage extends ConsumerWidget {
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('About')),
+        appBar: AppBar(
+          title: const Text('About'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           children: [
             const SizedBox(height: 16),

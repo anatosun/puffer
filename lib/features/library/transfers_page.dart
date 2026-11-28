@@ -9,6 +9,7 @@ import '../../ui/widgets/backdrop.dart';
 import '../../ui/widgets/keep_screen_on.dart';
 import 'album_lists.dart';
 import 'downloaded.dart';
+import '../cast/output_sheet.dart';
 
 /// The songs in transfer, one row each with its progress, and a retry for the failed ones.
 class TransfersPage extends ConsumerWidget {
@@ -28,7 +29,10 @@ class TransfersPage extends ConsumerWidget {
       child: Backdrop(
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          appBar: AppBar(title: const Text('Downloading')),
+          appBar: AppBar(
+            title: const Text('Downloading'),
+            actions: const [PageOutputButton()],
+          ),
           body: AsyncList(transfers, (transfers) {
             final failed = transfers
                 .where((t) => t.file.status == FileStatus.failed)

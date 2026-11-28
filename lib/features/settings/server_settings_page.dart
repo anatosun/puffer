@@ -8,6 +8,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
 import 'server_settings.dart';
 import 'settings_section.dart';
+import '../cast/output_sheet.dart';
 
 class ServerSettingsPage extends ConsumerWidget {
   const ServerSettingsPage({super.key});
@@ -25,7 +26,10 @@ class ServerSettingsPage extends ConsumerWidget {
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Server')),
+        appBar: AppBar(
+          title: const Text('Server'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           children: [
             const SettingsSection('Connection'),
@@ -273,7 +277,10 @@ class _ConnectionSettingsPageState
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Edit connection')),
+        appBar: AppBar(
+          title: const Text('Edit connection'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [

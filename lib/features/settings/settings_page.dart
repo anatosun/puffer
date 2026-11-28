@@ -6,6 +6,7 @@ import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
 import '../../ui/widgets/backdrop.dart';
 import 'about_page.dart';
+import '../cast/output_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -16,7 +17,10 @@ class SettingsPage extends ConsumerWidget {
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Settings')),
+        appBar: AppBar(
+          title: const Text('Settings'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           children: [
             ListTile(

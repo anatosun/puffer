@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puffer/app/experience.dart';
 import 'package:puffer/app/providers.dart';
+import 'package:puffer/data/subsonic/subsonic_client.dart';
 import 'package:puffer/ui/widgets/launch_animation.dart';
 import 'package:puffer/ui/widgets/launch_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,33 +56,53 @@ void main() {
     },
   );
 
-  testWidgets('the start-up animation setting turns the animation off', (
-    tester,
-  ) async {
-    Future<void> start(Map<String, Object> stored) async {
-      SharedPreferences.setMockInitialValues(stored);
-      final prefs = await SharedPreferences.getInstance();
-      await tester.pumpWidget(
-        ProviderScope(
-          key: UniqueKey(),
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-          child: Consumer(
-            builder: (context, ref, _) => MaterialApp(
-              home: LaunchGate(
-                enabled: ref.read(launchAnimationProvider),
-                child: const Scaffold(body: Text('Home')),
+  testWidgets(
+    'the animation plays during the first setup, then only when turned on',
+    (tester) async {
+      Future<void> start(
+        Map<String, Object> stored, {
+        bool signedIn = true,
+      }) async {
+        SharedPreferences.setMockInitialValues(stored);
+        final prefs = await SharedPreferences.getInstance();
+        await tester.pumpWidget(
+          ProviderScope(
+            key: UniqueKey(),
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              initialCredentialsProvider.overrideWithValue(
+                signedIn
+                    ? const ServerCredentials(
+                        baseUrl: 'https://music.example.com',
+                        username: 'me',
+                        apiKey: 'k',
+                      )
+                    : null,
+              ),
+            ],
+            child: Consumer(
+              builder: (context, ref, _) => MaterialApp(
+                home: LaunchGate(
+                  enabled: ref.read(playLaunchAnimationProvider),
+                  child: const Scaffold(body: Text('Home')),
+                ),
               ),
             ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    await start({});
-    expect(find.byType(PufferLaunchAnimation), findsOneWidget);
+      // The first setup: nobody is signed in yet.
+      await start({}, signedIn: false);
+      expect(find.byType(PufferLaunchAnimation), findsOneWidget);
 
-    await start({'experience.launchAnimation': false});
-    expect(find.byType(PufferLaunchAnimation), findsNothing);
-    expect(find.text('Home'), findsOneWidget);
-  });
+      // Signed in, the animation is off unless turned on.
+      await start({});
+      expect(find.byType(PufferLaunchAnimation), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+
+      await start({'experience.launchAnimation': true});
+      expect(find.byType(PufferLaunchAnimation), findsOneWidget);
+    },
+  );
 }

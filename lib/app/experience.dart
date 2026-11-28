@@ -369,9 +369,16 @@ final remainingTimeProvider = NotifierProvider<BoolSettingNotifier, bool>(
   () => BoolSettingNotifier('experience.remainingTime', true),
 );
 
-/// The animated pufferfish that plays over the first screen when the app starts cold.
+/// The animated pufferfish over the first screen when the app starts cold, after the first setup. It is off unless the person turns it on; [playLaunchAnimationProvider] plays it during the setup whatever this says.
 final launchAnimationProvider = NotifierProvider<BoolSettingNotifier, bool>(
-  () => BoolSettingNotifier('experience.launchAnimation', true),
+  () => BoolSettingNotifier('experience.launchAnimation', false),
+);
+
+/// Whether the launch animation plays at this start: while nobody is signed in, as during the first setup, and afterwards only when [launchAnimationProvider] is on.
+final playLaunchAnimationProvider = Provider<bool>(
+  (ref) =>
+      ref.read(credentialsProvider) == null ||
+      ref.read(launchAnimationProvider),
 );
 
 /// Swiping the artwork sideways skips to the next or previous song.

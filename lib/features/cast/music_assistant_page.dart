@@ -7,6 +7,7 @@ import '../../data/music_assistant/ma_client.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
 import 'speaker_settings.dart';
+import 'output_sheet.dart';
 
 class MusicAssistantPage extends ConsumerWidget {
   const MusicAssistantPage({super.key});
@@ -14,24 +15,47 @@ class MusicAssistantPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final credentials = ref.watch(maCredentialsProvider);
+    // A rejected token ends the connection for good, so the form comes back with the server filled in.
+    final rejected =
+        ref.watch(maStatusProvider).value == MaConnectionStatus.unauthorized;
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Music Assistant')),
-        body: credentials == null ? const _SignIn() : _Connected(credentials),
+        appBar: AppBar(
+          title: const Text('Music Assistant'),
+          actions: const [PageOutputButton()],
+        ),
+        body: credentials == null || rejected
+            ? MusicAssistantSignIn(rejected: credentials)
+            : _Connected(credentials),
       ),
     );
   }
 }
 
-class _SignIn extends ConsumerStatefulWidget {
-  const _SignIn();
+/// The form that signs in to Music Assistant, in Settings and in the first setup.
+class MusicAssistantSignIn extends ConsumerStatefulWidget {
+  const MusicAssistantSignIn({
+    super.key,
+    this.rejected,
+    this.onSignedIn,
+    this.speakerSettings = true,
+  });
+
+  /// The sign-in Music Assistant turned down, when there is one.
+  final MaCredentials? rejected;
+
+  /// Called once the sign-in is stored.
+  final VoidCallback? onSignedIn;
+
+  /// Whether the form ends with the settings of this device as a speaker, which work without signing in.
+  final bool speakerSettings;
 
   @override
-  ConsumerState<_SignIn> createState() => _SignInState();
+  ConsumerState<MusicAssistantSignIn> createState() => _SignInState();
 }
 
-class _SignInState extends ConsumerState<_SignIn> {
+class _SignInState extends ConsumerState<MusicAssistantSignIn> {
   final _url = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
@@ -39,6 +63,12 @@ class _SignInState extends ConsumerState<_SignIn> {
   bool _useToken = false;
   bool _busy = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _url.text = widget.rejected?.baseUrl.toString() ?? '';
+  }
 
   @override
   void dispose() {
@@ -62,6 +92,7 @@ class _SignInState extends ConsumerState<_SignIn> {
               username: _username.text.trim(),
               password: _password.text,
             );
+      widget.onSignedIn?.call();
     } on Exception catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -73,6 +104,13 @@ class _SignInState extends ConsumerState<_SignIn> {
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(24),
     children: [
+      if (widget.rejected != null) ...[
+        const Text(
+          'Music Assistant rejected the access token: it is invalid, expired or revoked. Sign in again or enter a new token.',
+          style: TextStyle(color: Colors.orangeAccent),
+        ),
+        const SizedBox(height: 16),
+      ],
       Text(
         'Music Assistant plays your music on speakers in sync over Sendspin, AirPlay, Chromecast and more. Puffer sends it what to play.',
         style: TextStyle(
@@ -136,9 +174,18 @@ class _SignInState extends ConsumerState<_SignIn> {
               )
             : const Text('Connect'),
       ),
-      const Divider(height: 48),
-      // Playing as a speaker works without signing in.
-      const SpeakerSettings(),
+      if (widget.rejected != null)
+        TextButton(
+          onPressed: _busy
+              ? null
+              : () => ref.read(maCredentialsProvider.notifier).signOut(),
+          child: const Text('Disconnect'),
+        ),
+      if (widget.speakerSettings) ...[
+        const Divider(height: 48),
+        // Playing as a speaker works without signing in.
+        const SpeakerSettings(),
+      ],
     ],
   );
 }

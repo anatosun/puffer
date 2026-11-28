@@ -9,6 +9,7 @@ import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/download_indicator.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../ui/theme.dart';
+import '../cast/output_sheet.dart';
 
 /// The page of an album, playlist or artist. In a wide window the artwork sits beside the title and the buttons. Otherwise the artwork sits in a top bar that stretches when pulled down and collapses to the title when scrolled; below it come the title, the play, shuffle and download buttons, and [slivers].
 class CollectionView extends ConsumerWidget {
@@ -150,7 +151,7 @@ class CollectionView extends ConsumerWidget {
             pinned: true,
             backgroundColor: blurred ? Colors.transparent : tint,
             surfaceTintColor: Colors.transparent,
-            actions: actions,
+            actions: [...?actions, const PageOutputButton()],
           ),
           SliverToBoxAdapter(
             child: Container(
@@ -236,7 +237,7 @@ class CollectionView extends ConsumerWidget {
           expandedHeight: expanded,
           backgroundColor: blurred ? Colors.transparent : tint,
           surfaceTintColor: Colors.transparent,
-          actions: actions,
+          actions: [...?actions, const PageOutputButton()],
           flexibleSpace: LayoutBuilder(
             builder: (context, constraints) {
               final collapsedHeight = kToolbarHeight + top;
@@ -347,5 +348,8 @@ class CollectionPlaceholder extends StatelessWidget {
   final Widget body;
 
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(), body: body);
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(actions: const [PageOutputButton()]),
+    body: body,
+  );
 }

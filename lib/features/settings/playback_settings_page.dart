@@ -3,43 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/playback_providers.dart';
 import '../../app/providers.dart';
-import '../../downloads/download_settings.dart';
 import '../../playback/prefetch_cache.dart';
 import '../../playback/replay_gain.dart';
+import 'setting_controls.dart';
 import 'settings_section.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../cast/output_sheet.dart';
 
 class PlaybackSettingsPage extends ConsumerWidget {
   const PlaybackSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    Widget quality(
-      String title,
-      NotifierProvider<StreamingQualityNotifier, DownloadQuality> provider,
-    ) => ListTile(
-      title: Text(title),
-      trailing: DropdownButton<DownloadQuality>(
-        value: ref.watch(provider),
-        underline: const SizedBox.shrink(),
-        items: [
-          for (final q in DownloadQuality.values)
-            DropdownMenuItem(value: q, child: Text(q.label)),
-        ],
-        onChanged: (q) => ref.read(provider.notifier).set(q!),
-      ),
-    );
-
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Playback')),
+        appBar: AppBar(
+          title: const Text('Playback'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           children: [
             const SettingsSection('Streaming quality'),
-            quality('On Wi-Fi', wifiQualityProvider),
-            quality('On cellular', cellularQualityProvider),
+            StreamingQualityTile('On Wi-Fi', wifiQualityProvider),
+            StreamingQualityTile('On cellular', cellularQualityProvider),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(

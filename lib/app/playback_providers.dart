@@ -93,6 +93,11 @@ final maCredentialsProvider =
       MaCredentialsNotifier.new,
     );
 
+/// The first setup offered Music Assistant, which the person signed in to or skipped, so the offer does not come again.
+final maSetupOfferedProvider = NotifierProvider<BoolSettingNotifier, bool>(
+  () => BoolSettingNotifier('setup.musicAssistantOffered', false),
+);
+
 /// The connection to Music Assistant. It lives while signed in, apart from offline mode: a moment without network (Wi-Fi roaming, the device dozing) must not drop the connection, since the app then plays on this device. The client reconnects by itself, and [OutputNotifier] comes back to this device only when it stays disconnected.
 final maClientProvider = Provider<MusicAssistantClient?>((ref) {
   final credentials = ref.watch(maCredentialsProvider);
@@ -115,6 +120,18 @@ final maRestProvider = Provider<void>((ref) {
   }
   final timer = Timer(const Duration(minutes: 1), client.rest);
   ref.onDispose(timer.cancel);
+});
+
+/// While a Music Assistant player is the output and the app shows, a lost connection is retried every [MusicAssistantClient.eagerRetryDelay], as while the speaker sheet is open, since the controls on screen act on that player. Hidden, retries back off again, so a speaker out of reach does not wake the phone every two seconds.
+final maEagerReconnectProvider = Provider<void>((ref) {
+  final client = ref.watch(maClientProvider);
+  if (client == null ||
+      ref.watch(outputProvider) == null ||
+      !ref.watch(appVisibleProvider)) {
+    return;
+  }
+  client.startWaiting();
+  ref.onDispose(client.stopWaiting);
 });
 
 final maStatusProvider = StreamProvider<MaConnectionStatus>((ref) async* {

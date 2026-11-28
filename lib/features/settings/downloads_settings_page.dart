@@ -17,6 +17,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/download_indicator.dart';
 import 'settings_section.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../cast/output_sheet.dart';
 
 /// The downloaded songs of one album: its ID, when the songs name it, and their size.
 typedef AlbumUsage = ({String? id, String name, int bytes});
@@ -102,6 +103,7 @@ class DownloadsSettingsPage extends ConsumerWidget {
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onPressed: () => _removeAll(context, ref),
               ),
+            const PageOutputButton(),
           ],
         ),
         body: ListView(

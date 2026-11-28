@@ -13,6 +13,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets/playing_bars.dart';
 import '../../ui/sheets.dart';
 import '../../ui/layout.dart';
+import '../../ui/widgets/marquee.dart';
 
 /// Opens the output picker. It shows once Music Assistant is set up, highlighted while a player is the output.
 class OutputButton extends ConsumerWidget {
@@ -657,11 +658,11 @@ class _OutputTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // A long name or song rolls, as on the now-playing screen.
                           if (title case final title?)
-                            Text(
+                            MarqueeText(
                               title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.start,
                               style: TextStyle(
                                 color: accent,
                                 fontWeight: FontWeight.w600,
@@ -678,10 +679,9 @@ class _OutputTile extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text(
+                                  child: MarqueeText(
                                     media,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.start,
                                     style: TextStyle(
                                       color: context.muted,
                                       fontSize: 13,
@@ -703,6 +703,8 @@ class _OutputTile extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // Keeps a rolling title clear of the buttons.
+                    const SizedBox(width: 12),
                     // Two columns of the same width on every row, play/pause then the chain, so the buttons line up whether a row has them or not.
                     SizedBox(
                       width: kMinInteractiveDimension,
@@ -710,11 +712,11 @@ class _OutputTile extends StatelessWidget {
                           ? null
                           : IconButton(
                               tooltip: playing ? 'Pause $name' : 'Play $name',
+                              color: accent,
                               icon: Icon(
                                 playing
-                                    ? Icons.pause_circle_filled
-                                    : Icons.play_circle_filled,
-                                color: accent,
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
                               ),
                               onPressed: onPlayPause,
                             ),

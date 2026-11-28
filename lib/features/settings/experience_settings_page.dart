@@ -1,13 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/experience.dart';
 import '../../app/providers.dart';
 import '../../ui/theme.dart';
+import 'setting_controls.dart';
 import 'settings_section.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../cast/output_sheet.dart';
 
 class ExperienceSettingsPage extends ConsumerWidget {
   const ExperienceSettingsPage({super.key});
@@ -17,37 +17,15 @@ class ExperienceSettingsPage extends ConsumerWidget {
     return Backdrop(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Experience')),
+        appBar: AppBar(
+          title: const Text('Experience'),
+          actions: const [PageOutputButton()],
+        ),
         body: ListView(
           children: [
             const SettingsSection('Appearance'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SegmentedButton<ThemeMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    label: Text('System'),
-                    icon: Icon(Icons.brightness_auto),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Icons.light_mode_outlined),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Icons.dark_mode_outlined),
-                  ),
-                ],
-                selected: {ref.watch(themeModeProvider)},
-                onSelectionChanged: (s) =>
-                    ref.read(themeModeProvider.notifier).set(s.single),
-              ),
-            ),
-            const _AccentPicker(),
+            const ThemeModePicker(),
+            const AccentPicker(),
             SwitchListTile(
               title: const Text('Colours from artwork'),
               subtitle: const Text(
@@ -217,65 +195,6 @@ class ExperienceSettingsPage extends ConsumerWidget {
             _ToggleList(provider: homeShelvesProvider, label: (s) => s.label),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _AccentPicker extends ConsumerWidget {
-  const _AccentPicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(accentProvider);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          // Material You exists on Android only.
-          for (final accent in AccentColour.values.where(
-            (a) => a != AccentColour.wallpaper || Platform.isAndroid,
-          ))
-            Tooltip(
-              message: accent.label,
-              child: InkResponse(
-                onTap: () => ref.read(accentProvider.notifier).set(accent),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: accent == AccentColour.wallpaper
-                        ? null
-                        : accent.color,
-                    gradient: accent == AccentColour.wallpaper
-                        ? const SweepGradient(
-                            colors: [
-                              Colors.red,
-                              Colors.amber,
-                              Colors.green,
-                              Colors.blue,
-                              Colors.purple,
-                              Colors.red,
-                            ],
-                          )
-                        : null,
-                    shape: BoxShape.circle,
-                    border: accent == selected
-                        ? Border.all(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            width: 3,
-                          )
-                        : null,
-                  ),
-                  child: accent == selected
-                      ? const Icon(Icons.check, size: 20, color: Colors.white)
-                      : null,
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

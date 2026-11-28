@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/car_preview/car_preview_page.dart';
 import '../features/cast/music_assistant_page.dart';
 import '../features/collection/album_page.dart';
 import '../features/collection/artist_page.dart';
@@ -13,6 +14,7 @@ import '../features/library/album_lists.dart';
 import '../features/library/library_page.dart';
 import '../features/library/transfers_page.dart';
 import '../features/login/login_page.dart';
+import '../features/login/music_assistant_setup_page.dart';
 import '../features/now_playing/now_playing.dart';
 import '../features/now_playing/now_playing_below.dart';
 import '../features/now_playing/player_bar.dart';
@@ -45,15 +47,31 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(signedIn.dispose);
 
   return GoRouter(
-    initialLocation: ref.read(effectiveStartTabProvider).path,
+    initialLocation: carPreviewEnabled
+        ? '/car-preview'
+        : ref.read(effectiveStartTabProvider).path,
     refreshListenable: signedIn,
     redirect: (context, state) {
       final atLogin = state.matchedLocation == '/login';
       if (!signedIn.value) return atLogin ? null : '/login';
-      return atLogin ? '/home' : null;
+      if (!atLogin) return null;
+      // Right after the first sign-in, the setup offers Music Assistant once.
+      final offer =
+          !ref.read(maSetupOfferedProvider) &&
+          ref.read(maCredentialsProvider) == null;
+      return offer ? '/setup/music-assistant' : '/home';
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+      GoRoute(
+        path: '/setup/music-assistant',
+        builder: (_, _) => const MusicAssistantSetupPage(),
+      ),
+      if (carPreviewEnabled)
+        GoRoute(
+          path: '/car-preview',
+          builder: (_, _) => const CarPreviewPage(),
+        ),
       ShellRoute(
         builder: (context, state, child) =>
             _Shell(location: state.matchedLocation, child: child),
@@ -174,6 +192,7 @@ class App extends ConsumerWidget {
     ref.watch(sendspinServiceProvider);
     ref.watch(followSpeakerProvider);
     ref.watch(maRestProvider);
+    ref.watch(maEagerReconnectProvider);
     ref.watch(maCrossfadeProvider);
     ref.watch(endlessRadioRunnerProvider);
     ref.watch(maScrobbleRunnerProvider);
@@ -201,11 +220,11 @@ class App extends ConsumerWidget {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: ref.watch(routerProvider),
           scaffoldMessengerKey: messengerKey,
-          // On a cold start, the launch animation plays over the first screen, unless the person turned it off. The gate reads it once, so the setting applies at the next start.
+          // On a cold start, the launch animation plays over the first screen during the first setup, and afterwards when the person turned it on. The gate reads it once, so the setting applies at the next start.
           builder: (context, child) => InterfaceScale(
             scale: ref.watch(interfaceSizeProvider).scale,
             child: LaunchGate(
-              enabled: ref.read(launchAnimationProvider),
+              enabled: ref.read(playLaunchAnimationProvider),
               child: PointerRecorder(
                 child: KeyboardShortcuts(
                   child: OnScreenKeyboardHost(
