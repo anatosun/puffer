@@ -43,6 +43,14 @@
                 <action android:name="android.media.browse.MediaBrowserService"/>
             </intent-filter>
         </service>
+        <!-- Android Auto: the app is a media app, and the car reads the covers through this provider. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
+        <provider
+            android:name=".ArtworkProvider"
+            android:authorities="io.github.anatosun.puffer.artwork"
+            android:exported="true"/>
         <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
             android:exported="true">
             <intent-filter>

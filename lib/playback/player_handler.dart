@@ -6,6 +6,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../data/subsonic/models.dart';
+import 'car_library.dart';
 import 'crossfade.dart';
 import 'past_queues.dart';
 import 'playback_controller.dart';
@@ -63,6 +64,27 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Receives the queue that [playTracks] replaces, so it can be played again later.
   void Function(PastQueue queue)? onReplaced;
+
+  /// What a car browses and plays through the media session; null while signed out.
+  CarLibrary? get library => _library;
+  set library(CarLibrary? value) {
+    _library = value;
+    if (value != null && !_libraryReady.isCompleted) _libraryReady.complete();
+  }
+
+  CarLibrary? _library;
+  final _libraryReady = Completer<void>();
+
+  /// A car can connect before the session is set up, when it starts the app without its screen; it waits for the library, and gets nothing when nobody is signed in.
+  Future<CarLibrary?> _car() async {
+    if (_library == null) {
+      await _libraryReady.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {},
+      );
+    }
+    return _library;
+  }
 
   List<Track> _tracks = const [];
   String? _scrobbled;
@@ -855,6 +877,42 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await super.stop();
   }
 
+  @override
+  Future<List<MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async => await (await _car())?.children(parentMediaId) ?? const [];
+
+  @override
+  Future<List<MediaItem>> search(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async => await (await _car())?.search(query) ?? const [];
+
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    try {
+      await (await _car())?.playFromId(mediaId);
+    } on Object {
+      // Offline, an item that was never opened cannot be played.
+    }
+  }
+
+  @override
+  Future<void> playFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    try {
+      await (await _car())?.playFromSearch(query, extras);
+    } on Object {
+      // Nothing found plays nothing.
+    }
+  }
+
   void _broadcastState(PlaybackEvent event) {
     final buffered = _updateBuffered();
     final playing = player.playing;
@@ -869,6 +927,9 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
+        // Android Auto offers browsing and voice search only to a session that reports these.
+        MediaAction.playFromMediaId,
+        MediaAction.playFromSearch,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: const {

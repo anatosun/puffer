@@ -10,11 +10,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/car_providers.dart';
 import 'app/licences.dart';
 import 'app/playback_providers.dart';
 import 'app/providers.dart';
 import 'app/provisioning.dart';
 import 'data/db/database.dart';
+import 'playback/car_library.dart';
 import 'playback/player_handler.dart';
 
 Future<void> main() async {
@@ -52,19 +54,23 @@ Future<void> main() async {
     loadMaCredentials(),
   ).wait;
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        supportDirectoryProvider.overrideWithValue(support),
-        initialCredentialsProvider.overrideWithValue(credentials),
-        initialMaCredentialsProvider.overrideWithValue(maCredentials),
-        databaseProvider.overrideWithValue(AppDatabase()),
-        playerHandlerProvider.overrideWithValue(handler),
-      ],
-      child: const App(),
-    ),
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      supportDirectoryProvider.overrideWithValue(support),
+      initialCredentialsProvider.overrideWithValue(credentials),
+      initialMaCredentialsProvider.overrideWithValue(maCredentials),
+      databaseProvider.overrideWithValue(AppDatabase()),
+      playerHandlerProvider.overrideWithValue(handler),
+    ],
   );
+  // Android Auto can start the app without its screen, when no widget builds; the player and what the car browses are set up here.
+  container
+    ..listen(playbackProvider, (_, _) {})
+    ..listen(queuePersistenceProvider, (_, _) {})
+    ..listen(carSessionProvider, (_, _) {});
+
+  runApp(UncontrolledProviderScope(container: container, child: const App()));
 }
 
 /// The memory of the machine from `/proc/meminfo`, or null where the file is missing or unreadable.
@@ -103,6 +109,7 @@ Future<PlayerHandler> _initAudio() async {
         androidNotificationChannelName: 'Playback',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        androidBrowsableRootExtras: carRootExtras,
       ),
     );
   } on Object {
