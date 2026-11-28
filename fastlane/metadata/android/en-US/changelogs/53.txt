@@ -1,0 +1,6 @@
+- Android Auto: browse, search and play your library by voice
+- The first setup offers Music Assistant, with a Skip button
+- A rejected Music Assistant token brings back the sign-in form
+- The speaker button shows on every page, and Puffer reconnects faster while a speaker plays
+- Long names roll in the speaker list
+- The start-up animation plays during the first setup, then only when turned on
