@@ -1,0 +1,5 @@
+- The lock screen and notification show and control the Music Assistant speaker that plays
+- Favourites also list the albums of the songs you starred
+- The first setup checks that Music Assistant answers before it goes on, then offers the main options
+- Music Assistant takes its full URL as written, without adding a port
+- A wrong Music Assistant token is refused at once, with the reason
