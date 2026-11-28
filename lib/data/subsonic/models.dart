@@ -322,4 +322,27 @@ class Starred {
   final List<Track> tracks;
 }
 
+/// The albums of the Favourites: those [starred] holds first, in its order, then the album of each starred song that is not among them, once. [known] gives the full album where the cache has it; otherwise the song gives the album its name, artist and cover.
+List<Album> favouriteAlbums(
+  Starred starred, {
+  Map<String, Album> known = const {},
+}) {
+  final seen = <String>{};
+  return [
+    for (final a in starred.albums)
+      if (seen.add(a.id)) a,
+    for (final t in starred.tracks)
+      if (t.albumId case final id? when seen.add(id))
+        known[id] ??
+            Album({
+              'id': id,
+              'name': ?t.album,
+              'artist': ?t.artist,
+              'artistId': ?t.artistId,
+              'coverArt': ?t.coverArt,
+              'year': ?t.year,
+            }),
+  ];
+}
+
 List<Json> jsonList(Object? value) => _list(value);

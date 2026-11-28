@@ -241,6 +241,27 @@ class LibraryRepository {
   ]) =>
       'albums:$type:$size:$offset:${genre ?? ''}:${fromYear ?? ''}:${toYear ?? ''}';
 
+  /// The albums of the Favourites: starred albums, then the albums of starred songs ([favouriteAlbums]). One `getStarred2` request; the albums of songs come from the cache where it has them.
+  Future<List<Album>> favourites() => _fetch(
+    kind: 'list',
+    id: 'favouriteAlbums',
+    remote: () async {
+      final starred = await client.getStarred();
+      final known = await cachedAlbums({
+        for (final t in starred.tracks) ?t.albumId,
+      });
+      return favouriteAlbums(starred, known: known);
+    },
+    encode: (l) => [for (final a in l) a.json],
+    decode: (j) => jsonList(j).map(Album.new).toList(),
+  );
+
+  /// The cached [favourites], without asking the server.
+  Future<List<Album>?> cachedFavourites() async {
+    final json = await _cached('list', 'favouriteAlbums');
+    return json == null ? null : jsonList(json).map(Album.new).toList();
+  }
+
   /// The cached first page of an album list, without asking the server.
   Future<List<Album>?> cachedAlbumList(
     String type, {

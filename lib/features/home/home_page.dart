@@ -10,6 +10,7 @@ import '../../data/subsonic/models.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets/artwork.dart';
 import '../../ui/widgets/backdrop.dart';
+import '../../ui/widgets/item_actions.dart';
 import '../../ui/widgets/pressable.dart';
 import '../../ui/widgets/tiles.dart';
 import '../../app/experience.dart';
@@ -25,6 +26,16 @@ final albumListProvider = StreamProvider.family<List<Album>, String>((
   final repository = ref.watch(repositoryProvider);
   ref.watch(isOfflineProvider);
   if (repository == null) return Stream.value(const []);
+  // The Favourites also hold the albums of starred songs, which the starred album list leaves out; starring anything refreshes them.
+  if (type == HomeShelf.starred.albumList) {
+    ref.listen(starredProvider, (previous, _) {
+      if (previous?.hasValue ?? false) ref.invalidateSelf();
+    });
+    return cachedThenFresh(
+      repository.cachedFavourites(),
+      repository.favourites,
+    );
+  }
   return cachedThenFresh(
     repository.cachedAlbumList(type, size: 20),
     () => repository.albumList(type, size: 20),
@@ -317,6 +328,12 @@ class ShelfPage extends ConsumerWidget {
             ref.watch(shelfAlbumsProvider(shelf.albumList!)),
             (albums) => AlbumGrid(albums),
             empty: 'No downloaded albums',
+          ),
+          // The Favourites come whole from one request, with the albums of starred songs, rather than page by page.
+          HomeShelf.starred => AsyncList(
+            ref.watch(shelfAlbumsProvider(shelf.albumList!)),
+            (albums) => AlbumGrid(albums),
+            empty: 'No favourites yet',
           ),
           _ => PagedAlbumGrid(albumQuery(shelf.albumList!)),
         },

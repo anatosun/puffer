@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import 'item_actions.dart';
 
 /// A heart button for tracks, albums and artists. Adding to the library also pins the item when automatic downloads are on.
 class StarButton extends ConsumerStatefulWidget {
@@ -85,6 +86,9 @@ class StarOverridesNotifier extends Notifier<Map<String, bool>> {
   Map<String, bool> build() => const {};
 
   void set(String key, bool starred) => state = {...state, key: starred};
+
+  /// The server stored a change: the starred items, and the Favourites that follow them, load again. This notifier lives for the session, so it can do so after the widget that made the change has closed.
+  void saved() => ref.invalidate(starredProvider);
 }
 
 final starOverridesProvider =
@@ -118,6 +122,7 @@ Future<bool> saveStar(
       artistId: target.artistId,
     );
     rememberStar(json, starred);
+    overrides.saved();
     await sync();
     return true;
   } on Exception {
