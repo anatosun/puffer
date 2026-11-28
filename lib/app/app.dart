@@ -196,6 +196,7 @@ class App extends ConsumerWidget {
     ref.watch(followSpeakerProvider);
     ref.watch(maRestProvider);
     ref.watch(maEagerReconnectProvider);
+    ref.watch(remoteMediaSessionProvider);
     ref.watch(maCrossfadeProvider);
     ref.watch(endlessRadioRunnerProvider);
     ref.watch(maScrobbleRunnerProvider);

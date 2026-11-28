@@ -385,6 +385,24 @@ class OutputSwitcher {
 
 final outputSwitcherProvider = Provider<OutputSwitcher>(OutputSwitcher.new);
 
+/// While a Music Assistant player is the output, the system media controls (the lock screen and notification on Android, MPRIS on Linux) show what it plays, and their buttons act on it. Music Assistant reports the position each second while a speaker plays, and [SystemMediaHandler.showRemote] passes on only what changed. The connection stays up while a speaker is the output ([maRestProvider]), so the lock screen keeps up.
+final remoteMediaSessionProvider = Provider<void>((ref) {
+  final system = ref.watch(systemMediaHandlerProvider);
+  if (system == null) return;
+  system.remoteControls = () => ref.read(outputProvider) == null
+      ? null
+      : ref.read(playbackControllerProvider);
+  if (ref.watch(outputProvider) == null) {
+    system.showRemote(null);
+    return;
+  }
+  ref.listen(
+    nowPlayingProvider,
+    (_, next) => system.showRemote(next.value),
+    fireImmediately: true,
+  );
+});
+
 final playbackControllerProvider = Provider<PlaybackController>((ref) {
   final handler = ref.watch(playbackProvider);
   final output = ref.watch(outputProvider);

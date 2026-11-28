@@ -18,6 +18,7 @@ import 'app/provisioning.dart';
 import 'data/db/database.dart';
 import 'playback/car_library.dart';
 import 'playback/player_handler.dart';
+import 'playback/system_media_handler.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +44,7 @@ Future<void> main() async {
   }
   registerFontLicences();
 
-  final handler = await _initAudio();
+  final (handler, system) = await _initAudio();
   final (prefs, support) = await (
     SharedPreferences.getInstance(),
     getApplicationSupportDirectory(),
@@ -62,6 +63,7 @@ Future<void> main() async {
       initialMaCredentialsProvider.overrideWithValue(maCredentials),
       databaseProvider.overrideWithValue(AppDatabase()),
       playerHandlerProvider.overrideWithValue(handler),
+      systemMediaHandlerProvider.overrideWithValue(system),
     ],
   );
   // Android Auto can start the app without its screen, when no widget builds; the player and what the car browses are set up here.
@@ -86,8 +88,8 @@ int? _memoryBytes() {
   }
 }
 
-/// Registers the handler with the system media controls: MPRIS on Linux, the System Media Transport Controls on Windows. Platforms without audio_service support use the handler directly.
-Future<PlayerHandler> _initAudio() async {
+/// Registers the handlers with the system media controls: the Android notification and lock screen, MPRIS on Linux, the System Media Transport Controls on Windows. Platforms without audio_service support use the player directly.
+Future<(PlayerHandler, SystemMediaHandler)> _initAudio() async {
   if (Platform.isLinux) {
     // The bus name is org.mpris.MediaPlayer2.puffer.instance<PID>; the Flatpak may own it.
     AudioServiceMpris.init(
@@ -101,9 +103,11 @@ Future<PlayerHandler> _initAudio() async {
       canGoPrevious: true,
     );
   }
+  final local = PlayerHandler();
+  final system = SystemMediaHandler(local);
   try {
-    return await AudioService.init(
-      builder: PlayerHandler.new,
+    await AudioService.init(
+      builder: () => system,
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'io.github.anatosun.puffer.playback',
         androidNotificationChannelName: 'Playback',
@@ -113,6 +117,7 @@ Future<PlayerHandler> _initAudio() async {
       ),
     );
   } on Object {
-    return PlayerHandler();
+    // Without the system media controls the app plays all the same.
   }
+  return (local, system);
 }

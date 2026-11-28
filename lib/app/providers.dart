@@ -22,6 +22,7 @@ import '../downloads/download_settings.dart';
 import '../downloads/transfer_backend.dart';
 import '../playback/past_queues.dart';
 import '../playback/player_handler.dart';
+import '../playback/system_media_handler.dart';
 import '../playback/prefetch_cache.dart';
 import '../playback/queue_store.dart';
 import '../playback/replay_gain.dart';
@@ -42,6 +43,9 @@ final databaseProvider = Provider<AppDatabase>(
 final playerHandlerProvider = Provider<PlayerHandler>(
   (ref) => throw UnimplementedError(),
 );
+
+/// What the system media controls show; null where nothing registered it, as in tests.
+final systemMediaHandlerProvider = Provider<SystemMediaHandler?>((ref) => null);
 final supportDirectoryProvider = Provider<Directory>(
   (ref) => throw UnimplementedError(),
 );
