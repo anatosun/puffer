@@ -70,8 +70,15 @@ class MaCredentialsNotifier extends Notifier<MaCredentials?> {
     await _save(MaCredentials(baseUrl: base, token: token));
   }
 
-  Future<void> signInWithToken({required String url, required String token}) =>
-      _save(MaCredentials(baseUrl: normaliseMaUrl(url), token: token.trim()));
+  /// Stores [token] once Music Assistant at [url] has accepted it, so an address out of reach or a wrong token is never saved.
+  Future<void> signInWithToken({
+    required String url,
+    required String token,
+  }) async {
+    final base = normaliseMaUrl(url);
+    await maCheckToken(base, token.trim());
+    await _save(MaCredentials(baseUrl: base, token: token.trim()));
+  }
 
   Future<void> _save(MaCredentials credentials) async {
     await secureStorage.write(

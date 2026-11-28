@@ -93,8 +93,9 @@ class _SignInState extends ConsumerState<MusicAssistantSignIn> {
               password: _password.text,
             );
       widget.onSignedIn?.call();
-    } on Exception catch (e) {
-      setState(() => _error = '$e');
+    } on Object catch (e) {
+      // Nothing is stored until Music Assistant answered, so the form stays until it is reached.
+      if (mounted) setState(() => _error = maSignInError(e, _url.text.trim()));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -123,8 +124,8 @@ class _SignInState extends ConsumerState<MusicAssistantSignIn> {
         keyboardType: TextInputType.url,
         autocorrect: false,
         decoration: const InputDecoration(
-          labelText: 'Server address',
-          hintText: 'homeassistant.local:8095',
+          labelText: 'Server URL',
+          hintText: 'http://homeassistant.local:8095',
         ),
       ),
       const SizedBox(height: 12),

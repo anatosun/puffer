@@ -8,7 +8,7 @@ import 'package:puffer/features/login/music_assistant_setup_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('skipping Music Assistant goes home and is not offered again', (
+  testWidgets('skipping Music Assistant goes on to the options, once', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -19,6 +19,10 @@ void main() {
         GoRoute(
           path: '/setup/music-assistant',
           builder: (_, _) => const MusicAssistantSetupPage(),
+        ),
+        GoRoute(
+          path: '/setup/preferences',
+          builder: (_, _) => const Text('Options'),
         ),
         GoRoute(path: '/home', builder: (_, _) => const Text('Home')),
       ],
@@ -45,7 +49,7 @@ void main() {
     await tester.tap(find.text('Skip'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Options'), findsOneWidget);
     expect(ref.read(maSetupOfferedProvider), isTrue);
     expect(prefs.getBool('setup.musicAssistantOffered'), isTrue);
   });

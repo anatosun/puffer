@@ -15,6 +15,7 @@ import '../features/library/library_page.dart';
 import '../features/library/transfers_page.dart';
 import '../features/login/login_page.dart';
 import '../features/login/music_assistant_setup_page.dart';
+import '../features/login/preferences_setup_page.dart';
 import '../features/now_playing/now_playing.dart';
 import '../features/now_playing/now_playing_below.dart';
 import '../features/now_playing/player_bar.dart';
@@ -40,6 +41,7 @@ import 'providers.dart';
 import 'shortcuts.dart';
 import 'sidebar.dart';
 import 'sendspin_providers.dart';
+import 'setup.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final signedIn = ValueNotifier(ref.read(credentialsProvider) != null);
@@ -55,17 +57,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (!signedIn.value) return atLogin ? null : '/login';
       if (!atLogin) return null;
-      // Right after the first sign-in, the setup offers Music Assistant once.
-      final offer =
-          !ref.read(maSetupOfferedProvider) &&
-          ref.read(maCredentialsProvider) == null;
-      return offer ? '/setup/music-assistant' : '/home';
+      // Right after the first sign-in, the setup offers Music Assistant and then its options, each once.
+      return nextSetupPage(ref.read);
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
       GoRoute(
         path: '/setup/music-assistant',
         builder: (_, _) => const MusicAssistantSetupPage(),
+      ),
+      GoRoute(
+        path: '/setup/preferences',
+        builder: (_, _) => const PreferencesSetupPage(),
       ),
       if (carPreviewEnabled)
         GoRoute(

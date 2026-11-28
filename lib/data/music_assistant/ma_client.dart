@@ -33,12 +33,16 @@ Duration maRetryDelay(int attempt, {required bool waiting}) => waiting
     ? MusicAssistantClient.eagerRetryDelay
     : Duration(seconds: min(30, 1 << min(attempt, 5)));
 
-/// Base address of a Music Assistant server, with the scheme and port the person most likely means.
+/// The base URL of a Music Assistant server as the person wrote it, which must name its scheme. Nothing is added, not even a port, since Music Assistant may sit behind a proxy on any port; a trailing slash, query and fragment are dropped.
 Uri normaliseMaUrl(String input) {
-  var text = input.trim();
-  if (!text.contains('://')) text = 'http://$text';
-  var uri = Uri.parse(text);
-  if (!uri.hasPort && uri.scheme == 'http') uri = uri.replace(port: 8095);
+  final uri = Uri.tryParse(input.trim());
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.isEmpty) {
+    throw const FormatException(
+      'Enter the full URL of Music Assistant, such as http://homeassistant.local:8095',
+    );
+  }
   final path = uri.path.endsWith('/')
       ? uri.path.substring(0, uri.path.length - 1)
       : uri.path;
@@ -50,7 +54,51 @@ Uri _wsUri(Uri base) => base.replace(
   path: '${base.path}/ws',
 );
 
-/// One WebSocket session per call, used before a token exists.
+/// How long a sign-in waits for Music Assistant before it counts as out of reach.
+const maSignInTimeout = Duration(seconds: 10);
+
+/// Sends one [command] in a WebSocket session of its own and returns its result, for signing in before a client exists. Throws [MaException] when Music Assistant answers with an error, and [TimeoutException] when it does not answer within [maSignInTimeout].
+Future<MaJson> _askOnce(
+  Uri base,
+  String command,
+  MaJson args,
+  ChannelFactory? connect,
+) async {
+  final channel = (connect ?? WebSocketChannel.connect)(_wsUri(base));
+  Future<MaJson> exchange() async {
+    await channel.ready;
+    final iterator = StreamIterator(
+      channel.stream.map((m) => jsonDecode(m as String) as MaJson),
+    );
+    // Music Assistant speaks first, with its server info.
+    if (!await iterator.moveNext()) {
+      throw const MaException(0, 'The server closed the connection');
+    }
+    channel.sink.add(
+      jsonEncode({'message_id': 'once', 'command': command, 'args': args}),
+    );
+    while (await iterator.moveNext()) {
+      final message = iterator.current;
+      if (message['message_id'] != 'once') continue;
+      if (message.containsKey('error_code')) {
+        throw MaException(
+          message['error_code'] as int,
+          message['details'] as String? ?? 'Music Assistant refused',
+        );
+      }
+      return message['result'] as MaJson? ?? const <String, dynamic>{};
+    }
+    throw const MaException(0, 'The server closed the connection');
+  }
+
+  try {
+    return await exchange().timeout(maSignInTimeout);
+  } finally {
+    unawaited(channel.sink.close());
+  }
+}
+
+/// Logs in with a username and a password and returns a long-lived token.
 Future<String> maLogin(
   Uri base, {
   required String username,
@@ -58,51 +106,40 @@ Future<String> maLogin(
   String deviceName = 'Puffer',
   ChannelFactory? connect,
 }) async {
-  final channel = (connect ?? WebSocketChannel.connect)(_wsUri(base));
-  try {
-    await channel.ready;
-    final messages = channel.stream.map(
-      (m) => jsonDecode(m as String) as MaJson,
+  final result = await _askOnce(base, 'auth/login', {
+    'username': username,
+    'password': password,
+    'device_name': deviceName,
+  }, connect);
+  final token = result['access_token'] as String?;
+  if (result['success'] != true || token == null) {
+    throw MaException(
+      401,
+      result['error'] as String? ?? 'Wrong username or password',
     );
-    final iterator = StreamIterator(messages);
-    if (!await iterator.moveNext()) {
-      throw const MaException(0, 'The server closed the connection');
-    }
-    channel.sink.add(
-      jsonEncode({
-        'message_id': 'login',
-        'command': 'auth/login',
-        'args': {
-          'username': username,
-          'password': password,
-          'device_name': deviceName,
-        },
-      }),
-    );
-    while (await iterator.moveNext()) {
-      final message = iterator.current;
-      if (message['message_id'] != 'login') continue;
-      if (message.containsKey('error_code')) {
-        throw MaException(
-          message['error_code'] as int,
-          message['details'] as String? ?? 'Login failed',
-        );
-      }
-      final result = message['result'] as MaJson? ?? const {};
-      final token = result['access_token'] as String?;
-      if (result['success'] != true || token == null) {
-        throw MaException(
-          401,
-          result['error'] as String? ?? 'Wrong username or password',
-        );
-      }
-      return token;
-    }
-    throw const MaException(0, 'The server closed the connection');
-  } finally {
-    await channel.sink.close();
   }
+  return token;
 }
+
+/// Checks that Music Assistant is reachable at [base] and accepts [token], before the token is stored.
+Future<void> maCheckToken(
+  Uri base,
+  String token, {
+  String deviceName = 'Puffer',
+  ChannelFactory? connect,
+}) => _askOnce(base, 'auth', {
+  'token': token,
+  'device_name': deviceName,
+}, connect);
+
+/// What a sign-in that failed with [error] tells the person, for Music Assistant at the address [url].
+String maSignInError(Object error, String url) => switch (error) {
+  FormatException(:final message) => message,
+  MaException(code: 20 || 21 || 23) => 'Music Assistant rejected the token. Check it, or sign in with your username and password.',
+  MaException(:final message) => message,
+  _ =>
+    'Cannot reach Music Assistant at $url. Check the URL, and that this device is on the same network.',
+};
 
 /// A connection to Music Assistant that authenticates with a token, reconnects after drops, and keeps the state of players and queues current from events.
 class MusicAssistantClient {

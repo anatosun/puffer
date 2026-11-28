@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/playback_providers.dart';
+import '../../app/setup.dart';
 import '../../ui/theme.dart';
 import '../cast/music_assistant_page.dart';
 
-/// The step of the first setup after the Subsonic server: signing in to Music Assistant, or skipping it. Either way it does not come back; Settings → Music Assistant signs in later.
+/// The step of the first setup after the Subsonic server: signing in to Music Assistant, or skipping it. Connect goes on only once Music Assistant has answered; Skip always does. Either way the step does not come back; Settings → Music Assistant signs in later.
 class MusicAssistantSetupPage extends ConsumerWidget {
   const MusicAssistantSetupPage({super.key});
 
@@ -14,7 +15,7 @@ class MusicAssistantSetupPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     void done() {
       ref.read(maSetupOfferedProvider.notifier).set(true);
-      context.go('/home');
+      context.go(nextSetupPage(ref.read));
     }
 
     return Scaffold(

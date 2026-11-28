@@ -25,7 +25,7 @@ void main() {
           'password': 'secret',
           'localUrl': '192.168.1.10:4533',
         },
-        'musicAssistant': {'url': '192.168.1.20', 'token': ' abc '},
+        'musicAssistant': {'url': 'http://192.168.1.20:8095', 'token': ' abc '},
         'settings': {
           'sendspin.enabled': true,
           'sendspin.name': 'Kitchen',
@@ -83,4 +83,13 @@ void main() {
       expect(await FileSecretStore(file).read(key: 'a'), isNull);
     },
   );
+
+  test('a Music Assistant URL without http is skipped, not added to', () {
+    final provisioning = Provisioning.parse(
+      jsonEncode({
+        'musicAssistant': {'url': '192.168.1.20', 'token': 'abc'},
+      }),
+    );
+    expect(provisioning.musicAssistant, isNull);
+  });
 }

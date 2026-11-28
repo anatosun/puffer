@@ -148,12 +148,22 @@ void main() {
     return client;
   }
 
-  test('normalises addresses to http with port 8095', () {
-    expect(normaliseMaUrl('ma.local').toString(), 'http://ma.local:8095');
+  test('keeps the URL as written, without adding a port', () {
     expect(
-      normaliseMaUrl('https://ma.example.com/').toString(),
-      'https://ma.example.com',
+      normaliseMaUrl(' http://ma.local:8095/ ').toString(),
+      'http://ma.local:8095',
     );
+    expect(normaliseMaUrl('http://ma.local').toString(), 'http://ma.local');
+    expect(
+      normaliseMaUrl('https://ma.example.com/music-assistant/').toString(),
+      'https://ma.example.com/music-assistant',
+    );
+  });
+
+  test('refuses an address without http or https', () {
+    for (final input in ['ma.local', 'ma.local:8095', 'ws://ma.local', '']) {
+      expect(() => normaliseMaUrl(input), throwsFormatException, reason: input);
+    }
   });
 
   test('logs in and returns the access token', () async {
@@ -166,6 +176,39 @@ void main() {
       throwsA(isA<MaException>()),
     );
   });
+
+  test('a token is checked against the server before it is stored', () async {
+    await maCheckToken(server.base, 'secret');
+    await expectLater(
+      maCheckToken(server.base, 'wrong'),
+      throwsA(isA<MaException>().having((e) => e.code, 'code', 23)),
+    );
+  });
+
+  test(
+    'a server out of reach fails the sign-in with a clear message',
+    () async {
+      // Nothing listens on a port just released.
+      final closed = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final url = 'http://127.0.0.1:${closed.port}';
+      await closed.close();
+      Object? error;
+      try {
+        await maCheckToken(Uri.parse(url), 'secret');
+      } on Object catch (e) {
+        error = e;
+      }
+      expect(error, isNotNull);
+      expect(
+        maSignInError(error!, url),
+        contains('Cannot reach Music Assistant'),
+      );
+      expect(
+        maSignInError(const MaException(23, 'Invalid'), url),
+        contains('rejected the token'),
+      );
+    },
+  );
 
   test('authenticates and loads players and queues', () async {
     final client = await connected();

@@ -31,12 +31,7 @@ class Provisioning {
     final ma = json['musicAssistant'] as Map<String, dynamic>?;
     return Provisioning(
       server: subsonic == null ? null : _server(subsonic),
-      musicAssistant: ma == null
-          ? null
-          : MaCredentials(
-              baseUrl: normaliseMaUrl(ma['url'] as String),
-              token: (ma['token'] as String).trim(),
-            ),
+      musicAssistant: ma == null ? null : _musicAssistant(ma),
       settings: (json['settings'] as Map<String, dynamic>?) ?? const {},
     );
   }
@@ -46,6 +41,19 @@ class Provisioning {
 
   /// Values for the preferences of the app, by key, such as `sendspin.enabled` or `ma.stayOnSpeaker`.
   final Map<String, dynamic> settings;
+
+  /// A URL without http or https leaves Music Assistant as the app has it, so the kiosk still starts; the reason goes to the log.
+  static MaCredentials? _musicAssistant(Map<String, dynamic> json) {
+    try {
+      return MaCredentials(
+        baseUrl: normaliseMaUrl(json['url'] as String),
+        token: (json['token'] as String).trim(),
+      );
+    } on FormatException catch (e) {
+      stderr.writeln('$provisioningVariable: musicAssistant.url: ${e.message}');
+      return null;
+    }
+  }
 
   static ServerCredentials _server(Map<String, dynamic> json) {
     final url = json['url'] as String;

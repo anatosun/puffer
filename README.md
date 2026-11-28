@@ -54,7 +54,7 @@ The app connects only to the servers a person configures. It has no advertising,
 ## Requirements
 
 - A Subsonic or OpenSubsonic server. Puffer signs in with a username and a password, or with an API key on servers that support the OpenSubsonic `apiKeyAuthentication` extension.
-- For multi-room playback, a Music Assistant server, reached at `<host>:8095` with a long-lived access token or a username and a password.
+- For multi-room playback, a Music Assistant server, reached at its full URL, such as `http://<host>:8095`, with a long-lived access token or a username and a password.
 
 ## Install
 
